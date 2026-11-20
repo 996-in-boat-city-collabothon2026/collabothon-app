@@ -72,13 +72,16 @@ Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <na
 - [x] Test: gap of 12 300 zł → credit line 13 000 zł. No gap → no credit line. Overdue invoice → one reminder.
 
 ### [A] 3. `rules/vat.ts`, `zus.ts`, `pit.ts`, `ksef.ts` — Marek ⚪
-- [ ] `vat.ts`: output VAT (sales) − input VAT (purchases) for last month, due the 25th of this month → `NEEDS_APPROVAL` `tax_payment`.
-      If a VAT obligation exists in `db.obligations`, use it as `refId` so approving marks it paid.
-- [ ] `zus.ts` and `pit.ts`: unpaid ZUS / PIT obligations due the 20th → `NEEDS_APPROVAL` `tax_payment`.
-- [ ] `ksef.ts`: `rejected` invoices → `ANALYSED` `ksef_revalidate` + `RECOMMENDED` `ksef_fix` (with `rejectionReason`);
-      `accepted` without a UPO → `RECOMMENDED` `ksef_fix` "Download the UPO".
-- [ ] Delete the `deadlines` and `ksefRejected` starters from `rules/index.ts`.
-- [ ] Tests: VAT amount for a tiny invoice set, ZUS due date = 20th, rejected invoice → 2 actions.
+- [x] `vat.ts`: unpaid VAT obligation in `db.obligations` due within 10 days (the 25th) → `NEEDS_APPROVAL` `tax_payment`.
+      In the demo the amount and due date come from the stored obligation (`refId` = its id, so approving marks it paid);
+      the seed invoices cover only part of the month, so output − input VAT from them would be wrong.
+      _(done; seed → 14 230 zł due 2026-11-25. Shared logic in `rules/taxDue.ts`)_
+- [x] `zus.ts` and `pit.ts`: unpaid ZUS / PIT obligations due the 20th, same 10-day window → `NEEDS_APPROVAL` `tax_payment`.
+      _(done; no card on the seed date, on 12.12.2026 → 5 800 zł and 2 100 zł)_
+- [x] `ksef.ts`: `rejected` invoices → `ANALYSED` `ksef_revalidate` + `RECOMMENDED` `ksef_fix` "Fix and resend" (with `rejectionReason`);
+      `accepted` **sales** invoice without a UPO → `RECOMMENDED` `ksef_fix` "Download the UPO".
+- [x] Delete the `deadlines` and `ksefRejected` starters from `rules/index.ts`.
+- [x] Tests: VAT from the obligation (also paid VAT, 10/11-day window), ZUS/PIT due the 20th, rejected invoice → 2 actions.
 
 ### [B] 4. `rules/expenses.ts` + `rules/margin.ts` — Tomasz 🟢
 - [x] `expenses.ts`: biggest category in the last 30 days vs the 30 days before (`db.expenses`) → `RECOMMENDED` `cost_cut`
