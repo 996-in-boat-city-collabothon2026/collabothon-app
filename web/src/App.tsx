@@ -1,9 +1,12 @@
 // App shell: sidebar on desktop, bottom tab bar on mobile.
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import type { User } from '@cfo/shared';
 import { api, useApi } from './api/client';
 import { LlmStatusBadge } from './components/ui';
 import { useT } from './i18n';
 import Dashboard from './pages/Dashboard';
+import Login from './pages/Login';
 import Approvals from './pages/Approvals';
 import Boardroom from './pages/Boardroom';
 import Ksef from './pages/Ksef';
@@ -22,6 +25,31 @@ const NAV = [
 export default function App() {
   const { t, lang, setLang } = useT();
   const { data: health } = useApi(api.llmHealth);
+  const navigate = useNavigate();
+  // undefined = still checking, null = not logged in
+  const [user, setUser] = useState<User | null | undefined>(undefined);
+
+  useEffect(() => {
+    api.me().then((r) => setUser(r.user)).catch(() => setUser(null));
+  }, []);
+
+  async function logout() {
+    try {
+      await api.logout();
+    } finally {
+      setUser(null);
+    }
+  }
+
+  if (user === undefined) return <p className="p-4 text-slate-500">{t('loading')}</p>;
+  if (user === null) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login onLogin={(u) => { setUser(u); navigate('/'); }} />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    );
+  }
 
   return (
     <div className="min-h-screen md:flex">
@@ -42,9 +70,13 @@ export default function App() {
         <header className="flex items-center justify-between gap-2 bg-slate-900 px-4 py-3 text-white">
           <span className="font-bold md:hidden">🔧 WarsztatCFO</span>
           <LlmStatusBadge health={health} />
-          <button onClick={() => setLang(lang === 'pl' ? 'en' : 'pl')} className="rounded-lg bg-white/10 px-3 py-1 text-sm">
-            {lang === 'pl' ? 'EN' : 'PL'}
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="hidden text-sm text-white/80 sm:inline">{user.name} · demo</span>
+            <button onClick={() => setLang(lang === 'pl' ? 'en' : 'pl')} className="min-h-11 rounded-lg bg-white/10 px-3 text-sm">
+              {lang === 'pl' ? 'EN' : 'PL'}
+            </button>
+            <button onClick={logout} className="min-h-11 rounded-lg bg-white/10 px-3 text-sm">{t('logout')}</button>
+          </div>
         </header>
         <main className="mx-auto max-w-5xl p-4">
           <Routes>
@@ -54,6 +86,7 @@ export default function App() {
             <Route path="/ksef" element={<Ksef />} />
             <Route path="/activity" element={<Activity />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>
