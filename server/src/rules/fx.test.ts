@@ -19,7 +19,8 @@ describe('fx rule (Kasia)', () => {
     expect(hedges[0].tier).toBe('NEEDS_APPROVAL');
     expect(hedges[0].amountPLN).toBe(toPLN(1500, 'EUR'));
     expect(hedges[0].title).toContain('EUR');
-    expect(actions.filter((a) => a.tier === 'RECOMMENDED')).toHaveLength(2);
+    expect(actions.filter((a) => a.tier === 'RECOMMENDED').map((a) => a.kind)).toEqual(['info']); // natural hedge
+    expect(actions.find((a) => a.kind === 'supplier_payment')!.tier).toBe('NEEDS_APPROVAL'); // pay early moves money
   });
 
   it('no foreign invoices: no actions', () => {
@@ -45,9 +46,9 @@ describe('"Pay supplier early" shows the risk before and after paying (Kasia)', 
     expect(exposureAfterPaying(eur, krause)).toEqual({ net: -2100, shockPLN: 448.35 });
   });
 
-  it('the card keeps its tier, says the risk goes up, and names the right direction', () => {
+  it('the card needs approval, says the risk goes up, and names the right direction', () => {
     const card = fx().find((a) => a.kind === 'supplier_payment')!;
-    expect(card.tier).toBe('RECOMMENDED');
+    expect(card.tier).toBe('NEEDS_APPROVAL');
     expect(card.refId).toBe('inv-p-002');
     expect(card.title).toMatch(/320,25\szł → 448,35\szł/);
     const why = card.why.join('\n');

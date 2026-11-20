@@ -227,3 +227,35 @@ describe('approve: VAT and credit line through domain/settle', () => {
     expect(db.activity).toHaveLength(activity);
   });
 });
+
+// ---------- Only NEEDS_APPROVAL cards can be approved; every kind has a simulated effect ----------
+describe('approve: advice is refused, decisions are simulated per kind', () => {
+  beforeEach(() => resetDb());
+
+  it('RECOMMENDED card → 400, nothing changes', async () => {
+    const app = await makeApp();
+    const advice = (await run(app)).find((a) => a.tier === 'RECOMMENDED')!;
+    const activity = db.activity.length;
+    const res = await approve(app, advice.id);
+    expect(res.statusCode).toBe(400);
+    expect(db.actions.find((a) => a.id === advice.id)!.status).toBe('open');
+    expect(db.bank.balancePLN).toBe(38400);
+    expect(db.activity).toHaveLength(activity);
+  });
+
+  it('"Pay Krause early" now needs approval; forward and reminder write clear simulated lines', async () => {
+    const app = await makeApp();
+    const cards = await run(app);
+    expect(cards.find((a) => a.kind === 'supplier_payment')!.tier).toBe('NEEDS_APPROVAL');
+
+    const hedge = cards.find((a) => a.kind === 'fx_hedge')!;
+    expect((await approve(app, hedge.id)).statusCode).toBe(200);
+    expect(db.activity[0].text).toMatch(/Simulated forward contract: buy 1500 EUR @ 4,27 zł/);
+
+    const reminder = cards.find((a) => a.kind === 'payment_reminder');
+    if (reminder) {
+      expect((await approve(app, reminder.id)).statusCode).toBe(200);
+      expect(db.activity[0].text).toMatch(/Simulated reminder e-mail to /);
+    }
+  });
+});

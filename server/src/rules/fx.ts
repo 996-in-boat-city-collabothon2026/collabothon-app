@@ -23,8 +23,8 @@ export interface FxExposure {
 }
 
 const fmtNum = (n: number, digits = 2) => new Intl.NumberFormat('pl-PL', { maximumFractionDigits: digits }).format(n);
-const fmtFx = (n: number, c: ForeignCurrency) => `${fmtNum(n)} ${c}`;
-const fmtRate = (n: number) => `${fmtNum(n, 4)} zł`;
+export const fmtFx = (n: number, c: ForeignCurrency) => `${fmtNum(n)} ${c}`;
+export const fmtRate = (n: number) => `${fmtNum(n, 4)} zł`;
 
 const unpaid = (currency: ForeignCurrency) => db.invoices.filter((i) => !i.paid && i.currency === currency);
 const sumGross = (invoices: Invoice[]) => round2(invoices.reduce((s, i) => s + invoiceGross(i), 0));
@@ -113,7 +113,7 @@ function actionsFor(e: FxExposure): DraftAction[] {
     actions.push({
       cfo: 'kasia',
       kind: 'supplier_payment',
-      tier: 'RECOMMENDED',
+      tier: 'NEEDS_APPROVAL', // it moves money, so the owner must say yes
       execution: 'simulated',
       title: `Pay ${biggest.counterparty.name} early (${c} risk ${fmtPLN(e.shockPLN)} → ${fmtPLN(after.shockPLN)})`,
       why: [
