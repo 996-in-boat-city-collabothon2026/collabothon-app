@@ -30,7 +30,7 @@ export default function Approvals() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-4xl font-semibold tracking-tight">✋ {t('approvals')}</h1>
+        <h1 className="text-gradient pb-1 text-4xl font-semibold tracking-tight">✋ {t('approvals')}</h1>
         {data && <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-sm text-rose-800">{queue.length} {t('waiting')}</span>}
       </div>
 

@@ -62,7 +62,7 @@ export default function Ksef() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-4xl font-semibold tracking-tight">{t('ksef_title')}</h1>
+        <h1 className="text-gradient pb-1 text-4xl font-semibold tracking-tight">{t('ksef_title')}</h1>
         <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-sm font-medium text-violet-800">🧪 {t('ksef_sim_badge')}</span>
       </div>
       <p className="rounded-xl bg-violet-50 px-4 py-3 text-violet-900">🧪 {t('ksef_sim_notice')}</p>
@@ -147,7 +147,7 @@ function InvoiceTable({ rows, onSend, onFix, onView }: {
                 className={`${BTN} border border-slate-300 bg-white disabled:opacity-40`}>UPO</button>
             </div>
             {onSend && status === 'draft' && (
-              <button onClick={() => onSend(inv)} className={`${BTN} bg-[#0071e3] text-white md:col-span-6 md:justify-self-end`}>
+              <button onClick={() => onSend(inv)} className={`${BTN} bg-stone-950 text-white md:col-span-6 md:justify-self-end`}>
                 {t('send_ksef')}
               </button>
             )}
@@ -202,7 +202,7 @@ function FixSheet({ inv, onClose, onSubmit }: {
           </span>
         </label>
         <button disabled={!!nipErr || !!nameErr}
-          className="min-h-12 w-full rounded-full bg-[#0071e3] font-semibold text-white disabled:opacity-40">
+          className="min-h-12 w-full rounded-full bg-stone-950 font-semibold text-white disabled:opacity-40">
           {t('resend_btn')}
         </button>
       </form>

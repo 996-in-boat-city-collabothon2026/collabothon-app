@@ -21,10 +21,29 @@ export function fmtMoney(n: number, currency: Currency = 'PLN'): string {
 export const fmtDay = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
 /** Big page title on the left, optional pill / buttons on the right (same on every page). */
+/** Animated number for display only: counts from 0 up to the API value. Instant when motion is reduced. */
+export function useCountUp(target: number | undefined, ms = 900): number | undefined {
+  const [v, setV] = useState(target);
+  useEffect(() => {
+    if (target === undefined) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setV(target); return; }
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - t0) / ms);
+      setV(p === 1 ? target : Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms]);
+  return v;
+}
+
 export function PageHeader({ title, children }: { title: ReactNode; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
+      <h1 className="text-gradient pb-1 text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
       {children}
     </div>
   );
@@ -122,7 +141,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
       </div>
       {canDecide && (
         <div className="mt-3 flex gap-2">
-          <button onClick={onApprove} className="min-h-12 flex-1 rounded-full bg-[#0071e3] py-2 font-semibold text-white">{t('approve')} →</button>
+          <button onClick={onApprove} className="min-h-12 flex-1 rounded-full bg-stone-950 py-2 font-semibold text-white">{t('approve')} →</button>
           <button onClick={onReject} className="min-h-12 flex-1 rounded-full border border-stone-300 bg-white py-2 font-semibold">{t('reject')}</button>
         </div>
       )}

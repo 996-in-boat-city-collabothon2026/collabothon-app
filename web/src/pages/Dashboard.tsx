@@ -7,7 +7,8 @@ import { Area, AreaChart, Cell, Label, Pie, PieChart, ReferenceDot, ReferenceLin
 import type { Action, ExpenseCategory, Forecast, Tier } from '@cfo/shared';
 import { api, useApi } from '../api/client';
 import { TypingDots } from '../components/AskBubble';
-import { ActionCard, PageHeader, Status, fmtDay, fmtPLN, useToast } from '../components/ui';
+import AgentHub from '../components/AgentHub';
+import { ActionCard, PageHeader, useCountUp, Status, fmtDay, fmtPLN, useToast } from '../components/ui';
 import { useT } from '../i18n';
 
 const RANGES = [30, 60, 90] as const;
@@ -58,6 +59,7 @@ export default function Dashboard() {
   const ex = expenses.data;
   const open = [...(actions.data ?? [])].sort((a, b) => PRIORITY[a.tier] - PRIORITY[b.tier]);
   const count = (tier: Tier) => open.filter((a) => a.tier === tier).length;
+  const shownBalance = useCountUp(k?.balancePLN);
 
   // One plain sentence about the money (comparison only – the numbers come from the rules engine).
   let verdict: { tone: 'ok' | 'warn' | 'bad'; text: string } | null = null;
@@ -75,8 +77,8 @@ export default function Dashboard() {
       </span>
       <PageHeader title={t('dashboard')}>
         <span className="flex flex-wrap items-center gap-2">
-        <Link to="/ksef" className="inline-flex min-h-12 items-center gap-3 rounded-full bg-[#0071e3] px-6 font-semibold text-white hover:bg-[#0077ed]">
-          🧾 {t('invoices')} <span aria-hidden="true">→</span>
+        <Link to="/ksef" className="inline-flex min-h-12 items-center gap-3 rounded-full bg-stone-950 px-6 font-semibold text-white hover:bg-stone-800">
+          🧾 {t('invoices')} <span aria-hidden="true">↗</span>
         </Link>
         <span className="flex items-center gap-1 rounded-full border border-black/10 bg-white p-1" role="group" aria-label={t('forecast_title')}>
           {s && <span className="hidden px-3 text-sm font-medium sm:inline">{t('today')} {fmtDay(s.shop.today)}</span>}
@@ -94,9 +96,9 @@ export default function Dashboard() {
 
       {/* Row 1: the balance, then the cash forecast. One message per card. */}
       <div className="grid gap-8 lg:grid-cols-[1fr_1.7fr]">
-        <section className="surface flex flex-col justify-center p-8">
+        <section className="surface glow-mint flex flex-col justify-center p-8">
           <h2 className="text-xl font-semibold">{t('you_have')}</h2>
-          {k && <p className="mt-3 text-5xl font-bold leading-none tracking-tight tabular-nums sm:text-6xl">{fmtPLN(k.balancePLN)}</p>}
+          {k && <p className="mt-3 text-5xl font-bold leading-none tracking-tight tabular-nums sm:text-6xl" aria-label={fmtPLN(k.balancePLN)}>{fmtPLN(shownBalance ?? k.balancePLN)}</p>}
           {s && <p className="mt-4 text-lg text-stone-800">{t('today')} {fmtDay(s.shop.today)}</p>}
         </section>
 
@@ -159,13 +161,22 @@ export default function Dashboard() {
             ) : <p className="mt-3 text-lg text-stone-800">—</p>}
           </section>
 
-          <Link to="/approvals" className="surface block p-8 hover:ring-2 hover:ring-[#0071e3]">
+          <Link to="/approvals" className="surface block p-8 hover:ring-2 hover:ring-emerald-600">
             <h2 className="text-xl font-semibold">{t('waiting_for_you')}</h2>
             <p className="mt-3 text-6xl font-bold leading-none tracking-tight">{actions.data ? count('NEEDS_APPROVAL') : '…'}</p>
-            <p className="mt-3 text-lg font-semibold text-[#0071e3]">{t('see_all')} →</p>
+            <p className="mt-3 text-lg font-semibold text-emerald-700">{t('see_all')} →</p>
           </Link>
         </div>
       </div>
+
+      {/* The AI team: 4 agents connected to the data sources */}
+      <section className="surface glow-mint grid items-center gap-6 p-8 lg:grid-cols-[1fr_1.3fr]">
+        <div>
+          <h2 className="text-3xl font-semibold tracking-tight"><span className="text-gradient">{t('hub_title')}</span></h2>
+          <p className="mt-3 text-lg text-stone-800">{t('hub_text')}</p>
+        </div>
+        <AgentHub />
+      </section>
 
       {/* What the agents found – the 3 most important, approvals first */}
       <section className="space-y-4 pt-4">
@@ -176,8 +187,8 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={runCheck} disabled={running}
-              className="inline-flex min-h-12 items-center gap-3 rounded-full bg-[#0071e3] px-6 font-semibold text-white hover:bg-[#0077ed] disabled:opacity-60">
-              {running ? t('checking') : t('run_check')} <span aria-hidden="true">→</span>
+              className="inline-flex min-h-12 items-center gap-3 rounded-full bg-stone-950 px-6 font-semibold text-white hover:bg-stone-800 disabled:opacity-60">
+              {running ? t('checking') : t('run_check')} <span aria-hidden="true">↗</span>
             </button>
             {open.length > 3 && (
               <Link to="/approvals" className="inline-flex min-h-12 items-center gap-3 rounded-full border border-black/10 bg-white px-6 font-semibold">
@@ -186,7 +197,7 @@ export default function Dashboard() {
             )}
           </div>
         </div>
-        {running && <p className="flex items-center gap-3 text-stone-700" aria-live="polite"><TypingDots /> {t('agents_working')}</p>}
+        {running && <p className="flex items-center gap-3 text-stone-700" aria-live="polite"><TypingDots /> <span className="ai-shimmer font-semibold">{t('agents_working')}</span></p>}
         {log.length > 0 && (
           <div className="surface p-6"><ul className="space-y-1 text-stone-700">{log.map((l, i) => <li key={i}>{l}</li>)}</ul></div>
         )}
@@ -226,13 +237,13 @@ function CashChart({ f }: { f: Forecast }) {
         <AreaChart data={pts} margin={{ top: 16, right: 30, left: 0, bottom: 4 }}>
           <defs>
             <linearGradient id="cashFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset={0} stopColor="#0071e3" stopOpacity={0.2} />
-              <stop offset={zeroAt} stopColor="#0071e3" stopOpacity={0.05} />
+              <stop offset={0} stopColor="#059669" stopOpacity={0.2} />
+              <stop offset={zeroAt} stopColor="#059669" stopOpacity={0.05} />
               <stop offset={zeroAt} stopColor="#e11d48" stopOpacity={0.15} />
               <stop offset={1} stopColor="#e11d48" stopOpacity={0.3} />
             </linearGradient>
             <linearGradient id="cashLine" x1="0" y1="0" x2="0" y2="1">
-              <stop offset={zeroAt} stopColor="#0071e3" />
+              <stop offset={zeroAt} stopColor="#059669" />
               <stop offset={zeroAt} stopColor="#e11d48" />
             </linearGradient>
           </defs>

@@ -43,7 +43,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-4xl font-semibold tracking-tight">⚙️ {t('settings')}</h1>
+      <h1 className="text-gradient pb-1 text-4xl font-semibold tracking-tight">⚙️ {t('settings')}</h1>
 
       <Card title={t('autonomy_title')}>
         <Status loading={loading && !data} error={error} />

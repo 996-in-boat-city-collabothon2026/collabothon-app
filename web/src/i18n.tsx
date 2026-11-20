@@ -29,6 +29,8 @@ const DICT: Record<string, { pl: string; en: string }> = {
   login_tagline: { pl: 'Twój AI-dyrektor finansowy dla warsztatu', en: 'Your AI finance director for the workshop' },
   login_h1a: { pl: 'Twój zespół finansowy', en: 'Your finance team' },
   login_h1b: { pl: 'na autopilocie', en: 'on autopilot' },
+  hub_title: { pl: 'Twój zespół AI pracuje', en: 'Your AI team is working' },
+  hub_text: { pl: 'Anna, Tomasz, Kasia i Marek co chwilę sprawdzają bank, faktury KSeF i kursy NBP. Nic nie wydadzą bez Twojej zgody.', en: 'Anna, Tomasz, Kasia and Marek keep checking the bank, KSeF invoices and NBP rates. Nothing is paid without your OK.' },
   lowest_point: { pl: 'Najniżej', en: 'Lowest' },
   agents_on_watch: { pl: '4 agentów pilnuje Twoich pieniędzy', en: '4 agents watch your money' },
   login_agents: { pl: 'Twoi agenci', en: 'Your agents' },

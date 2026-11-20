@@ -77,7 +77,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        <main className="mx-auto max-w-6xl px-4 pt-8">
+        <main className="mx-auto min-h-screen max-w-6xl px-4 pt-8 lg:border-x lg:border-black/[0.07] lg:px-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/approvals" element={<Approvals />} />

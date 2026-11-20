@@ -13,7 +13,7 @@ export function TypingDots() {
   return (
     <span className="inline-flex items-center gap-1" aria-hidden="true">
       {[0, 150, 300].map((d) => (
-        <span key={d} className="h-2 w-2 rounded-full bg-slate-400 motion-safe:animate-bounce" style={{ animationDelay: `${d}ms` }} />
+        <span key={d} className="h-2 w-2 rounded-full bg-emerald-500 motion-safe:animate-bounce" style={{ animationDelay: `${d}ms` }} />
       ))}
     </span>
   );
@@ -58,7 +58,7 @@ export default function AskBubble() {
       {open && (
         <div role="dialog" aria-label={t('ask_title')}
           className="fixed bottom-40 right-4 z-40 flex h-[min(520px,calc(100vh-13rem))] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden surface shadow-xl md:bottom-24">
-          <header className="flex items-center gap-2 border-b border-stone-200 py-2 pl-4 pr-2">
+          <header className="flex items-center gap-2 border-b border-stone-200 bg-gradient-to-r from-emerald-50 to-white py-2 pl-4 pr-2">
             <span className="flex-1 font-semibold">💬 {t('ask_title')}</span>
             <button onClick={() => setOpen(false)} aria-label={t('close')} className="h-12 w-12 rounded-full hover:bg-stone-100">✕</button>
           </header>
@@ -66,7 +66,7 @@ export default function AskBubble() {
           <div ref={listRef} className="flex flex-1 flex-col gap-3 overflow-y-auto p-3">
             <p className="rounded-2xl rounded-bl-sm bg-stone-100 px-3 py-2 text-base">{t('ask_hello')}</p>
             {msgs.map((m, i) => m.from === 'me' ? (
-              <p key={i} className="max-w-[85%] self-end rounded-2xl rounded-br-sm bg-[#0071e3] px-3 py-2 text-base text-white">{m.text}</p>
+              <p key={i} className="max-w-[85%] self-end rounded-2xl rounded-br-sm bg-stone-950 px-3 py-2 text-base text-white">{m.text}</p>
             ) : (
               <div key={i} className="flex max-w-[92%] items-end gap-2">
                 {m.cfo && <CfoAvatar cfo={m.cfo} size={30} />}
@@ -92,7 +92,7 @@ export default function AskBubble() {
           <form onSubmit={submit} className="flex gap-2 border-t border-slate-200 p-3">
             <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={t('ask_placeholder')}
               aria-label={t('ask_placeholder')} className="min-h-12 min-w-0 flex-1 rounded-xl border border-slate-300 px-3" />
-            <button disabled={busy || !input.trim()} className="min-h-12 rounded-full bg-[#0071e3] px-4 font-semibold text-white disabled:opacity-40">
+            <button disabled={busy || !input.trim()} className="min-h-12 rounded-full bg-stone-950 px-4 font-semibold text-white disabled:opacity-40">
               {t('send')}
             </button>
           </form>
@@ -100,7 +100,7 @@ export default function AskBubble() {
       )}
 
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? t('close') : t('ask_title')}
-        className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#0071e3] text-2xl text-white shadow-md hover:bg-[#0077ed] md:bottom-6">
+        className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 ring-4 ring-emerald-100 text-2xl text-white shadow-md hover:bg-stone-800 md:bottom-6">
         {open ? '✕' : '💬'}
       </button>
     </>
