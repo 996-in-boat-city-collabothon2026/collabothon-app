@@ -121,28 +121,32 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
   const [imgOk, setImgOk] = useState(true);
   const hat = HATS[hatId];
   if (imgOk) {
-    // "Breaking the frame": ONE picture. A mask keeps it inside the circle at the bottom,
-    // and lets everything above the circle's middle (hair + hat) show over the ring – no seams.
+    // "Breaking the frame" with no seam: inside the circle the full-colour picture (its own background,
+    // whole body coloured); above the circle the SAME picture without background, so hair + hat stick out.
+    // Both pictures share exactly the same size and position (normalised in web/public/avatars).
     const S = Math.round(size * 1.6);
     const ring = hat.color === '#f8fafc' ? '#a1a1aa' : hat.color;
-    const T = Math.round(S * 0.42); // room above the circle for the hat
-    const X = Math.round(S * 0.2); // room left/right for the brim
-    const r = S / 2;
-    const mask = `radial-gradient(circle ${r}px at ${X + r}px ${T + r}px, #000 ${r - 0.5}px, transparent ${r}px), linear-gradient(#000, #000)`;
+    const base = avatarSrc(hatId).replace('-hat.png', '');
+    const img = { width: S * 1.18, height: S * 1.18, left: -S * 0.09, top: -S * 0.26 } as const;
+    const ringW = Math.max(2, S / 28);
+    // the cut-out covers everything outside the inner edge of the ring, so the hat sits IN FRONT of the ring
+    const outside = `radial-gradient(circle ${S / 2}px at 50% ${S * 0.26 + S / 2}px, transparent ${S / 2 - ringW - 1}px, #000 ${S / 2 - ringW}px)`;
     return (
       <span title={label} role="img" aria-label={label} className="avatar-3d relative inline-block shrink-0"
-        style={{ width: S, height: S, marginTop: T * 0.85 }}>
-        <span className="absolute inset-0 rounded-full"
-          style={{ background: '#f4f4f5', boxShadow: `inset 0 0 0 ${Math.max(2, S / 26)}px ${ring}` }} />
-        <span className="avatar-fig absolute" style={{
-          left: -X, top: -T, width: S + 2 * X, height: S + T,
-          WebkitMaskImage: mask, maskImage: mask,
-          WebkitMaskSize: `100% 100%, 100% ${T + r}px`, maskSize: `100% 100%, 100% ${T + r}px`,
-          WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
-        }}>
-          <img src={avatarSrc(hatId).replace('-hat.png', '-cut.png')} alt="" loading="lazy" decoding="async"
-            onError={() => setImgOk(false)} className="absolute max-w-none"
-            style={{ width: S * 1.15, height: S * 1.15, left: X - S * 0.075, top: T - S * 0.2 }} />
+        style={{ width: S, height: S, marginTop: S * 0.26 }}>
+        <span className="avatar-fig absolute inset-0">
+          {/* inside the circle: full picture */}
+          <span className="absolute inset-0 overflow-hidden rounded-full">
+            <img src={`${base}-full.png`} alt="" loading="lazy" decoding="async" onError={() => setImgOk(false)}
+              className="absolute max-w-none" style={img} />
+          </span>
+          <span className="pointer-events-none absolute inset-0 rounded-full" style={{ boxShadow: `inset 0 0 0 ${ringW}px ${ring}` }} />
+          {/* outside the circle (top only): cut-out, so the hat breaks the frame */}
+          <span className="absolute" style={{ left: img.left, top: img.top, width: img.width, height: S * 0.26 + S / 2,
+            WebkitMaskImage: outside, maskImage: outside }}>
+            <img src={`${base}-cut.png`} alt="" loading="lazy" decoding="async"
+              className="absolute left-0 top-0 max-w-none" style={{ width: img.width, height: img.height }} />
+          </span>
         </span>
       </span>
     );

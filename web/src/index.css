@@ -162,7 +162,7 @@ button, a { transition-property: color, background-color, border-color; transiti
 
 /* 3D agent pictures: one picture per agent, the same gentle bob and the same hover tilt for all */
 @keyframes avatar-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-.avatar-fig img { animation: avatar-bob 3.2s ease-in-out infinite; transform-origin: 50% 60%; }
-.avatar-3d:hover .avatar-fig img { animation: none; transform: rotate(-5deg); transition: transform 200ms ease; }
+.avatar-fig { animation: avatar-bob 3.2s ease-in-out infinite; transform-origin: 50% 70%; }
+.avatar-3d:hover .avatar-fig { animation: none; transform: rotate(-4deg); transition: transform 200ms ease; }
 .avatar-hat { transform-box: fill-box; transform-origin: 50% 60%; animation: avatar-bob 3.2s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .avatar-fig img, .avatar-hat { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .avatar-fig, .avatar-hat { animation: none; } }
