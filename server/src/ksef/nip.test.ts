@@ -10,11 +10,11 @@ describe('NIP checksum', () => {
 
   it('rejects a wrong check digit', () => {
     expect(isValidNip('1234563219')).toBe(false);
-    expect(nipError('1234563219')).toMatch(/suma kontrolna/);
+    expect(nipError('1234563219')).toMatch(/wrong checksum/);
   });
 
   it('rejects wrong length (the demo invoice FV/2026/11/009)', () => {
-    expect(nipError('94412345')).toMatch(/10 cyfr/);
+    expect(nipError('94412345')).toMatch(/10 digits/);
   });
 
   it('skips foreign EU VAT ids', () => {

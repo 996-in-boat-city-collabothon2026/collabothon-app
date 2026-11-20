@@ -42,6 +42,15 @@ export default function Boardroom() {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [shown, typing, phase]);
   useEffect(() => () => { run.current++; }, []); // stop revealing when leaving the page
 
+  // While the model on OpenShift AI is thinking (up to ~24 s), count the seconds so the page never looks frozen.
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    if (phase !== 'thinking') return;
+    setSecs(0);
+    const timer = window.setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [phase]);
+
   async function start(e?: FormEvent) {
     e?.preventDefault();
     const subject = custom.trim() || topic;
@@ -97,11 +106,12 @@ export default function Boardroom() {
         </div>
         <p className="mt-3 text-lg font-semibold" aria-live="polite">
           {phase === 'idle' && t('pick_topic')}
-          {phase === 'thinking' && <span className="ai-shimmer">{t('cfos_thinking')}</span>}
+          {phase === 'thinking' && <span className="ai-shimmer">{t('cfos_thinking')} {secs > 0 && `${secs} s`}</span>}
           {phase === 'talking' && `„${subject}”`}
           {phase === 'done' && t('meeting_done')}
           {phase === 'error' && <span className="text-accent-ink">{t('meeting_failed')}</span>}
         </p>
+        {phase === 'thinking' && <p className="mt-1 text-sm text-stone-600">{t('thinking_note')}</p>}
 
         <form onSubmit={start} className="mt-4 w-full space-y-3">
           <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label={t('topic')}>

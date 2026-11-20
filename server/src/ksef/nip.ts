@@ -18,7 +18,7 @@ export function isValidNip(nip: string): boolean {
 export function nipError(nip: string): string | null {
   if (isForeignVatId(nip)) return null;
   const d = normalizeNip(nip);
-  if (!/^\d{10}$/.test(d)) return 'Nieprawidłowy NIP nabywcy (Podmiot2): wymagane 10 cyfr';
-  if (!isValidNip(d)) return 'Nieprawidłowy NIP nabywcy (Podmiot2): błędna suma kontrolna';
+  if (!/^\d{10}$/.test(d)) return 'Invalid buyer NIP (Podmiot2): 10 digits required';
+  if (!isValidNip(d)) return 'Invalid buyer NIP (Podmiot2): wrong checksum';
   return null;
 }

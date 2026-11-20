@@ -23,7 +23,7 @@ const NAV = [
 ];
 
 export default function App() {
-  const { t, lang, setLang } = useT();
+  const { t } = useT();
   const { data: health } = useApi(api.llmHealth);
   const navigate = useNavigate();
   // undefined = still checking, null = not logged in
@@ -69,10 +69,7 @@ export default function App() {
             </nav>
             <div className="flex items-center gap-1.5">
               <LlmStatusBadge health={health} />
-              <button onClick={() => setLang(lang === 'pl' ? 'en' : 'pl')} aria-label={lang === 'pl' ? 'Switch to English' : 'Przełącz na polski'}
-                className="min-h-12 rounded-full px-3 text-sm font-semibold hover:bg-zinc-100">
-                {lang === 'pl' ? 'EN' : 'PL'}
-              </button>
+
               <button onClick={logout} title={`${user.name} · demo`}
                 className="min-h-12 whitespace-nowrap rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-zinc-800">{t('logout')}</button>
             </div>

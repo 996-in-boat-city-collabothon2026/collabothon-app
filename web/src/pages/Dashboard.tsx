@@ -231,7 +231,7 @@ function CashChart({ f }: { f: Forecast }) {
   const zeroAt = max === min ? 1 : max / (max - min); // where 0 sits in the gradient (0 = top, 1 = bottom)
   const xTicks = [pts[0]?.date, pts[Math.floor(pts.length / 2)]?.date, pts[pts.length - 1]?.date].filter(Boolean) as string[];
   const yTicks = [...new Set([Math.round(min / 10000) * 10000, 0, Math.round(max / 10000) * 10000])];
-  const tys = (v: number) => (v === 0 ? '0 zł' : `${Math.round(v / 1000)} tys. zł`);
+  const tys = (v: number) => (v === 0 ? '0 zł' : `${Math.round(v / 1000)}k zł`);
   return (
     <div className="cash-chart mt-3 h-60" role="img"
       aria-label={`${t('forecast_title')}: ${t('lowest_point')} ${fmtPLN(f.lowest.balancePLN)}, ${fmtDay(f.lowest.date)}`}>

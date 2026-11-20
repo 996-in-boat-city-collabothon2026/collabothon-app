@@ -10,7 +10,7 @@ const hex = (n: number) => Array.from({ length: n }, () => Math.floor(Math.rando
 export function validate(inv: Invoice): string | null {
   const nip = nipError(inv.counterparty.nip);
   if (nip) return nip;
-  if (inv.lines.length === 0) return 'Faktura bez pozycji (FaWiersz)';
+  if (inv.lines.length === 0) return 'Invoice has no lines (FaWiersz)';
   return null;
 }
 
