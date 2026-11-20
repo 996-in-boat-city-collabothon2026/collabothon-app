@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import type { User } from '@cfo/shared';
 import { api, useApi } from './api/client';
+import AskBubble from './components/AskBubble';
 import { LlmStatusBadge } from './components/ui';
 import { useT } from './i18n';
 import Dashboard from './pages/Dashboard';
@@ -41,7 +42,7 @@ export default function App() {
     }
   }
 
-  if (user === undefined) return <p className="p-4 text-slate-500">{t('loading')}</p>;
+  if (user === undefined) return <p className="p-4 text-stone-600">{t('loading')}</p>;
   if (user === null) {
     return (
       <Routes>
@@ -54,28 +55,30 @@ export default function App() {
   return (
     <div className="min-h-screen md:flex">
       {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 bg-slate-900 p-4 text-white md:block">
-        <p className="mb-6 text-xl font-bold">🔧 WarsztatCFO</p>
+      <aside className="hidden w-60 shrink-0 border-r border-stone-200 bg-stone-50 p-4 md:block">
+        <p className="mb-6 text-xl font-extrabold tracking-tight">🔧 WarsztatCFO</p>
         <nav className="space-y-1">
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
-              `block rounded-lg px-3 py-2 ${isActive ? 'bg-white/15 font-semibold' : 'hover:bg-white/10'}`}>
+              `flex min-h-12 items-center gap-2 rounded-full px-4 ${isActive ? 'bg-stone-900 font-semibold text-white' : 'hover:bg-stone-200/70'}`}>
               {n.icon} {t(n.key)}
             </NavLink>
           ))}
         </nav>
       </aside>
 
-      <div className="min-w-0 flex-1 pb-20 md:pb-0">
-        <header className="flex items-center justify-between gap-2 bg-slate-900 px-4 py-3 text-white">
-          <span className="font-bold md:hidden">🔧 WarsztatCFO</span>
+      {/* Bottom padding: room for the mobile tab bar + the 💬 bubble, so it never covers the last buttons */}
+      <div className="min-w-0 flex-1 pb-40 md:pb-24">
+        <header className="flex items-center justify-between gap-2 border-b border-stone-200 bg-stone-100/90 px-4 py-3 backdrop-blur">
+          <span className="font-extrabold tracking-tight md:hidden">🔧 WarsztatCFO</span>
           <LlmStatusBadge health={health} />
           <div className="flex items-center gap-2">
-            <span className="hidden text-sm text-white/80 sm:inline">{user.name} · demo</span>
-            <button onClick={() => setLang(lang === 'pl' ? 'en' : 'pl')} className="min-h-11 rounded-lg bg-white/10 px-3 text-sm">
+            <span className="hidden text-sm text-stone-600 sm:inline">{user.name} · demo</span>
+            <button onClick={() => setLang(lang === 'pl' ? 'en' : 'pl')} aria-label={lang === 'pl' ? 'Switch to English' : 'Przełącz na polski'}
+              className="min-h-12 rounded-full border border-stone-300 bg-white px-3 text-sm font-medium">
               {lang === 'pl' ? 'EN' : 'PL'}
             </button>
-            <button onClick={logout} className="min-h-11 rounded-lg bg-white/10 px-3 text-sm">{t('logout')}</button>
+            <button onClick={logout} className="min-h-12 rounded-full bg-stone-900 px-4 text-sm font-medium text-white">{t('logout')}</button>
           </div>
         </header>
         <main className="mx-auto max-w-5xl p-4">
@@ -91,11 +94,13 @@ export default function App() {
         </main>
       </div>
 
+      <AskBubble />
+
       {/* Mobile bottom tabs */}
-      <nav className="fixed inset-x-0 bottom-0 grid grid-cols-6 border-t border-slate-200 bg-white md:hidden">
+      <nav aria-label="Menu" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-stone-200 bg-white md:hidden">
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
-            `flex flex-col items-center py-2 text-[11px] ${isActive ? 'font-semibold text-slate-900' : 'text-slate-500'}`}>
+            `flex min-h-14 flex-col items-center justify-center py-1 text-center text-[13px] leading-tight ${isActive ? 'font-semibold text-stone-900' : 'text-stone-600'}`}>
             <span className="text-lg">{n.icon}</span>
             {t(n.key)}
           </NavLink>

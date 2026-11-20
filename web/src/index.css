@@ -1,9 +1,20 @@
 @import "tailwindcss";
 
-/* Big, readable base for owners of all generations */
+/* Big, readable base: built for owners of every age, including 70+ */
 html {
-  font-size: 17px;
+  font-size: 18px;
 }
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  /* Warm off-white, near-black text: calm and high contrast */
+  @apply bg-stone-100 text-stone-900 antialiased;
+  line-height: 1.55;
+}
+/* Clear keyboard focus everywhere */
+:focus-visible {
+  outline: 3px solid #1c1917;
+  outline-offset: 3px;
+  border-radius: 9999px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
