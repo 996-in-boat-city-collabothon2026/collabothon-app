@@ -10,6 +10,7 @@ import { PERIOD_DAYS, totalsBetween } from '../rules/expenses';
 import { fmtFx, fmtRate, fxExposures } from '../rules/fx';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
+import { findInventedNumbers } from './numberGuard';
 import { wholeSentences } from './text';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
 
@@ -62,6 +63,20 @@ function aboutPL(refId?: string): string | undefined {
   return db.obligations.find((o) => o.id === refId)?.kind;
 }
 
+/**
+ * Tomasz's per-car reasons in Polish. Amounts are copied character by character from the rule's why[] (no maths here).
+ * "VW Passat 2015: 4 h billed 0,00 zł, should be 800,00 zł (800,00 zł missing)" → "VW Passat 2015: brakuje 800,00 zł robocizny".
+ */
+function detailsPL(why: string[]): string[] {
+  return why.flatMap((w) => {
+    const labour = /^(.+?): .* \((.+) missing\)$/.exec(w);
+    if (labour) return [`${labour[1]}: brakuje ${labour[2]} robocizny`];
+    const parts = /^(.+?): parts cost (.+), sold for (.+) \(markup (\d+%)\)$/.exec(w);
+    if (parts) return [`${parts[1]}: części kosztowały ${parts[2]}, sprzedane za ${parts[3]} (narzut ${parts[4]})`];
+    return [];
+  });
+}
+
 /** One open card as a Polish line. Numbers: only the card's own amount and date (from the rules). */
 export function itemPL(a: Action): string {
   const parts = [`${CFOS[a.cfo].name}: ${labelPL(a)} (${TIER_PL[a.tier]})`];
@@ -69,7 +84,8 @@ export function itemPL(a: Action): string {
   if (about) parts.push(about);
   if (a.amountPLN !== undefined) parts.push(`kwota ${fmtPLN(a.amountPLN)}`);
   if (a.dueDate) parts.push(a.kind === 'payment_reminder' ? `termin płatności minął ${a.dueDate}` : `termin ${a.dueDate}`);
-  return parts.join(', ');
+  const details = detailsPL(a.why);
+  return parts.join(', ') + (details.length ? ` (${details.join('; ')})` : '');
 }
 
 /** Facts for the prompt, Polish, one labelled number per line. Every number comes from the rules engine. */
@@ -78,7 +94,6 @@ export function snapshot(): string {
   const short = f.bufferPLN - f.lowest.balancePLN;
   const lines = [
     `Warsztat: ${db.shop.name}, ${db.shop.city}, mechaników: ${db.shop.employees}, stawka za roboczogodzinę: ${fmtPLN(db.shop.labourRatePLN)}.`,
-    `Dzisiaj: ${db.shop.today}.`,
     `Saldo dziś: ${fmtPLN(db.bank.balancePLN)}.`,
     `Bufor bezpieczeństwa: ${fmtPLN(f.bufferPLN)}.`,
     `Najniższe saldo w prognozie (${f.lowest.date}): ${fmtPLN(f.lowest.balancePLN)}. To prognoza na przyszłość, nie saldo dziś.`,
@@ -114,12 +129,22 @@ export function fallbackTurn(cfo: CfoId): string {
   return mine.map((a) => `${itemPL(a).replace(`${CFOS[cfo].name}: `, '')}.`).map((s) => s[0].toUpperCase() + s.slice(1)).join(' ');
 }
 
+/** Golden rule 1: text with a number or date that is not in `known` is dropped (→ '' → rule-based fallback). */
+function safe(text: string, known: string, key: string): string {
+  const invented = findInventedNumbers(text, known);
+  if (!invented.length) return text;
+  console.info(`[guard] ${key} invented ${JSON.stringify(invented)} → rule-based line`);
+  return '';
+}
+
 const transcriptOf = (turns: BoardroomTurn[]) => turns.map((t) => `${CFOS[t.cfo].name}: ${t.text}`).join('\n');
 
 const ChairSchema = z.object({ summary: z.string(), decisionActionIds: z.array(z.string()) });
 
 export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   const facts = snapshot();
+  const subject = topic ?? 'Przegląd miesiąca';
+  const known = `${facts}\n${subject}`; // the only numbers the model may repeat
   const turns: BoardroomTurn[] = [];
 
   for (const cfo of ORDER) {
@@ -128,13 +153,13 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
       {
         role: 'user',
         content:
-          `DANE:\n${facts}\n\nTEMAT: ${topic ?? 'Przegląd miesiąca'}\n\nDOTYCHCZAS:\n${transcriptOf(turns) || '(nikt jeszcze nie mówił)'}\n\n` +
+          `DATA:\n${facts}\n\nTEMAT: ${subject}\n\nDOTYCHCZAS:\n${transcriptOf(turns) || '(nikt jeszcze nie mówił)'}\n\n` +
           `Twoja kolej. Odpowiedz po polsku, najwyżej 3 krótkie zdania (do 50 słów). ` +
-          `Kwoty i daty przepisz dokładnie z DANYCH, niczego nie licz i nie dodawaj.`,
+          `Kwoty i daty przepisz dokładnie z DATA, niczego nie licz i nie dodawaj.`,
       },
     ], { maxTokens: TURN_MAX_TOKENS, mockKey: `boardroom:${cfo}` });
     const text = wholeSentences(raw, TURN_MAX_WORDS);
-    turns.push({ cfo, text: text || fallbackTurn(cfo) });
+    turns.push({ cfo, text: safe(text, known, `boardroom:${cfo}`) || fallbackTurn(cfo) });
   }
 
   const openApprovals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL').map((a) => a.id);
@@ -142,14 +167,14 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
     {
       role: 'system',
       content: CHAIR_PERSONA +
-        ` Reply ONLY with JSON: {"summary": string (po polsku, max ${SUMMARY_MAX_WORDS} words), "decisionActionIds": string[] (ids from DANE that the owner should approve)}`,
+        ` Reply ONLY with JSON: {"summary": string (po polsku, max ${SUMMARY_MAX_WORDS} words), "decisionActionIds": string[] (ids from DATA that the owner should approve)}`,
     },
-    { role: 'user', content: `DANE:\n${facts}\n\nDYSKUSJA:\n${transcriptOf(turns)}` },
+    { role: 'user', content: `DATA:\n${facts}\n\nDYSKUSJA:\n${transcriptOf(turns)}` },
   ], { maxTokens: 260, mockKey: 'boardroom:chair' });
 
   const chair = extractJson(chairRaw, ChairSchema);
   const validIds = (chair?.decisionActionIds ?? []).filter((id) => openApprovals.includes(id));
-  const summary = wholeSentences(chair?.summary ?? '', SUMMARY_MAX_WORDS);
+  const summary = safe(wholeSentences(chair?.summary ?? '', SUMMARY_MAX_WORDS), known, 'boardroom:chair');
   return {
     turns,
     summary: summary || 'Rada przejrzała otwarte sprawy. Sprawdź kolejkę spraw do zatwierdzenia.',

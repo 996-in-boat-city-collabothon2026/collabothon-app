@@ -3,6 +3,7 @@ import type { Action, AutopilotResult } from '@cfo/shared';
 import { db, logActivity, newId, nowIso } from '../domain/store';
 import { RULES, type DraftAction } from '../rules';
 import { chatOr } from '../llm/provider';
+import { findInventedNumbers } from './numberGuard';
 import { dropPreamble, wholeSentences } from './text';
 
 const EXPLAIN_MAX_WORDS = 45;
@@ -67,7 +68,11 @@ export async function runAutopilot(): Promise<AutopilotResult> {
           { role: 'system', content: EXPLAIN_PROMPT },
           { role: 'user', content: `SPRAWA: ${a.title}\nPOWODY:\n${a.why.map((w) => `- ${w}`).join('\n')}` },
         ], { maxTokens: 160, mockKey: 'explain' });
-        a.explanation = wholeSentences(dropPreamble(text), EXPLAIN_MAX_WORDS) || a.why.join('. ');
+        const clean = wholeSentences(dropPreamble(text), EXPLAIN_MAX_WORDS);
+        // Golden rule 1: any number or date not in the card itself → use the rules' own reasons instead.
+        const invented = findInventedNumbers(clean, `${a.title}\n${a.why.join('\n')}`);
+        if (invented.length) console.info(`[guard] explain:${a.kind} invented ${JSON.stringify(invented)} → why[]`);
+        a.explanation = (!invented.length && clean) || a.why.join('. ');
       }),
   );
 

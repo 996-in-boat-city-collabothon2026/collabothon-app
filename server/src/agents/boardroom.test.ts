@@ -79,6 +79,29 @@ describe('conference turns', () => {
   });
 });
 
+describe('number guard (golden rule 1)', () => {
+  it('a turn with an invented sum falls back to the rule line; good turns stay', async () => {
+    await runAutopilot();
+    reply = (m) => {
+      if (m[0].content.includes('Reply ONLY with JSON')) return '{"summary":"Strata 50 230,00 zł w grudniu.","decisionActionIds":[]}';
+      if (m[0].content.includes('Jesteś Anna')) return 'Razem 14 230 + 36 000 = 50 230,00 zł straty.';
+      return 'Saldo dziś: 38 400,00 zł. Ryzyko EUR przy +5%: 320,25 zł.';
+    };
+    const r = await runBoardroom();
+    const anna = r.turns.find((t) => t.cfo === 'anna')!;
+    expect(anna.text).toBe(fallbackTurn('anna'));
+    expect(r.turns.find((t) => t.cfo === 'kasia')!.text).toBe('Saldo dziś: 38 400,00 zł. Ryzyko EUR przy +5%: 320,25 zł.');
+    expect(r.summary).toMatch(/^Rada przejrzała/); // invented 50 230 in the chair summary → rule text
+  });
+
+  it('an explanation with an invented rate falls back to why[]', async () => {
+    reply = () => 'Kurs forward to 4,30 zł na 3 miesiące, zapłacisz 6 450,00 zł.';
+    await runAutopilot();
+    const hedge = db.actions.find((a) => a.kind === 'fx_hedge')!;
+    expect(hedge.explanation).toBe(hedge.why.join('. '));
+  });
+});
+
 describe('approval explanations (autopilot)', () => {
   it('Polish prompt, preamble dropped, amounts from why[]', async () => {
     reply = () => "Here's a reminder about this card: Saldo spadnie do -20 275,00 zł 2026-12-20. Linia 36 000,00 zł to zabezpieczenie.";
