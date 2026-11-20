@@ -1,22 +1,31 @@
-// Hat conference: 4 CFOs with their thinking hats around a table. Pick a topic → the turns appear one by one
-// with a typing animation → the Blue-hat chair sums up and links to approval cards you can approve right here.
+// Agents' meeting: pick a topic → the 4 CFOs speak one by one (typing dots, then a bubble) →
+// a joint recommendation card with the decisions you can approve or reject right here.
+// The amounts and decisions come from the server (rules engine); the UI only shows them.
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { CFOS, HATS, type Action, type BoardroomResult, type CfoId } from '@cfo/shared';
+import { CFOS, type Action, type BoardroomResult, type CfoId } from '@cfo/shared';
 import { TypingDots } from '../components/AskBubble';
 import { api } from '../api/client';
-import { ActionCard, Card, CfoAvatar, HatAvatar, useToast } from '../components/ui';
+import Icon from '../components/Icon';
+import { PageHeader, fmtDay, fmtPLN, useToast } from '../components/ui';
 import { useT } from '../i18n';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia']; // the server speaks in this order
 const TOPICS = ['topic_december', 'topic_month', 'topic_fx', 'topic_margin'];
-// Seats around the table (phone-friendly 2×2 + the chair at the head).
-const SEAT: Record<CfoId, string> = {
-  marek: 'col-start-1 row-start-2', anna: 'col-start-3 row-start-2',
-  tomasz: 'col-start-1 row-start-3', kasia: 'col-start-3 row-start-3',
-};
 
 type Phase = 'idle' | 'thinking' | 'talking' | 'done' | 'error';
+
+/** Neutral round avatar with initials; the speaker gets an accent ring. */
+function Person({ cfo, size = 44, active = false }: { cfo: CfoId; size?: number; active?: boolean }) {
+  const c = CFOS[cfo];
+  return (
+    <span className={`relative inline-flex shrink-0 items-center justify-center rounded-full bg-zinc-200 font-bold text-ink transition ${active ? 'ring-4 ring-accent' : ''}`}
+      style={{ width: size, height: size, fontSize: size * 0.38 }} aria-hidden="true">
+      {c.name.slice(0, 2).toUpperCase()}
+      {active && <span className="live-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-accent" />}
+    </span>
+  );
+}
 
 export default function Boardroom() {
   const { t, lang } = useT();
@@ -73,152 +82,135 @@ export default function Boardroom() {
   }
 
   const busy = phase === 'thinking' || phase === 'talking';
-  const speaking = typing && typing !== 'chair' ? typing : result && shown > 0 && phase === 'talking' ? result.turns[shown - 1].cfo : null;
-  const chairLabel = lang === 'pl' ? HATS.blue.labelPl : HATS.blue.label;
+  const speaking = typing && typing !== 'chair' ? typing : null;
+  const subject = custom.trim() || topic;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">👥 {t('boardroom_title')}</h1>
-        <p className="text-slate-600">{t('boardroom_intro')}</p>
-      </div>
+    <div className="mx-auto max-w-3xl space-y-5">
+      <PageHeader title={t('boardroom_title')} />
+      <p className="-mt-3 text-lg text-zinc-700">{t('boardroom_intro')}</p>
 
-      {/* Topic picker */}
-      <Card title={t('topic')}>
-        <form onSubmit={start} className="space-y-3">
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('topic')}>
+      {/* AI orb + topic chips */}
+      <section className="surface flex flex-col items-center p-6 text-center">
+        <div className={`ai-orb flex h-28 w-28 items-center justify-center ${busy ? '' : 'motion-safe:[animation-duration:5s]'}`} aria-hidden="true">
+          {busy
+            ? <span className="wave">{[0, 120, 240, 120, 0].map((d, i) => <span key={i} style={{ animationDelay: `${d}ms` }} />)}</span>
+            : <Icon name="users" size={34} className="text-white" />}
+        </div>
+        <p className="mt-3 text-lg font-semibold" aria-live="polite">
+          {phase === 'idle' && t('pick_topic')}
+          {phase === 'thinking' && <span className="ai-shimmer">{t('cfos_thinking')}</span>}
+          {phase === 'talking' && `„${subject}”`}
+          {phase === 'done' && t('meeting_done')}
+          {phase === 'error' && <span className="text-accent-ink">{t('meeting_failed')}</span>}
+        </p>
+
+        <form onSubmit={start} className="mt-4 w-full space-y-3">
+          <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label={t('topic')}>
             {TOPICS.map((k) => {
               const active = !custom.trim() && topic === t(k);
               return (
                 <button type="button" key={k} role="radio" aria-checked={active} disabled={busy}
                   onClick={() => { setTopic(t(k)); setCustom(''); }}
-                  className={`min-h-12 rounded-full border px-3 text-sm ${active ? 'border-stone-950 bg-stone-950 text-white' : 'border-stone-300 bg-white'}`}>
+                  className={`min-h-12 rounded-full px-4 text-base font-medium ${active ? 'bg-accent font-semibold text-white' : 'bg-zinc-100 text-ink hover:bg-zinc-200'}`}>
                   {t(k)}
                 </button>
               );
             })}
           </div>
-          <input value={custom} onChange={(e) => setCustom(e.target.value)} disabled={busy}
-            placeholder={t('topic_custom')} aria-label={t('topic_custom')}
-            className="min-h-12 w-full rounded-xl border border-slate-300 px-3" />
-          <button disabled={busy} className="min-h-12 w-full rounded-full bg-stone-950 py-3 text-lg font-semibold text-white disabled:opacity-60">
-            {busy ? t('meeting_running') : `👥 ${t('start_meeting')}`}
-          </button>
+          <div className="flex gap-2">
+            <input value={custom} onChange={(e) => setCustom(e.target.value)} disabled={busy}
+              placeholder={t('topic_custom')} aria-label={t('topic_custom')}
+              className="min-h-12 min-w-0 flex-1 rounded-full bg-zinc-100 px-5 text-base" />
+            <button disabled={busy} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-ink px-5 font-semibold text-white disabled:opacity-50">
+              {busy ? t('meeting_running') : t('start_meeting')} <Icon name="arrow" size={18} />
+            </button>
+          </div>
         </form>
-      </Card>
 
-      {/* The table */}
-      <section aria-label={t('boardroom_title')} className="surface p-5">
-        <div className="grid grid-cols-[1fr_1.3fr_1fr] items-center gap-y-3">
-          <div className="col-span-3 row-start-1 flex flex-col items-center">
-            <Seat active={typing === 'chair'} name={t('chair')} role={chairLabel}>
-              <HatAvatar letter="P" color="#334155" hat="blue" label={`${t('chair')} · ${chairLabel}`} size={52} />
-            </Seat>
-          </div>
-          <div className="col-start-2 row-span-2 row-start-2 mx-1 flex h-full min-h-28 items-center justify-center rounded-[50%] bg-amber-800/90 text-center text-sm font-semibold text-amber-50 shadow-inner">
-            {phase === 'idle' ? '☕' : <span className="px-2">„{custom.trim() || topic}”</span>}
-          </div>
+        {/* Who is at the table */}
+        <ul className="mt-6 grid w-full grid-cols-2 gap-3 sm:grid-cols-4">
           {ORDER.map((c) => (
-            <div key={c} className={`flex flex-col items-center ${SEAT[c]}`}>
-              <Seat active={speaking === c} dim={busy && speaking !== c} name={CFOS[c].name}
-                role={lang === 'pl' ? CFOS[c].rolePl : CFOS[c].role}>
-                <CfoAvatar cfo={c} size={52} />
-              </Seat>
-            </div>
+            <li key={c} className={`flex items-center gap-2 rounded-2xl p-2 text-left transition ${speaking === c ? 'bg-accent-soft' : ''} ${busy && speaking !== c ? 'opacity-60' : ''}`}>
+              <Person cfo={c} size={40} active={speaking === c} />
+              <span className="min-w-0">
+                <span className="block font-semibold leading-tight">{CFOS[c].name}</span>
+                <span className="block text-sm leading-tight text-zinc-700">{lang === 'pl' ? CFOS[c].rolePl : CFOS[c].role}</span>
+              </span>
+            </li>
           ))}
-        </div>
-        {phase === 'thinking' && (
-          <p className="mt-4 flex items-center justify-center gap-3 text-slate-600" aria-live="polite">
-            <TypingDots /> {t('cfos_thinking')}
-          </p>
-        )}
+        </ul>
       </section>
 
-      {phase === 'error' && (
-        <p role="alert" className="rounded-xl bg-rose-50 p-3 text-rose-800">⚠️ {t('meeting_failed')}</p>
-      )}
-
-      {/* Transcript */}
+      {/* The conversation */}
       {result && shown + (typing ? 1 : 0) > 0 && (
-        <Card title={t('transcript')}>
-          <ol className="space-y-3" aria-live="polite">
-            {result.turns.slice(0, shown).map((turn, i) => {
-              const hat = HATS[CFOS[turn.cfo].hat];
-              return (
-                <li key={i} className="pop-in flex gap-3">
-                  <CfoAvatar cfo={turn.cfo} size={40} live={i === shown - 1} />
-                  <div className="min-w-0 flex-1">
-                    <p className="mb-1 flex flex-wrap items-center gap-2 text-sm font-semibold">
-                      {CFOS[turn.cfo].name}
-                      <span className="rounded-full border border-slate-300 px-2 py-0.5 text-sm font-medium"
-                        style={{ background: hat.color, color: ['white', 'yellow'].includes(CFOS[turn.cfo].hat) ? '#0f172a' : '#fff' }}>
-                        {lang === 'pl' ? hat.labelPl : hat.label}
-                      </span>
-                    </p>
-                    <p className="rounded-2xl rounded-tl-sm border border-black/5 bg-zinc-50 p-3">{turn.text}</p>
-                  </div>
-                </li>
-              );
-            })}
+        <section className="surface p-5" aria-label={t('transcript')}>
+          <ol className="space-y-4" aria-live="polite">
+            {result.turns.slice(0, shown).map((turn, i) => (
+              <li key={i} className="pop-in flex items-start gap-3">
+                <Person cfo={turn.cfo} size={40} />
+                <div className="min-w-0 flex-1">
+                  <p className="mb-1 font-semibold">
+                    {CFOS[turn.cfo].name} <span className="font-normal text-zinc-700">· {lang === 'pl' ? CFOS[turn.cfo].rolePl : CFOS[turn.cfo].role}</span>
+                  </p>
+                  <p className="rounded-3xl rounded-tl-md bg-zinc-100 px-4 py-3 text-[17px] leading-relaxed">{turn.text}</p>
+                </div>
+              </li>
+            ))}
             {typing && typing !== 'chair' && phase === 'talking' && (
-              <li className="pop-in flex items-center gap-3 text-base text-stone-700">
-                <CfoAvatar cfo={typing} size={40} live />
-                <span className="rounded-2xl bg-slate-100 px-3 py-3"><TypingDots /></span>
-                {CFOS[typing].name} {t('is_typing')}
+              <li className="pop-in flex items-center gap-3">
+                <Person cfo={typing} size={40} active />
+                <span className="rounded-3xl bg-zinc-100 px-4 py-3"><TypingDots /></span>
+                <span className="text-zinc-700">{CFOS[typing].name} {t('is_typing')}</span>
               </li>
             )}
             {typing === 'chair' && (
-              <li className="flex items-center gap-3 text-sm text-stone-600">
-                <HatAvatar letter="P" color="#334155" hat="blue" label={t('chair')} size={40} />
-                <span className="rounded-2xl bg-blue-50 px-3 py-3"><TypingDots /></span> {t('chair_summing')}
+              <li className="pop-in flex items-center gap-3">
+                <span className="ai-orb h-10 w-10" aria-hidden="true" />
+                <span className="ai-shimmer font-semibold">{t('chair_summing')}</span>
               </li>
             )}
           </ol>
-        </Card>
+        </section>
       )}
 
-      {/* Blue-hat summary + decisions */}
+      {/* Joint recommendation */}
       {phase === 'done' && result && (
-        <section className="space-y-3 rounded-2xl border-2 border-blue-600 bg-blue-50 p-4">
+        <section className="surface pop-in space-y-4 p-6">
           <div className="flex items-center gap-3">
-            <HatAvatar letter="P" color="#334155" hat="blue" label={`${t('chair')} · ${chairLabel}`} size={44} />
-            <div>
-              <p className="font-bold text-blue-900">{t('blue_summary')}</p>
-              <p className="text-sm text-blue-800">{chairLabel}</p>
-            </div>
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white"><Icon name="sparkle" size={20} /></span>
+            <h2 className="text-2xl font-semibold tracking-tight">{t('joint_recommendation')}</h2>
           </div>
-          <p className="text-lg">{result.summary}</p>
-          <h2 className="pt-1 font-semibold">✋ {t('decisions_to_approve')} ({decisions.length})</h2>
-          {decisions.length === 0 && <p className="text-slate-600">{t('no_decisions')}</p>}
-          <div className="space-y-2">
-            {decisions.map((a) => decided[a.id] ? (
-              <p key={a.id} className={`rounded-xl p-3 font-medium ${decided[a.id] === 'approved' ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-200'}`}>
-                {decided[a.id] === 'approved' ? '✅' : '✖'} {a.title} · 🧪 {t(`status_${decided[a.id]}`)}
-              </p>
-            ) : (
-              <div key={a.id} className="rounded-xl bg-white">
-                <ActionCard action={a} onApprove={() => void decide(a, true)} onReject={() => void decide(a, false)} />
-              </div>
+          <p className="text-lg leading-relaxed">{result.summary}</p>
+
+          {decisions.length === 0 && <p className="text-zinc-700">{t('no_decisions')}</p>}
+          <ul className="space-y-3">
+            {decisions.map((a) => (
+              <li key={a.id} className="rounded-3xl bg-zinc-100 p-4">
+                <p className="text-lg font-semibold">{a.title}</p>
+                <p className="mt-1 flex flex-wrap items-baseline gap-x-3">
+                  {a.amountPLN !== undefined && <strong className="text-3xl font-bold tabular-nums">{fmtPLN(a.amountPLN)}</strong>}
+                  {a.dueDate && <span className="text-zinc-700">{t('due')} {fmtDay(a.dueDate)}</span>}
+                  <span className="text-sm text-zinc-700">{t('simulated')}</span>
+                </p>
+                {decided[a.id] ? (
+                  <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 font-semibold">
+                    <Icon name={decided[a.id] === 'approved' ? 'check' : 'x'} size={18} className={decided[a.id] === 'approved' ? 'text-accent' : ''} />
+                    {t(`status_${decided[a.id]}`)}
+                  </p>
+                ) : (
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => void decide(a, true)} className="min-h-14 flex-1 rounded-full bg-accent text-lg font-bold text-white">{t('approve')}</button>
+                    <button onClick={() => void decide(a, false)} className="min-h-14 flex-1 rounded-full bg-white text-lg font-semibold text-ink">{t('reject')}</button>
+                  </div>
+                )}
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
       <div ref={endRef} />
       {toast}
-    </div>
-  );
-}
-
-function Seat({ children, name, role, active = false, dim = false }: {
-  children: React.ReactNode; name: string; role: string; active?: boolean; dim?: boolean;
-}) {
-  return (
-    <div className={`flex flex-col items-center text-center transition ${dim ? 'opacity-50' : ''}`}>
-      <div className={`rounded-full p-1 transition ${active ? 'bg-amber-300 ring-4 ring-amber-300/60 motion-safe:scale-110' : ''}`}>
-        {children}
-      </div>
-      <p className="mt-1 text-sm font-semibold leading-tight">{name}</p>
-      <p className="max-w-24 text-sm leading-tight text-stone-600">{role}</p>
     </div>
   );
 }

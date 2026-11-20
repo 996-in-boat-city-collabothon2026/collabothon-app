@@ -10,12 +10,14 @@ import { TypingDots } from '../components/AskBubble';
 import AgentHub from '../components/AgentHub';
 import { ActionCard, PageHeader, useCountUp, Status, fmtDay, fmtPLN, useToast } from '../components/ui';
 import { useT } from '../i18n';
+import Icon from '../components/Icon';
 
 const RANGES = [30, 60, 90] as const;
 const PRIORITY: Record<Tier, number> = { NEEDS_APPROVAL: 0, RECOMMENDED: 1, ANALYSED: 2 };
+// One accent in tints + greys: the biggest costs are the strongest colour.
 const CAT_COLOR: Record<ExpenseCategory, string> = {
-  payroll: '#2563eb', taxes: '#db2777', parts: '#16a34a', rent: '#d97706',
-  leasing: '#7c3aed', utilities: '#0891b2', other: '#78716c',
+  payroll: '#d9431c', taxes: '#141414', parts: '#f08a62', rent: '#6b6b6b',
+  leasing: '#f6bda5', utilities: '#a3a3a3', other: '#d4d4d4',
 };
 
 export default function Dashboard() {
@@ -37,7 +39,7 @@ export default function Dashboard() {
       setLog((await api.runAutopilot()).log);
       await reloadAll();
     } catch (e) {
-      setLog([`⚠️ ${(e as Error).message}`]);
+      setLog([(e as Error).message]);
     } finally {
       setRunning(false);
     }
@@ -72,13 +74,13 @@ export default function Dashboard() {
   return (
     <div className="space-y-5">
       <span className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-medium">
-        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-100 text-xs" aria-hidden="true">⚡</span>
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-white"><Icon name="bolt" size={14} /></span>
         {t('agents_on_watch')}
       </span>
       <PageHeader title={t('dashboard')}>
         <span className="flex flex-wrap items-center gap-2">
-        <Link to="/ksef" className="inline-flex min-h-12 items-center gap-3 rounded-full bg-stone-950 px-6 font-semibold text-white hover:bg-stone-800">
-          🧾 {t('invoices')} <span aria-hidden="true">↗</span>
+        <Link to="/ksef" className="inline-flex min-h-12 items-center gap-3 rounded-full bg-accent px-6 text-lg font-bold text-white hover:brightness-95 hover:bg-zinc-800">
+          <Icon name="receipt" /> {t('invoices')} <Icon name="arrow-up-right" size={18} />
         </Link>
         <span className="flex items-center gap-1 rounded-full border border-black/10 bg-white p-1" role="group" aria-label={t('forecast_title')}>
           {s && <span className="hidden px-3 text-sm font-medium sm:inline">{t('today')} {fmtDay(s.shop.today)}</span>}
@@ -106,8 +108,8 @@ export default function Dashboard() {
           <h2 className="text-lg font-semibold">{t('forecast_title')}</h2>
           <Status loading={forecast.loading && !f} error={forecast.error} />
           {verdict && (
-            <p className={`mt-2 text-xl font-bold leading-snug ${verdict.tone === 'ok' ? 'text-emerald-800' : verdict.tone === 'warn' ? 'text-amber-800' : 'text-rose-700'}`}>
-              {verdict.tone === 'ok' ? '✓' : '⚠'} {verdict.text}
+            <p className={`mt-2 text-xl font-bold leading-snug ${verdict.tone === 'ok' ? 'text-accent-ink' : verdict.tone === 'warn' ? 'text-accent-ink' : 'text-accent-ink'}`}>
+              <Icon name={verdict.tone === 'ok' ? 'check' : 'alert'} size={22} className="mr-1 align-[-4px]" />{verdict.text}
             </p>
           )}
           {f && <CashChart f={f} />}
@@ -161,10 +163,10 @@ export default function Dashboard() {
             ) : <p className="mt-3 text-lg text-stone-800">—</p>}
           </section>
 
-          <Link to="/approvals" className="surface block p-5 hover:ring-2 hover:ring-emerald-600">
+          <Link to="/approvals" className="surface block p-5 hover:ring-2 hover:ring-accent">
             <h2 className="text-lg font-semibold">{t('waiting_for_you')}</h2>
             <p className="mt-2 text-5xl font-bold leading-none tracking-tight">{actions.data ? count('NEEDS_APPROVAL') : '…'}</p>
-            <p className="mt-3 text-lg font-semibold text-emerald-700">{t('see_all')} →</p>
+            <p className="mt-3 text-lg font-semibold text-accent-ink">{t('see_all')} →</p>
           </Link>
         </div>
       </div>
@@ -183,12 +185,12 @@ export default function Dashboard() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">{t('agents_found')}</h2>
-            <p className="text-stone-700">🔍 {t('legend_analysed')} · 💡 {t('legend_recommended')} · ✋ {t('legend_approval')}</p>
+            <p className="text-stone-700">{t('legend_analysed')} · {t('legend_recommended')} · {t('legend_approval')}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={runCheck} disabled={running}
-              className="inline-flex min-h-12 items-center gap-3 rounded-full bg-stone-950 px-6 font-semibold text-white hover:bg-stone-800 disabled:opacity-60">
-              {running ? t('checking') : t('run_check')} <span aria-hidden="true">↗</span>
+              className="inline-flex min-h-12 items-center gap-3 rounded-full bg-ink px-6 font-semibold text-white hover:bg-zinc-800 disabled:opacity-60">
+              {running ? t('checking') : t('run_check')} <Icon name="arrow-up-right" size={18} />
             </button>
             {open.length > 3 && (
               <Link to="/approvals" className="inline-flex min-h-12 items-center gap-3 rounded-full border border-black/10 bg-white px-6 font-semibold">
@@ -237,14 +239,14 @@ function CashChart({ f }: { f: Forecast }) {
         <AreaChart data={pts} margin={{ top: 16, right: 30, left: 0, bottom: 4 }}>
           <defs>
             <linearGradient id="cashFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset={0} stopColor="#059669" stopOpacity={0.2} />
-              <stop offset={zeroAt} stopColor="#059669" stopOpacity={0.05} />
-              <stop offset={zeroAt} stopColor="#e11d48" stopOpacity={0.15} />
-              <stop offset={1} stopColor="#e11d48" stopOpacity={0.3} />
+              <stop offset={0} stopColor="#141414" stopOpacity={0.2} />
+              <stop offset={zeroAt} stopColor="#141414" stopOpacity={0.05} />
+              <stop offset={zeroAt} stopColor="#d9431c" stopOpacity={0.15} />
+              <stop offset={1} stopColor="#d9431c" stopOpacity={0.3} />
             </linearGradient>
             <linearGradient id="cashLine" x1="0" y1="0" x2="0" y2="1">
-              <stop offset={zeroAt} stopColor="#059669" />
-              <stop offset={zeroAt} stopColor="#e11d48" />
+              <stop offset={zeroAt} stopColor="#141414" />
+              <stop offset={zeroAt} stopColor="#d9431c" />
             </linearGradient>
           </defs>
           <XAxis dataKey="date" ticks={xTicks} interval={0} tickFormatter={fmtDay} fontSize={18} fontWeight={600}
@@ -253,12 +255,12 @@ function CashChart({ f }: { f: Forecast }) {
           <Tooltip formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
             contentStyle={{ borderRadius: 16, border: '1px solid rgb(0 0 0 / 0.1)', fontSize: 18 }} />
           <ReferenceLine y={0} stroke="#1d1d1f" strokeWidth={2} />
-          <ReferenceLine y={f.bufferPLN} stroke="#e11d48" strokeDasharray="8 6" strokeWidth={2}>
-            <Label value={`${t('buffer')} ${tys(f.bufferPLN)}`} position="insideTopRight" fontSize={16} fontWeight={600} fill="#be123c" />
+          <ReferenceLine y={f.bufferPLN} stroke="#d9431c" strokeDasharray="8 6" strokeWidth={2}>
+            <Label value={`${t('buffer')} ${tys(f.bufferPLN)}`} position="insideTopRight" fontSize={16} fontWeight={600} fill="#a8320f" />
           </ReferenceLine>
           <Area type="stepAfter" dataKey="balancePLN" stroke="url(#cashLine)" strokeWidth={5} fill="url(#cashFill)" isAnimationActive={false} />
-          <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={9} fill="#e11d48" stroke="#fff" strokeWidth={3}>
-            <Label value={`${t('lowest_point')} ${fmtDay(f.lowest.date)}`} position="left" fontSize={18} fontWeight={700} fill="#be123c" offset={14} />
+          <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={9} fill="#d9431c" stroke="#fff" strokeWidth={3}>
+            <Label value={`${t('lowest_point')} ${fmtDay(f.lowest.date)}`} position="left" fontSize={18} fontWeight={700} fill="#a8320f" offset={14} />
           </ReferenceDot>
         </AreaChart>
       </ResponsiveContainer>

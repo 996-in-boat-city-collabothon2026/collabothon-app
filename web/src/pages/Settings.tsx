@@ -4,13 +4,14 @@ import type { ActionKind, AutonomyMode } from '@cfo/shared';
 import { api, useApi } from '../api/client';
 import { Card, Status, useToast } from '../components/ui';
 import { useT } from '../i18n';
+import Icon, { type IconName } from '../components/Icon';
 
-const KINDS: { kind: ActionKind; icon: string }[] = [
-  { kind: 'ksef_revalidate', icon: '🧾' },
-  { kind: 'payment_reminder', icon: '✉️' },
-  { kind: 'tax_payment', icon: '🏛️' },
-  { kind: 'supplier_payment', icon: '🚚' },
-  { kind: 'credit_line', icon: '🏦' },
+const KINDS: { kind: ActionKind; icon: IconName }[] = [
+  { kind: 'ksef_revalidate', icon: 'receipt' as IconName },
+  { kind: 'payment_reminder', icon: 'mail' as IconName },
+  { kind: 'tax_payment', icon: 'building' as IconName },
+  { kind: 'supplier_payment', icon: 'truck' as IconName },
+  { kind: 'credit_line', icon: 'bank' as IconName },
 ];
 
 export default function SettingsPage() {
@@ -43,18 +44,18 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">⚙️ {t('settings')}</h1>
+      <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">{t('settings')}</h1>
 
       <Card title={t('autonomy_title')}>
         <Status loading={loading && !data} error={error} />
-        <p className="mb-4 text-stone-600">🧪 {t('autonomy_note')}</p>
+        <p className="mb-4 text-stone-600">{t('autonomy_note')}</p>
         <ul className="space-y-3">
           {KINDS.map(({ kind, icon }) => {
             const mode = data?.autonomy[kind] ?? 'ask';
             return (
               <li key={kind} className="flex flex-col gap-3 rounded-2xl border border-stone-200 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <span id={`kind-${kind}`} className="flex items-center gap-3">
-                  <span className="text-xl" aria-hidden="true">{icon}</span> {t(`kind_${kind}`)}
+                  <Icon name={icon} size={22} /> {t(`kind_${kind}`)}
                 </span>
                 <div role="radiogroup" aria-labelledby={`kind-${kind}`} className="flex shrink-0 gap-1 rounded-full bg-stone-100 p-1">
                   {(['ask', 'auto'] as AutonomyMode[]).map((m) => (
@@ -74,15 +75,15 @@ export default function SettingsPage() {
         <p className="mb-4 text-stone-600">{t('demo_note')}</p>
         {!confirmReset ? (
           <button onClick={() => setConfirmReset(true)}
-            className="min-h-12 rounded-full border border-rose-300 bg-white px-6 font-semibold text-rose-700 hover:bg-rose-50">
+            className="min-h-12 rounded-full border border-accent bg-white px-6 font-semibold text-accent-ink hover:bg-accent-soft">
             ↺ {t('reset_demo')}
           </button>
         ) : (
-          <div role="alertdialog" aria-label={t('reset_confirm')} className="space-y-3 rounded-2xl bg-rose-50 p-4">
-            <p className="font-semibold text-rose-900">{t('reset_confirm')}</p>
+          <div role="alertdialog" aria-label={t('reset_confirm')} className="space-y-3 rounded-2xl bg-accent-soft p-4">
+            <p className="font-semibold text-accent-ink">{t('reset_confirm')}</p>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => void reset()} disabled={resetting}
-                className="min-h-12 rounded-full bg-rose-600 px-6 font-semibold text-white disabled:opacity-60">
+                className="min-h-12 rounded-full bg-accent px-6 font-semibold text-white disabled:opacity-60">
                 {resetting ? t('loading') : t('reset_yes')}
               </button>
               <button onClick={() => setConfirmReset(false)} className="min-h-12 rounded-full border border-stone-300 bg-white px-6 font-semibold">

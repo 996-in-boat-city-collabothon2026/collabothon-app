@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Three colours only: paper (off-white + white), ink (near-black), accent (orange-red). */
+@theme {
+  --color-ink: #141414;
+  --color-accent: #d9431c;      /* white text on it passes AA for large/bold text */
+  --color-accent-ink: #a8320f;  /* accent for small text on white (AA) */
+  --color-accent-soft: #fde8df;
+  --color-paper: #f1f0ed;
+}
+
 /* Big, readable base: built for owners of every age, including 70+ */
 html {
   font-size: 18px;
@@ -7,12 +16,8 @@ html {
 body {
   /* Apple-like: system font, soft grey page, near-black text */
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable", "Segoe UI", Inter, system-ui, sans-serif;
-  /* White page with the faint dotted grid from the login screen */
-  background-color: #fff;
-  background-image: radial-gradient(rgb(0 0 0 / 0.09) 1px, transparent 1px);
-  background-size: 18px 18px;
-  background-attachment: fixed;
-  color: #1d1d1f;
+  background: #f1f0ed;
+  color: #141414;
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
   letter-spacing: -0.011em;
@@ -23,7 +28,7 @@ button, a { transition: background-color .2s ease, color .2s ease, box-shadow .2
 button:active:not(:disabled) { transform: scale(0.98); }
 /* Clear keyboard focus everywhere */
 :focus-visible {
-  outline: 3px solid #059669;
+  outline: 3px solid #d9431c;
   outline-offset: 3px;
   border-radius: 9999px;
 }
@@ -34,16 +39,12 @@ button:active:not(:disabled) { transform: scale(0.98); }
 /* White rounded card with a very soft shadow (dashboard look) */
 .surface {
   background: #fff;
-  border-radius: 22px;
-  border: 1px solid rgb(0 0 0 / 0.1);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+  border-radius: 30px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.03);
 }
 
 /* Faint dotted grid background (calm, techy) */
-.dot-grid {
-  background-image: radial-gradient(rgb(0 0 0 / 0.09) 1px, transparent 1px);
-  background-size: 18px 18px;
-}
+.dot-grid { background: #f1f0ed; }
 
 /* ---------- Nexora-like AI touches ---------- */
 /* Headline words in a soft dark-to-green gradient */
@@ -53,7 +54,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 /* Mint glow panel */
 .glow-mint {
-  background: radial-gradient(120% 80% at 50% 100%, rgb(16 185 129 / 0.16), transparent 70%), #fff;
+  background: radial-gradient(120% 80% at 50% 100%, rgb(217 67 28 / 0.10), transparent 70%), #fff;
 }
 /* Cards slide in gently, one after another */
 @keyframes fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -67,7 +68,7 @@ main .surface:nth-of-type(4), main .reveal:nth-of-type(4) { animation-delay: .24
 /* "AI is thinking" shimmer on text */
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .ai-shimmer {
-  background: linear-gradient(90deg, #1d1d1f 30%, #10b981 50%, #1d1d1f 70%);
+  background: linear-gradient(90deg, #141414 30%, #d9431c 50%, #141414 70%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -82,7 +83,7 @@ main .surface:nth-of-type(4), main .reveal:nth-of-type(4) { animation-delay: .24
 /* ---------- more motion (all switched off by prefers-reduced-motion above) ---------- */
 /* Cards lift a little under the mouse */
 .surface { transition: transform .25s ease, box-shadow .25s ease; }
-@media (hover: hover) { .surface:hover { transform: translateY(-3px); box-shadow: 0 12px 30px -12px rgb(16 185 129 / .25); } }
+@media (hover: hover) { .surface:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -14px rgb(0 0 0 / .18); } }
 
 /* Donut spins in */
 @keyframes donut-in { from { transform: rotate(-120deg) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -102,13 +103,23 @@ main .surface:nth-of-type(4), main .reveal:nth-of-type(4) { animation-delay: .24
 
 /* Live status dot with ripple */
 @keyframes ripple { from { transform: scale(1); opacity: .6; } to { transform: scale(2.6); opacity: 0; } }
-.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: #10b981; animation: ripple 1.6s ease-out infinite; }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: #d9431c; animation: ripple 1.6s ease-out infinite; }
 
 /* A dot travelling along a connector line (flow strips) */
 @keyframes travel { from { left: 0%; } to { left: 100%; } }
-.flow-line { position: relative; height: 2px; background: rgb(16 185 129 / .35); }
-.flow-line::after { content: ""; position: absolute; top: -4px; width: 10px; height: 10px; margin-left: -5px; border-radius: 9999px; background: #059669; animation: travel 1.6s linear infinite; }
+.flow-line { position: relative; height: 2px; background: rgb(217 67 28 / .3); }
+.flow-line::after { content: ""; position: absolute; top: -4px; width: 10px; height: 10px; margin-left: -5px; border-radius: 9999px; background: #d9431c; animation: travel 1.6s linear infinite; }
 @media (prefers-reduced-motion: reduce) {
   .surface:hover { transform: none; }
   .live-dot::after, .flow-line::after { display: none; }
 }
+
+/* Glowing AI orb (advice screen) */
+@keyframes orb { 0%, 100% { transform: scale(1); filter: blur(0); } 50% { transform: scale(1.08); filter: blur(1px); } }
+.ai-orb {
+  background: radial-gradient(circle at 50% 45%, #fff3ec 0%, #f8a47f 30%, #d9431c 62%, rgb(217 67 28 / 0) 72%);
+  border-radius: 9999px;
+  animation: orb 2.6s ease-in-out infinite;
+}
+@keyframes wave { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
+.wave span { display: inline-block; width: 4px; height: 22px; margin: 0 2px; border-radius: 4px; background: #fff; animation: wave 1s ease-in-out infinite; }

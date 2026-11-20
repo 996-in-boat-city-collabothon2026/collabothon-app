@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CFOS, HATS, type Action, type CfoId, type Currency, type Execution, type Hat, type LlmHealth, type Tier } from '@cfo/shared';
 import { useT } from '../i18n';
+import Icon, { type IconName } from './Icon';
 
 /** 4920 → „4 920,00 zł”. Hand-made because pl-PL Intl does not group 4-digit numbers („4920,00 zł”). */
 export function fmtPLN(n: number): string {
@@ -58,23 +59,23 @@ export function Card({ title, children, className = '' }: { title?: ReactNode; c
   );
 }
 
-const TIER_STYLE: Record<Tier, { icon: string; cls: string }> = {
-  ANALYSED: { icon: '🔍', cls: 'bg-stone-100 text-stone-700' },
-  RECOMMENDED: { icon: '💡', cls: 'bg-amber-50 text-amber-800' },
-  NEEDS_APPROVAL: { icon: '✋', cls: 'bg-rose-50 text-rose-800' },
+const TIER_STYLE: Record<Tier, { icon: IconName; cls: string }> = {
+  ANALYSED: { icon: 'search' as IconName, cls: 'bg-zinc-100 text-ink' },
+  RECOMMENDED: { icon: 'bulb' as IconName, cls: 'bg-zinc-100 text-ink' },
+  NEEDS_APPROVAL: { icon: 'check-hand' as IconName, cls: 'bg-accent-soft text-accent-ink' },
 };
 
 export function TierBadge({ tier }: { tier: Tier }) {
   const { t } = useT();
   const s = TIER_STYLE[tier];
-  return <span className={`rounded-full px-2 py-0.5 text-sm font-medium ${s.cls}`}>{s.icon} {t(`tier_${tier}`)}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-sm font-medium ${s.cls}`}><Icon name={s.icon} size={15} className="mr-1 align-[-2px]" />{t(`tier_${tier}`)}</span>;
 }
 
 export function ExecutionBadge({ execution }: { execution: Execution }) {
   const { t } = useT();
   return execution === 'simulated'
-    ? <span className="rounded-full bg-stone-100 px-2 py-0.5 text-sm text-stone-700">🧪 {t('simulated')}</span>
-    : <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-sm text-emerald-800">✅ {t('permitted')}</span>;
+    ? <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-sm text-ink"><Icon name="flask" size={15} />{t('simulated')}</span>
+    : <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-sm text-accent-ink"><Icon name="check" size={15} />{t('permitted')}</span>;
 }
 
 /** Round avatar in the CFO's colour, wearing their thinking hat (HATS[CFOS[c].hat]). */
@@ -89,7 +90,7 @@ export function CfoAvatar({ cfo, size = 40, live = false }: { cfo: CfoId; size?:
   return (
     <span className="relative inline-flex shrink-0">
       {avatar}
-      <span className="live-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" aria-hidden="true" />
+      <span className="live-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-accent" aria-hidden="true" />
     </span>
   );
 }
@@ -151,7 +152,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
             {action.status !== 'open' && <> · {t(`status_${action.status}`)}</>}
           </p>
           <button className="min-h-12 text-sm font-medium text-stone-900 underline underline-offset-4" aria-expanded={open} onClick={() => setOpen(!open)}>
-            {open ? '▾' : '▸'} {t('why')}
+            {t('why')}
           </button>
           {open && (
             <div className="mt-1 text-sm text-stone-700">
@@ -163,7 +164,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
       </div>
       {canDecide && (
         <div className="mt-3 flex gap-2">
-          <button onClick={onApprove} className="min-h-12 flex-1 rounded-full bg-stone-950 py-2 font-semibold text-white">{t('approve')} →</button>
+          <button onClick={onApprove} className="min-h-12 flex-1 rounded-full bg-accent py-2 text-lg font-bold text-white">{t('approve')} →</button>
           <button onClick={onReject} className="min-h-12 flex-1 rounded-full border border-stone-300 bg-white py-2 font-semibold">{t('reject')}</button>
         </div>
       )}
@@ -174,7 +175,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
 export function LlmStatusBadge({ health }: { health: LlmHealth | null }) {
   if (!health) return null;
   const live = health.mode === 'openai_compat';
-  const cls = !health.ok ? 'bg-rose-500' : live ? 'bg-emerald-500' : 'bg-amber-400';
+  const cls = !health.ok ? 'bg-rose-500' : live ? 'bg-accent' : 'bg-amber-400';
   const label = !health.ok ? 'Model offline' : live ? `Model: OpenShift AI · ${health.model}` : 'Model: mock (local)';
   return (
     <span title={label} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-stone-300 bg-white px-2.5 py-1 text-sm text-stone-700">
@@ -217,7 +218,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl bg-white md:rounded-3xl">
         <header className="flex items-center gap-2 border-b border-stone-200 py-2 pl-4 pr-2">
           <h2 className="flex-1 text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} aria-label="✕" className="h-12 w-12 rounded-full text-xl hover:bg-stone-100">✕</button>
+          <button onClick={onClose} aria-label="Zamknij" className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-stone-100"><Icon name="close" /></button>
         </header>
         <div className="space-y-3 overflow-y-auto p-4">{children}</div>
       </div>
@@ -227,7 +228,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
 
 export function Status({ loading, error }: { loading: boolean; error: string | null }) {
   const { t } = useT();
-  if (error) return <p className="rounded-2xl bg-rose-50 p-3 text-rose-800">⚠️ {error}</p>;
+  if (error) return <p className="rounded-2xl bg-accent-soft p-3 text-accent-ink"><Icon name="alert" size={18} className="mr-1 align-[-3px]" />{error}</p>;
   if (loading) return <p className="text-stone-600">{t('loading')}</p>;
   return null;
 }
