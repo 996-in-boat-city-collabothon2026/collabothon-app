@@ -47,7 +47,7 @@ oc label namespace my-first-model opendatahub.io/dashboard=true
 
 ## 3. Connect app → model
 ```
-oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=22000
+oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=24000
 oc rsh deploy/warsztat-cfo curl -s localhost:8080/api/llm/health
 ```
 Expect `"mode":"openai_compat","ok":true`. `LLM_TIMEOUT_MS` = max per model call, `LLM_BUDGET_MS` = max total model time per API request
