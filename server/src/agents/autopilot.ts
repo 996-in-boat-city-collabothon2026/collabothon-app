@@ -3,6 +3,16 @@ import type { Action, AutopilotResult } from '@cfo/shared';
 import { db, logActivity, newId, nowIso } from '../domain/store';
 import { RULES, type DraftAction } from '../rules';
 import { chatOr } from '../llm/provider';
+import { dropPreamble, wholeSentences } from './text';
+
+const EXPLAIN_MAX_WORDS = 45;
+/** Polish, no preamble, amounts copied exactly from POWODY (the rules' why[]). */
+export const EXPLAIN_PROMPT = [
+  'Wyjaśnij właścicielowi warsztatu samochodowego, po polsku, w 2 krótkich zdaniach, dlaczego ta sprawa czeka na zgodę.',
+  'Zacznij od razu od sedna: bez wstępu, bez "Oto", bez powitania.',
+  'Kwoty i daty przepisz dokładnie tak, jak są w POWODACH (np. "36 000,00 zł"). Nie licz, nie zaokrąglaj, nie dodawaj innych liczb.',
+  'Saldo z prognozy to przyszłość, a nie saldo dziś. Wszystko jest symulowane: nie pisz, że coś już zapłacono lub wysłano.',
+].join(' ');
 
 const isDuplicate = (a: Pick<Action, 'kind' | 'refId' | 'title'>) =>
   db.actions.some((x) => x.kind === a.kind && (a.refId ? x.refId === a.refId : x.title === a.title) && x.status !== 'rejected');
@@ -53,10 +63,11 @@ export async function runAutopilot(): Promise<AutopilotResult> {
     created
       .filter((a) => a.tier === 'NEEDS_APPROVAL' && a.status === 'open')
       .map(async (a) => {
-        a.explanation = await chatOr(a.why.join('. '), [
-          { role: 'system', content: 'Explain to a car-repair shop owner in 2 short, plain sentences why this needs their approval. Use only the numbers given.' },
-          { role: 'user', content: `${a.title}. Reasons: ${a.why.join('; ')}` },
-        ], { maxTokens: 120, mockKey: 'explain' });
+        const text = await chatOr('', [
+          { role: 'system', content: EXPLAIN_PROMPT },
+          { role: 'user', content: `SPRAWA: ${a.title}\nPOWODY:\n${a.why.map((w) => `- ${w}`).join('\n')}` },
+        ], { maxTokens: 160, mockKey: 'explain' });
+        a.explanation = wholeSentences(dropPreamble(text), EXPLAIN_MAX_WORDS) || a.why.join('. ');
       }),
   );
 
