@@ -10,10 +10,10 @@ const SOURCES = ['KSeF', 'Bank', 'NBP'];
 
 export default function AgentHub({ className = '' }: { className?: string }) {
   const { lang } = useT();
-  const W = 520, H = 340, cx = W / 2, cy = H / 2;
+  const W = 600, H = 420, cx = W / 2, cy = H / 2;
   // Agents on the inner ring (left/right), sources on the outer edges (top/bottom)
-  const agentPos = [[cx - 175, cy - 70], [cx + 175, cy - 70], [cx - 175, cy + 70], [cx + 175, cy + 70]];
-  const sourcePos = [[cx, 34], [cx - 90, H - 30], [cx + 90, H - 30]];
+  const agentPos = [[cx - 190, cy - 85], [cx + 190, cy - 85], [cx - 190, cy + 60], [cx + 190, cy + 60]];
+  const sourcePos = [[cx, 30], [cx - 80, H - 26], [cx + 80, H - 26]];
   const nodes = [...agentPos, ...sourcePos];
 
   return (
@@ -69,7 +69,8 @@ export default function AgentHub({ className = '' }: { className?: string }) {
             <circle cx={x} cy={y} r="31" fill="#f4f4f5" stroke={HATS[c.hat].color === '#f8fafc' ? '#a1a1aa' : HATS[c.hat].color} strokeWidth="3" />
             <image href={avatarSrc(c.hat).replace('-hat.png', '-cut.png')} x={x - 39} y={y - 49} width="78" height="78" clipPath={`url(#clip-${a})`} />
             <image href={avatarSrc(c.hat).replace('-hat.png', '-cut.png')} x={x - 39} y={y - 49} width="78" height="78" clipPath={`url(#hat-${a})`} className="avatar-hat" />
-            <text x={right ? x - 40 : x + 40} y={y + 6} textAnchor={right ? 'end' : 'start'} fontSize="17" fontWeight="600" fill="#1d1d1f">{c.name}</text>
+            <text x={x} y={y + 54} textAnchor="middle" fontSize="22" fontWeight="700" fill="#1d1d1f">{c.name}</text>
+            <text x={x} y={y + 76} textAnchor="middle" fontSize="18" fill="#3f3f46">{lang === 'pl' ? c.rolePl : c.role}</text>
           </g>
         );
       })}

@@ -127,7 +127,7 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
     const fig = { width: '130%', left: '-15%', top: '-30%' } as const;
     return (
       <span title={label} role="img" aria-label={label} className="avatar-3d relative inline-block shrink-0"
-        style={{ width: S, height: S, marginTop: S * 0.18 }}>
+        style={{ width: S, height: S, marginTop: S * 0.3 }}>
         <span className="absolute inset-0 overflow-hidden rounded-full"
           style={{ background: '#f4f4f5', boxShadow: `inset 0 0 0 ${Math.max(2, S / 26)}px ${ring}` }}>
           <img src={avatarSrc(hatId).replace('-hat.png', '-cut.png')} alt="" loading="lazy" decoding="async"
@@ -163,7 +163,11 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
   return (
     <article className="rounded-3xl bg-white p-4">
       <div className="flex items-start gap-3">
-        <CfoAvatar cfo={action.cfo} size={36} live />
+        <span className="flex w-20 shrink-0 flex-col items-center pt-3 text-center">
+          <CfoAvatar cfo={action.cfo} size={36} live />
+          <span className="mt-1 text-base font-bold leading-tight">{CFOS[action.cfo].name}</span>
+          <span className="text-sm leading-tight text-zinc-700">{CFOS[action.cfo].rolePl}</span>
+        </span>
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap gap-1.5">
             <TierBadge tier={action.tier} />
