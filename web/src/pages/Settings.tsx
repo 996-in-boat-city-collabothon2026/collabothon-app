@@ -1,23 +1,32 @@
-// Settings: what the agents may do alone vs. must ask (everything is simulated), and demo reset for rehearsals.
+// Settings: what the agents do on their own vs. what always waits for the owner (everything is simulated),
+// the "Runs on Red Hat" card, and demo reset for rehearsals.
 import { useEffect, useState } from 'react';
-import type { ActionKind, AutonomyMode, LlmHealth } from '@cfo/shared';
+import type { ActionKind, LlmHealth } from '@cfo/shared';
 import { api, useApi } from '../api/client';
 import { Card, Status, useToast } from '../components/ui';
 import { useT } from '../i18n';
 import Icon, { type IconName } from '../components/Icon';
 
-const KINDS: { kind: ActionKind; icon: IconName }[] = [
-  { kind: 'ksef_revalidate', icon: 'receipt' as IconName },
-  { kind: 'payment_reminder', icon: 'mail' as IconName },
-  { kind: 'tax_payment', icon: 'building' as IconName },
-  { kind: 'supplier_payment', icon: 'truck' as IconName },
-  { kind: 'credit_line', icon: 'bank' as IconName },
-  { kind: 'fx_hedge', icon: 'bank' as IconName },
+/**
+ * What the autopilot really does with each operation – a copy of the server rules in
+ * server/src/agents/autopilot.ts (Pair 2), keep in sync:
+ * - 'auto': analysis (tier ANALYSED) always runs on its own and changes nothing.
+ * - 'owner': in NEEDS_OWNER – it moves money or contacts a third party, so it always waits for the owner,
+ *   whatever settings.autonomy says (an old saved 'auto' is ignored there too).
+ * No operation shown here has a setting that changes what happens, so the page shows the behaviour and offers
+ * no Auto / Ask switch. Add a switch only for an operation where the server would act on it.
+ */
+const OPERATIONS: { kind: ActionKind; icon: IconName; behaviour: 'auto' | 'owner' }[] = [
+  { kind: 'ksef_revalidate', icon: 'receipt', behaviour: 'auto' },
+  { kind: 'payment_reminder', icon: 'mail', behaviour: 'owner' },
+  { kind: 'tax_payment', icon: 'building', behaviour: 'owner' },
+  { kind: 'supplier_payment', icon: 'truck', behaviour: 'owner' },
+  { kind: 'credit_line', icon: 'bank', behaviour: 'owner' },
+  { kind: 'fx_hedge', icon: 'bank', behaviour: 'owner' },
 ];
 
 export default function SettingsPage() {
   const { t } = useT();
-  const { data, loading, error, reload } = useApi(api.settings);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
   const { toast, showToast } = useToast();
@@ -27,16 +36,6 @@ export default function SettingsPage() {
   useEffect(() => {
     if (location.hash === '#platform') document.getElementById('platform')?.scrollIntoView({ block: 'start' });
   }, []);
-
-  async function setMode(kind: ActionKind, mode: AutonomyMode) {
-    try {
-      await api.saveSettings({ autonomy: { [kind]: mode } });
-      showToast(t('saved'));
-    } catch {
-      showToast(t('save_failed'));
-    }
-    await reload();
-  }
 
   async function reset() {
     setResetting(true);
@@ -54,35 +53,26 @@ export default function SettingsPage() {
       <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">{t('settings')}</h1>
 
       <Card title={t('autonomy_title')}>
-        <Status loading={loading && !data} error={error} />
-        <p className="mb-2 text-stone-600">{t('autonomy_note')}</p>
-        <ul className="mb-4 space-y-1 text-sm text-stone-700">
-          <li>• <strong>{t('mode_ask')}</strong> – {t('mode_ask_explain')}</li>
-          <li>• <strong>{t('mode_auto')}</strong> – {t('mode_auto_explain')}</li>
-        </ul>
+        <p className="mb-4 text-stone-600">{t('autonomy_note')}</p>
         <ul className="space-y-3">
-          {KINDS.map(({ kind, icon }) => {
-            const mode = data?.autonomy[kind] ?? 'ask';
-            return (
-              <li key={kind} className="flex flex-col gap-3 rounded-2xl border border-stone-200 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <span className="flex items-start gap-3">
-                  <Icon name={icon} size={22} className="mt-0.5 shrink-0" />
-                  <span>
-                    <span id={`kind-${kind}`} className="block font-medium">{t(`kind_${kind}`)}</span>
-                    <span className="block text-sm text-stone-600">{t(`hint_${kind}`)}</span>
-                  </span>
+          {OPERATIONS.map(({ kind, icon, behaviour }) => (
+            <li key={kind} data-kind={kind}
+              className="flex flex-col gap-3 rounded-2xl border border-stone-200 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="flex items-start gap-3">
+                <Icon name={icon} size={22} className="mt-0.5 shrink-0" />
+                <span>
+                  <span className="block font-medium">{t(`kind_${kind}`)}</span>
+                  <span className="block text-sm text-stone-600">{t(`hint_${kind}`)}</span>
                 </span>
-                <div role="radiogroup" aria-labelledby={`kind-${kind}`} className="flex shrink-0 gap-1 rounded-full bg-stone-100 p-1">
-                  {(['ask', 'auto'] as AutonomyMode[]).map((m) => (
-                    <button key={m} role="radio" aria-checked={mode === m} onClick={() => void setMode(kind, m)} disabled={!data}
-                      className={`min-h-12 flex-1 rounded-full px-4 text-sm font-medium sm:flex-none ${mode === m ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600'}`}>
-                      {t(m === 'auto' ? 'mode_auto' : 'mode_ask')}
-                    </button>
-                  ))}
-                </div>
-              </li>
-            );
-          })}
+              </span>
+              {/* Read-only: a status, not a control. */}
+              <span className={`inline-flex shrink-0 items-center gap-1.5 self-start rounded-full px-3 py-1.5 text-sm font-semibold sm:self-center ${
+                behaviour === 'owner' ? 'bg-accent-soft text-accent-ink' : 'bg-stone-100 text-stone-700'}`}>
+                <Icon name={behaviour === 'owner' ? 'check-hand' : 'search'} size={16} />
+                {t(behaviour === 'owner' ? 'behaviour_owner' : 'behaviour_auto')}
+              </span>
+            </li>
+          ))}
         </ul>
       </Card>
 

@@ -218,7 +218,7 @@ function FixSheet({ inv, onClose, onSubmit }: {
         </label>
         <label className="block space-y-1 font-semibold">
           <span>{t('buyer_nip')}</span>
-          <input value={nip} onChange={(e) => setNip(e.target.value)} inputMode="numeric" autoComplete="off"
+          <input value={nip} onChange={(e) => setNip(e.target.value)} autoCapitalize="characters" autoComplete="off"
             aria-invalid={!!nipErr} aria-describedby="nip-hint"
             className={`${input} ${nipErr ? 'border-accent bg-accent-soft' : 'border-accent'}`} />
           <span id="nip-hint" className={`block text-sm font-normal ${nipErr ? 'text-accent-ink' : 'text-accent-ink'}`}>
