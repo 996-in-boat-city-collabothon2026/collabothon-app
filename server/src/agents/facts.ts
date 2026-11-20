@@ -3,6 +3,8 @@
 // With a few clearly labelled facts plus a ready-made conclusion it only has to say the conclusion in its own words.
 // `summary` is also the safe answer when the model is down or invents a number.
 // The whole app speaks English (money keeps the Polish format "12 430,00 zł", the shop is Polish).
+// Rebuild (docs/PAIR2-REBUILD.md): the conclusion is split into POINTS with an id. The model only picks ids, the
+// text always comes from here, so a number can never get the wrong label.
 import type { CfoId } from '@cfo/shared';
 import { db } from '../domain/store';
 import { daysBetween, fmtPLN } from '../domain/money';
@@ -14,11 +16,25 @@ import { taxesDue } from '../rules/taxDue';
 import { topCost } from '../rules/expenses';
 import { labourGaps, lowMarkups, sumMissing } from '../rules/margin';
 
+/** One ready-made piece of the answer, built only from rule numbers. */
+export interface CfoPoint {
+  id: string; // stable per CFO, e.g. "gap", "reminders", "fx-EUR", "next-tax", "labour"
+  text: string; // one or two plain English sentences
+  core: boolean; // part of the conclusion (the summary). Other points are details the owner may ask about.
+  critical: boolean; // a real risk right now: a calming comment must never be shown for this CFO
+}
+
 export interface CfoFacts {
   lines: string[]; // "label: value" facts for the prompt
-  summary: string; // 1–2 plain sentences: what the owner should know and do
+  points: CfoPoint[]; // the conclusion (core points, in order) and the details
+  summary: string; // the core points joined: what the owner should know and do, and the safe fallback answer
   misread?: (reply: string) => boolean; // a mistake seen live on the real model (true = don't show the reply)
 }
+
+/** What a builder returns: `summary` is always made from the core points (cfoFacts). */
+type Built = Omit<CfoFacts, 'summary'>;
+const point = (id: string, text: string, core = true, critical = false): CfoPoint => ({ id, text, core, critical });
+export const summaryOf = (points: CfoPoint[]) => points.filter((p) => p.core).map((p) => p.text).join(' ');
 
 const sentencesOf = (text: string) => text.split(/(?<=[.!?])\s+/);
 
@@ -37,7 +53,7 @@ const inDays = (iso: string) => {
 };
 const list = (items: string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 
-function anna(): CfoFacts {
+function anna(): Built {
   const f = forecast(30);
   const low = f.lowest;
   const gap = f.bufferPLN - low.balancePLN;
@@ -57,13 +73,19 @@ function anna(): CfoFacts {
     ...(lateText.length ? [`Customers who owe you money and are late: ${list(lateText)}`] : []),
   ];
 
-  let summary: string;
+  const points: CfoPoint[] = [];
   if (gap <= 0) {
-    summary = `You have enough cash: the lowest forecast balance is ${fmtPLN(low.balancePLN)} (${fmtDateEn(low.date)}), above the ${fmtPLN(f.bufferPLN)} buffer.`;
+    points.push(point('cash', `You have enough cash: the lowest forecast balance is ${fmtPLN(low.balancePLN)} (${fmtDateEn(low.date)}), above the ${fmtPLN(f.bufferPLN)} buffer.`));
   } else {
-    summary = `Careful: on ${fmtDateEn(low.date)} the balance drops to ${fmtPLN(low.balancePLN)}, ${fmtPLN(gap)} below your buffer.`;
-    if (late.length) summary += ` First send reminders to the customers who have not paid you: ${list(late.map((i) => noDemo(i.counterparty.name)))}.`;
-    if (credit) summary += ` If that is not enough, a credit line of ${fmtPLN(credit)}.`;
+    points.push(point('gap', `Careful: on ${fmtDateEn(low.date)} the balance drops to ${fmtPLN(low.balancePLN)}, ${fmtPLN(gap)} below your buffer.`, true, true));
+    if (late.length) points.push(point('reminders', `First send reminders to the customers who have not paid you: ${list(late.map((i) => noDemo(i.counterparty.name)))}.`));
+    // "If that is not enough" only follows the reminders; without late customers it had nothing to point back to.
+    if (credit) points.push(point('credit', late.length ? `If that is not enough, a credit line of ${fmtPLN(credit)}.` : `A credit line of ${fmtPLN(credit)} would cover the gap.`));
+  }
+  points.push(point('balance', `Your bank balance today is ${fmtPLN(db.bank.balancePLN)}.`, false));
+  for (const r of paymentReminders()) {
+    const i = late.find((x) => x.id === r.refId)!;
+    points.push(point(`late-${i.id}`, `${noDemo(i.counterparty.name)} owes you ${fmtPLN(r.amountPLN!)} and is ${inDays(i.dueDate)}.`, false));
   }
   // Live: "pay FlotaTrans 12 300 zł", but FlotaTrans owes the shop money, not the other way round.
   const customers = late.map((i) => noDemo(i.counterparty.name).split(/\s+/)[0].toLowerCase());
@@ -77,10 +99,10 @@ function anna(): CfoFacts {
       const falseComfort = gap > 0 && /no problem|not a problem|you(?:'re| are) fine/.test(s);
       return payCustomer || falseComfort;
     });
-  return { lines, summary, misread };
+  return { lines, points, misread };
 }
 
-function kasia(): CfoFacts {
+function kasia(): Built {
   const exposures = fxExposures();
   // No NBP rate for a currency with open invoices: say so, never guess a conversion (the other agents still run).
   const missing = missingFxRates();
@@ -88,14 +110,14 @@ function kasia(): CfoFacts {
   if (exposures.length === 0 && missing.length) {
     return {
       lines: noRate,
-      summary: `I cannot measure the currency risk: there is no NBP rate for ${missing.join(', ')}, so the conversion to złoty is unavailable.`,
+      points: [point('no-rate', `I cannot measure the currency risk: there is no NBP rate for ${missing.join(', ')}, so the conversion to złoty is unavailable.`)],
     };
   }
   if (exposures.length === 0) {
-    return { lines: ['No unpaid foreign-currency invoices'], summary: 'You have no currency risk right now: all open invoices are in złoty.' };
+    return { lines: ['No unpaid foreign-currency invoices'], points: [point('no-fx', 'You have no currency risk right now: all open invoices are in złoty.')] };
   }
   const lines: string[] = [];
-  const parts: string[] = [];
+  const points: CfoPoint[] = [];
   for (const e of exposures) {
     const c = e.currency;
     const weOwe = e.net > 0;
@@ -112,15 +134,19 @@ function kasia(): CfoFacts {
     );
     const hedge = e.shockPLN > FX_SHOCK_THRESHOLD_PLN;
     if (hedge) lines.push(`Proposal: a forward contract for ${amount} (simulated), the rate stays at ${rate}`);
-    parts.push(
-      `You have ${amount} ${weOwe ? 'to pay' : 'to receive'}. If ${c} ${weOwe ? 'rises' : 'falls'} 5%, you lose ${fmtPLN(e.shockPLN)}${to > from && weOwe ? `, and the rate is going up (from ${fmtNum(from, 4)} zł to ${rate})` : ''}. ` +
-        (hedge ? `I suggest locking the rate with a forward contract for ${amount}.` : 'The risk is small, no action needed for now.'),
+    points.push(
+      point(`fx-${c}`, `You have ${amount} ${weOwe ? 'to pay' : 'to receive'}. If ${c} ${weOwe ? 'rises' : 'falls'} 5%, you lose ${fmtPLN(e.shockPLN)}${to > from && weOwe ? `, and the rate is going up (from ${fmtNum(from, 4)} zł to ${rate})` : ''}.`, true, hedge),
+      point(`hedge-${c}`, hedge ? `I suggest locking the rate with a forward contract for ${amount}.` : 'The risk is small, no action needed for now.'),
     );
+  }
+  for (const e of exposures.filter(hasTrend)) {
+    const { from, weeksUp } = e.trend;
+    points.push(point(`rate-${e.currency}`, `The NBP ${e.currency} rate is ${fmtNum(latestRate(e.currency), 4)} zł today; 4 weeks ago it was ${fmtNum(from, 4)} zł${weeksUp > 0 ? ` (up ${weeksUp} weeks in a row)` : ''}.`, false));
   }
   // Live: "the euro is not a problem because it is rising" while the shop owes euro and a hedge is proposed.
   const risky = exposures.some((e) => e.shockPLN > FX_SHOCK_THRESHOLD_PLN);
   const misread = (reply: string) => risky && /not a problem|no problem/i.test(reply);
-  return { lines: [...lines, ...noRate], summary: parts.join(' '), misread };
+  return { lines: [...lines, ...noRate], points, misread };
 }
 
 /**
@@ -135,7 +161,10 @@ function reasonEn(reason?: string): string {
   return 'the invoice data is wrong';
 }
 
-function marek(): CfoFacts {
+/** A tax deadline this close (or already late) is a real risk now. */
+const URGENT_TAX_DAYS = 7;
+
+function marek(): Built {
   const taxes = taxesDue(30).obligations;
   const rejected = db.invoices.filter((i) => i.ksef.status === 'rejected');
   const lines = [
@@ -147,17 +176,25 @@ function marek(): CfoFacts {
   if (lines.length === 0) lines.push('No taxes due in 30 days and no KSeF problems');
 
   const next = taxes[0];
-  const bits: string[] = [];
-  if (next) bits.push(`Next deadline: ${next.kind} ${fmtPLN(next.amountPLN)}, due ${fmtDateEn(next.dueDate)} (${inDays(next.dueDate)}), still unpaid.`);
-  if (rejected.length) {
-    bits.push(`KSeF rejected invoice ${list(rejected.map((i) => i.number))}, so it is not issued yet: fix the buyer data and send it again.`);
+  const points: CfoPoint[] = [];
+  if (next) {
+    const urgent = daysBetween(db.shop.today, next.dueDate) <= URGENT_TAX_DAYS;
+    points.push(point('next-tax', `Next deadline: ${next.kind} ${fmtPLN(next.amountPLN)}, due ${fmtDateEn(next.dueDate)} (${inDays(next.dueDate)}), still unpaid.`, true, urgent));
   }
-  return { lines, summary: bits.join(' ') || 'Taxes and KSeF are in order.' };
+  if (rejected.length) {
+    points.push(point('ksef', `KSeF rejected invoice ${list(rejected.map((i) => i.number))}, so it is not issued yet: fix the buyer data and send it again.`));
+  }
+  if (!points.length) points.push(point('ok', 'Taxes and KSeF are in order.'));
+  // Every tax due in 30 days, so a question about ZUS or PIT gets its own deadline, not only the next one.
+  for (const o of taxes) {
+    points.push(point(`tax-${o.id}`, `${o.kind}: ${fmtPLN(o.amountPLN)}, due ${fmtDateEn(o.dueDate)} (${inDays(o.dueDate)}), still unpaid.`, false));
+  }
+  return { lines, points };
 }
 
 const CATEGORY_EN: Record<string, string> = { parts: 'parts', utilities: 'utilities', other: 'other costs' };
 
-function tomasz(): CfoFacts {
+function tomasz(): Built {
   const rate = fmtPLN(db.shop.labourRatePLN);
   const labour = labourGaps();
   const markup = lowMarkups();
@@ -175,15 +212,18 @@ function tomasz(): CfoFacts {
   if (top) lines.push(`Biggest cost you can change: ${CATEGORY_EN[top.category]}, ${fmtPLN(top.amount)} in 30 days (${top.sharePct}% of all costs)`);
   if (lines.length === 0) lines.push('Margins and costs are in order');
 
-  const bits: string[] = [];
+  const points: CfoPoint[] = [];
   if (labour.length) {
     const cars = list(labour.map(({ o }) => o.car));
-    bits.push(`On ${labour.length} orders you billed customers too little for labour: ${fmtPLN(sumMissing(labour))} missing (${cars}). Bill the full hours at ${rate}.`);
+    points.push(point('labour', `On ${labour.length} orders you billed customers too little for labour: ${fmtPLN(sumMissing(labour))} missing (${cars}). Bill the full hours at ${rate}.`));
   }
-  if (markup.length) bits.push(`Also, a parts markup below ${target} cost you ${fmtPLN(sumMissing(markup))}.`);
-  if (!bits.length && top) {
-    bits.push(`You spend most on ${CATEGORY_EN[top.category]}: ${fmtPLN(top.amount)} in 30 days. Ask other suppliers for a quote.`);
+  if (markup.length) points.push(point('markup', `Also, a parts markup below ${target} cost you ${fmtPLN(sumMissing(markup))}.`));
+  // The biggest cost is the conclusion only when nothing else is wrong; otherwise it is a detail the owner may ask about.
+  if (top) {
+    points.push(point('top-cost', `You spend most on ${CATEGORY_EN[top.category]}: ${fmtPLN(top.amount)} in 30 days. Ask other suppliers for a quote.`, points.length === 0));
   }
+  if (!points.length) points.push(point('ok', 'Margins and costs are in order.'));
+  for (const { o, missing } of labour) points.push(point(`car-${o.id}`, `${o.car}: ${fmtPLN(missing)} of labour is missing.`, false));
   // Live: "You're paying your labourers 200 zł per hour…": the rule is about prices for customers, not wages.
   // A wage word that is negated or contrasted in its clause is the RIGHT reading (review of 1bdce05: "The 1700 zł is
   // missing revenue, not an increase in mechanics' wages." fell back).
@@ -193,13 +233,13 @@ function tomasz(): CfoFacts {
       const clause = reply.slice(Math.max(0, m.index! - 45), m.index).split(/[.;!?](?=\s)/).pop() ?? '';
       return !/\b(?:not|no|never|rather than|instead of|unlike)\b|n't\b/i.test(clause);
     });
-  return { lines, summary: bits.join(' ') || 'Margins and costs are in order.', misread };
+  return { lines, points, misread };
 }
 
-const BUILDERS: Record<CfoId, () => CfoFacts> = { anna, kasia, marek, tomasz };
+const BUILDERS: Record<CfoId, () => Built> = { anna, kasia, marek, tomasz };
 
 /** Facts + conclusion for one CFO. Today's date is always included. */
 export function cfoFacts(cfo: CfoId): CfoFacts {
   const f = BUILDERS[cfo]();
-  return { ...f, lines: [`Today is ${fmtDateEn(db.shop.today)}`, ...f.lines] };
+  return { ...f, lines: [`Today is ${fmtDateEn(db.shop.today)}`, ...f.lines], summary: summaryOf(f.points) };
 }

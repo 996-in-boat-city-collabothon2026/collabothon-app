@@ -45,8 +45,12 @@ export function explain(a: Pick<Action, 'cfo' | 'kind' | 'refId' | 'amountPLN' |
       }
       break;
     }
-    case 'fx_hedge':
-      return `${cfoFacts('kasia').summary} ${APPROVAL}`;
+    case 'fx_hedge': {
+      // Only the card's own currency (review of PR #6: a USD card also explained the EUR risk).
+      const own = cfoFacts('kasia').points.filter((p) => p.id === `fx-${inv?.currency}` || p.id === `hedge-${inv?.currency}`);
+      if (own.length) return `${own.map((p) => p.text).join(' ')} ${APPROVAL}`;
+      break;
+    }
   }
   return `${cfoFacts(a.cfo).summary} ${APPROVAL}`;
 }

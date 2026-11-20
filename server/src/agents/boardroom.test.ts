@@ -252,9 +252,9 @@ describe('conference: the same safeguards as /api/ask', () => {
   });
 
   it('a currency pair the facts really have stays', () => {
-    const facts = { lines: ['USD to pay: 100 USD', 'EUR to pay: 1500 EUR'], summary: '' };
+    const facts = { lines: ['USD to pay: 100 USD', 'EUR to pay: 1500 EUR'], points: [], summary: '' };
     expect(fixCurrencyPair('The EUR/USD rate moved.', facts)).toBe('The EUR/USD rate moved.');
-    expect(fixCurrencyPair('The EUR/USD rate moved.', { lines: ['EUR to pay: 1500 EUR'], summary: '' })).toBe('The EUR rate moved.');
+    expect(fixCurrencyPair('The EUR/USD rate moved.', { lines: ['EUR to pay: 1500 EUR'], points: [], summary: '' })).toBe('The EUR rate moved.');
   });
 
   it('no EUR rate: Kasia says in English the conversion is unavailable, the other agents finish', async () => {

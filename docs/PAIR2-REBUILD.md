@@ -101,9 +101,12 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
          nothing valid → all points (= today's summary, the fallback)
 ```
 
-- **Points.** `agents/facts.ts`: each CFO returns `points: { id, text, critical }[]`. These are today's conclusion
-  sentences, split up (e.g. `vat`, `ksef` for Marek; `gap`, `reminders`, `credit` for Anna). `summary` = points
-  joined, **byte-identical** to today, so the fallback and existing tests do not change.
+- **Points.** `agents/facts.ts`: each CFO returns `points: { id, text, core, critical }[]`. Core points are today's
+  conclusion sentences, split up (e.g. `next-tax`, `ksef` for Marek; `gap`, `reminders`, `credit` for Anna). `summary`
+  = core points joined, byte-identical to before, so the fallback and existing tests do not change. Detail points
+  (`core: false`) cover what the owner may ask about (each tax, each late customer, each car, the rate trend).
+  `critical` marks a real risk now. In M3/M4 a calming comment is refused when **any** point of that CFO is critical,
+  not only the chosen ones.
 - **Model output.** JSON `{"points": string[], "comment": string}`, parsed with `extractJson` (`llm/json.ts`) and a zod
   schema. Unknown ids are dropped. No valid id → all points.
 - **`commentProblem(comment, critical)`** (new, `agents/safety.ts`) rejects the comment when it:
@@ -148,8 +151,21 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
   forward and approving it → 409; `{"topic":{"a":1}}` and `{"question":{"a":1}}` → 400. Note: Fastify reads a plain
   number as text, so `{"topic":123}` and `{"question":123}` → 200 (no longer 500). `{"cfo":"toString"}` → 200, picked by topic.
 
-- [ ] **M2 Facts as points** (`agents/facts.ts`, `agents/explain.ts`)
+- [x] **M2 Facts as points** (`agents/facts.ts`, `agents/explain.ts`)
   Done when: `summary` is byte-identical for the seed, the FX explanation uses only the card's currency, and all existing tests are green.
+
+  Result: **507/507 tests in 23 files** (9 new in `agents/facts.test.ts`), typecheck clean, build OK.
+  Each CFO now returns `points: { id, text, core, critical }[]`:
+  - **core points** form the summary, in the same order as before (Anna `gap`, `reminders`, `credit`; Kasia `fx-EUR`, `hedge-EUR`; Marek `next-tax`, `ksef`; Tomasz `labour`, `markup`);
+  - **details** (`core: false`) are what the owner may ask about: Anna `balance` and `late-<invoice>`, Kasia `rate-<currency>`, Marek `tax-<obligation>` for every tax in 30 days, Tomasz `top-cost` and `car-<order>`;
+  - **critical** points on the seed: Anna `gap`, Kasia `fx-EUR` (the loss is above the threshold), Marek `next-tax` (due within 7 days).
+
+  Snapshot of 12 data states (seed, VAT paid, Krause paid, credit opened, no foreign invoices, no EUR rate, one EUR
+  rate, small FX risk, two currencies, all taxes paid, no labour gaps, no late customers):
+  - 47 of 48 summaries are byte-identical and every fact line is unchanged. The one change is intended: with no late customers the credit point said "If that is not enough, a credit line…" with nothing before it. It now says "A credit line of 36 000,00 zł would cover the gap."
+  - 60 of 62 card explanations are unchanged. The 2 changes are the two FX cards with two currencies, which now explain only their own currency.
+
+  New test property: every number in every point is a number of the same CFO's fact lines.
 
 - [ ] **M3 `commentProblem` and its tests** (`agents/safety.ts`, new test file)
   Done when: every forbidden class from section 3a is rejected, and a set of good hat-style comments is accepted
