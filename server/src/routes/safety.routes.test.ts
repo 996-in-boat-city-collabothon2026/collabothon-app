@@ -417,3 +417,47 @@ describe('review of 1bdce05', () => {
     });
   });
 });
+
+// ---------- Review of eb55a16: tax figures and quantified FX outcomes grounded unambiguously, else rule text ----------
+describe('review of eb55a16', () => {
+  const chairSays = (summary: string) => (m: ChatMessage[]) => (isChair(m) ? JSON.stringify({ summary, decisionActionIds: [] }) : '');
+  const UNSAFE4: Case[] = [
+    { name: 'VAT deadline word before the label', question: 'How much VAT do I owe?', cfo: 'marek', text: 'The deadline for VAT is December 20, 2026.' },
+    { name: 'VAT and ZUS amounts swapped', question: 'How much VAT do I owe?', cfo: 'marek', text: 'You owe 5800 zł in VAT and 14,230 zł in ZUS.' },
+    { name: 'an extra charge that does not exist', question: 'How much VAT do I owe?', cfo: 'marek', text: 'You owe VAT of 14,230 zł. Budget an extra 5800 zł for late payment.' },
+    { name: 'FX: "without a hedge" the rise "saves you"', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'Without a hedge, a 5% rise saves you 320,25 zł.' },
+  ];
+  const SAFE4: Case[] = [
+    { name: 'pay VAT to avoid a penalty', question: 'How much VAT do I owe?', cfo: 'marek', text: 'Pay the 14,230 zł VAT bill on time to avoid a penalty.' },
+    { name: 'the euro gains 5%: the extra cost', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'If the euro gains 5%, the extra cost is 320,25 zł.' },
+  ];
+  describe.each([
+    ['/api/ask', async (c: Case) => {
+      reply = () => c.text;
+      const r = await ask(c.question);
+      expect(r.body.cfo).toBe(c.cfo);
+      return { status: r.status, shown: r.body.text, fallback: rule(c.cfo) };
+    }],
+    ['agent turn', async (c: Case) => {
+      reply = (m) => (speaker(m) === c.cfo ? c.text : '');
+      const r = await conference();
+      return { status: r.status, shown: r.body.turns.find((t) => t.cfo === c.cfo)!.text, fallback: rule(c.cfo) };
+    }],
+    ['chair summary', async (c: Case) => {
+      reply = chairSays(c.text);
+      const r = await conference();
+      return { status: r.status, shown: r.body.summary, fallback: chairFallback() };
+    }],
+  ] as const)('%s', (_, run) => {
+    it.each(UNSAFE4)('unsafe → fallback: $name', async (c) => {
+      const { status, shown, fallback } = await run(c);
+      expect(status).toBe(200);
+      expect(shown).toBe(fallback);
+    });
+    it.each(SAFE4)('safe → unchanged: $name', async (c) => {
+      const { status, shown } = await run(c);
+      expect(status).toBe(200);
+      expect(shown).toBe(c.text);
+    });
+  });
+});

@@ -113,10 +113,14 @@ function outcomeOf(text: string, start: number, end: number): number {
   const window = text.slice(Math.max(0, start - 70), start);
   const clause = window.split(OUTCOME_CLAUSE).pop() ?? '';
   const words = [...clause.matchAll(/\p{L}+/gu)];
-  const moveCaused = words.some((m) => dirOf(m[0]) !== 0) && !words.some((m) => HEDGE_WORD.test(m[0]));
+  // A hedge counts only when it is not negated: "Without a hedge, a 5% rise saves you …" is the move, not the hedge.
+  const hedged = words.some((m) => HEDGE_WORD.test(m[0]) && !/\b(?:without|no|not|unhedged|before)\s+(?:an?\s+|the\s+|any\s+)?$/i.test(clause.slice(0, m.index)));
+  const moveCaused = words.some((m) => dirOf(m[0]) !== 0) && !hedged;
   const found = new Set<number>();
   words.forEach((m, i) => {
     const w = m[0];
+    // "the euro gains 5%" / "EUR loses 5%": a word right before a percent is the currency's move, not the outcome
+    if (/^\s*(?:by\s+)?§/.test(clause.slice(m.index! + w.length))) return;
     const near = words.length - 1 - i <= 0; // the word right before the amount
     const dir = LOSS_WORD.test(w) ? -1 : GAIN_WORD.test(w) || (near && GAIN_NEAR.test(w)) || (moveCaused && SAVE_WORD.test(w)) ? 1 : 0;
     if (dir && !NEGATION_BEFORE.test(clause.slice(0, m.index))) found.add(dir);
@@ -184,7 +188,7 @@ function scan(text: string): {
   dates: Dates;
   numbers: { value: number; neg: boolean; cur: string; outcome: number }[];
   percents: { raw: string; value: number; dir: number }[];
-  tokens: { raw: string; values: number[]; neg: boolean; cur: string; outcome: number }[];
+  tokens: { raw: string; values: number[]; neg: boolean; cur: string; outcome: number; before: string; after: string }[];
 } {
   const dates: Dates = { md: new Set(), full: new Set(), mdNoYear: new Set() };
   const percents = [...text.matchAll(PERCENT)].map((m) => ({
@@ -208,7 +212,7 @@ function scan(text: string): {
   }
   // Dates are checked as dates, so take them out before reading plain numbers (keeps "2026" or "20" from leaking in).
   // Percents are checked as percents, too.
-  const rest = text.replace(ISO_DATE, ' ').replace(DAY_MONTH, ' ').replace(MONTH_DAY, ' ').replace(PERCENT, ' ');
+  const rest = text.replace(ISO_DATE, ' ').replace(DAY_MONTH, ' ').replace(MONTH_DAY, ' ').replace(PERCENT, ' § '); // § marks a percent: "the euro gains §" is a move, not a gain
 
   const tokens = [...rest.matchAll(NUMBER)].map((m) => {
     const before = rest.slice(Math.max(0, m.index! - 30), m.index);
@@ -219,6 +223,8 @@ function scan(text: string): {
       neg: NEGATIVE_BEFORE.test(before.slice(-7)) || NEGATIVE_WORDS_BEFORE.test(before) || NEGATIVE_WORDS_AFTER.test(after),
       cur: currencyOf(UNIT_AFTER.exec(after)?.[1] ?? UNIT_BEFORE.exec(before)?.[1]),
       outcome: outcomeOf(rest, m.index!, m.index! + m[0].length),
+      before,
+      after,
     };
   });
   const numbers = [
@@ -316,7 +322,13 @@ export function findInventedNumbers(reply: string, facts: string): string[] {
  */
 const OBLIGATION = /\b(VAT|ZUS|PIT)\b/g;
 const FEE = /\b(?:surcharges?|fees?|penalt(?:y|ies)|fines?|interest|late charges?)\b/i;
+/** Words that give an amount to something other than the obligation it belongs to: "an extra 5800 zł for late payment". */
+const EXTRA = /\b(?:extra|additional|surcharges?|fees?|penalt(?:y|ies)|fines?|interest|late|on top)\b/i;
 const FACT_CLAUSES = /\n|[.;!?](?=\s|$)/;
+/** One statement: "You owe 5800 zł in VAT and 14,230 zł in ZUS" holds two. */
+const STATEMENTS = /\band\b|,(?=\s)|;/;
+/** Due-date wording anywhere in the statement: "the deadline for VAT is …", "VAT … is due on", "pay ZUS by". */
+const DUE_WORDS = /\b(?:due|deadline|payable|pay|paid|by|until|before)\b/i;
 interface Bound { amounts: number[]; dates: Set<string> }
 function boundParts(clause: string): Bound {
   const sc = scan(clause);
@@ -327,9 +339,8 @@ function boundParts(clause: string): Bound {
 }
 const labelsOf = (clause: string) => [...new Set([...clause.matchAll(OBLIGATION)].map((m) => m[1]))];
 const hasValue = (list: number[], v: number) => list.some((k) => Math.abs(k - v) < TOLERANCE);
-
-/** Due-date wording between the obligation and the date: "VAT … is due on", "pay ZUS by", "the PIT deadline is". */
-const DUE_WORDS = /\b(?:due|deadline|payable|pay|paid|by|until|before)\b/i;
+const lastWords = (s: string, n: number) => (s.match(/\p{L}+/gu) ?? []).slice(-n).join(' ');
+const firstWords = (s: string, n: number) => (s.split(/[.;!?,](?=\s|$)/)[0].match(/\p{L}+/gu) ?? []).slice(0, n).join(' ');
 
 function misboundFacts(reply: string, facts: string): string[] {
   const all = boundParts(facts); // only numbers the facts DO have: unknown ones are already reported as invented
@@ -348,23 +359,36 @@ function misboundFacts(reply: string, facts: string): string[] {
     }
     if (FEE.test(clause)) feeAmounts.push(...boundParts(clause).amounts);
   }
+  /** Which obligations the facts give this amount to. */
+  const ownersOf = (v: number) => [...bound].filter(([, b]) => hasValue(b.amounts, v)).map(([l]) => l);
+
   const out: string[] = [];
   for (const clause of reply.split(FACT_CLAUSES)) {
-    const parts = boundParts(clause);
-    if (FEE.test(clause)) for (const v of parts.amounts) if (hasValue(all.amounts, v) && !hasValue(feeAmounts, v)) out.push(`fee ${v}`);
-    const labels = labelsOf(clause);
-    if (labels.length !== 1) continue;
-    const own = bound.get(labels[0]);
-    const others = [...bound].filter(([l]) => l !== labels[0]).map(([, b]) => b);
-    for (const v of parts.amounts) {
-      if (others.some((b) => hasValue(b.amounts, v)) && !(own && hasValue(own.amounts, v))) out.push(`${labels[0]} ${v}`);
-    }
-    const label = clause.search(new RegExp(`\\b${labels[0]}\\b`));
-    for (const d of parts.dates) {
-      if (!all.dates.has(d) || today.has(d) || own?.dates.has(d)) continue;
-      // Only a date told as this obligation's deadline is bound to it ("a balance … on December 20" is not).
-      if (!DUE_WORDS.test(clause.slice(label))) continue;
-      if ((own && own.dates.size > 0) || others.some((b) => b.dates.has(d))) out.push(`${labels[0]} ${d}`);
+    let carried: string | undefined; // "VAT, which is 5800 zł": a statement without its own obligation keeps the last one
+    for (const statement of clause.split(STATEMENTS)) {
+      const named = labelsOf(statement);
+      const label = named.length === 1 ? named[0] : named.length === 0 ? carried : undefined;
+      if (named.length === 1) carried = named[0];
+      const ambiguous = named.length > 1;
+      for (const t of scan(statement).tokens.filter((x) => x.cur)) {
+        for (const v of t.values.filter((x) => hasValue(all.amounts, x))) {
+          // a fee needs a fee fact, and it must be attached to the amount ("the surcharge is 5800 zł", "a 17 zł fee"),
+          // so "Pay the 14,230 zł VAT bill on time to avoid a penalty." is fine
+          if ((FEE.test(lastWords(t.before, 3)) || FEE.test(firstWords(t.after, 2))) && !hasValue(feeAmounts, v)) out.push(`fee ${v}`);
+          const owners = ownersOf(v);
+          if (!owners.length) continue;
+          if (ambiguous) out.push(`${named.join('/')} ${v}`); // two obligations, one amount: cannot be grounded
+          else if (label && !owners.includes(label)) out.push(`${label} ${v}`); // another obligation's amount
+          else if (!named.length && EXTRA.test(statement)) out.push(`extra ${v}`); // "an extra 5800 zł for late payment"
+        }
+      }
+      if (!label || !DUE_WORDS.test(statement)) continue; // only a date told as this obligation's deadline is bound
+      const own = bound.get(label);
+      const others = [...bound].filter(([l]) => l !== label).map(([, b]) => b);
+      for (const d of boundParts(statement).dates) {
+        if (!all.dates.has(d) || today.has(d) || own?.dates.has(d)) continue;
+        if ((own && own.dates.size > 0) || others.some((b) => b.dates.has(d))) out.push(`${label} ${d}`);
+      }
     }
   }
   return out;
