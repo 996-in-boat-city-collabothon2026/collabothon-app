@@ -43,13 +43,24 @@ export function cleanReply(text: string): string {
 /** Test hook: lets unit tests replace the real model call. */
 type ModelCall = (messages: ChatMessage[], opts: ChatOptions) => Promise<string>;
 let modelCall: ModelCall = async (messages, opts) => {
-  const res = await getClient().chat.completions.create({
-    model: config.llm.model,
-    messages,
-    max_tokens: opts.maxTokens ?? 300,
-    temperature: opts.temperature ?? 0.3,
-  });
-  return res.choices[0]?.message?.content ?? '';
+  const key = opts.mockKey ?? '-';
+  const start = Date.now();
+  try {
+    const res = await getClient().chat.completions.create({
+      model: config.llm.model,
+      messages,
+      max_tokens: opts.maxTokens ?? 300,
+      temperature: opts.temperature ?? 0.3,
+    });
+    // One line per call: which caller, how long, how many tokens (if the server reports usage).
+    const u = res.usage;
+    const tokens = u ? ` tokens=${u.prompt_tokens}+${u.completion_tokens}` : '';
+    console.info(`[llm] ok key=${key} ms=${Date.now() - start}${tokens}`);
+    return res.choices[0]?.message?.content ?? '';
+  } catch (err) {
+    console.info(`[llm] error key=${key} ms=${Date.now() - start} ${(err as Error).message}`);
+    throw err; // chatOr() catches this and falls back
+  }
 };
 export function setModelCallForTests(fn: ModelCall | null, mode?: 'mock' | 'openai_compat'): void {
   if (fn) modelCall = fn;
@@ -59,7 +70,10 @@ export function setModelCallForTests(fn: ModelCall | null, mode?: 'mock' | 'open
 }
 
 export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
-  if (config.llm.mode === 'mock') return mockReply(opts.mockKey, messages);
+  if (config.llm.mode === 'mock') {
+    console.info(`[llm] mock key=${opts.mockKey ?? '-'}`);
+    return mockReply(opts.mockKey, messages);
+  }
   return cleanReply(await modelCall(messages, opts));
 }
 

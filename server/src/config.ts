@@ -20,3 +20,11 @@ export const config = {
     timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? 30000),
   },
 };
+
+// Catch the most common deploy mistake early: real-model mode but no model address.
+if (config.llm.mode === 'openai_compat' && !config.llm.baseUrl) {
+  console.warn(
+    '[config] WARNING: LLM_MODE=openai_compat but LLM_BASE_URL is empty. Every LLM call will fail and use its fallback. ' +
+      'Set it with: oc set env deploy/warsztat-cfo LLM_BASE_URL=http://<model>-predictor.<namespace>.svc.cluster.local:8080/v1',
+  );
+}

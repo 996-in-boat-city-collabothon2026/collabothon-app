@@ -16,16 +16,17 @@
 ## Values we collect (fill in as you go, no secrets!)
 | What | Value |
 |---|---|
-| OpenShift console URL | |
-| API server (`oc login --server=`) | |
-| Our project / namespace | `my-first-model` (app + model live here). A spare empty project `cfo-llm` also exists. |
+| OpenShift console URL | https://console-openshift-console.apps.ocp.t8kjt.sandbox1583.opentlc.com |
+| API server (`oc login --server=`) | https://api.ocp.t8kjt.sandbox1583.opentlc.com:6443 |
+| Our project / namespace | **`my-first-model`**: the app was deployed here, next to the model (`oc project my-first-model`). `cfo-llm` exists but is empty. |
 | App route URL | https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com |
 | RHOAI dashboard URL | |
-| Model deployment name | `llama-32-3b-instruct` (pre-installed by organisers; the cluster has only 1 GPU, so we use it instead of deploying `cfo-llm`) |
-| Model used (exact OCI URI / tag) | `oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.2-3b-instruct`, vLLM, max-model-len 20000 |
-| Model **external** endpoint (ends `/v1`) | none (not needed) |
-| Model **internal** endpoint (ends `/v1`) | `http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1` (**port 8080**, not 80) |
-| Token | not needed: the Llama deployment has token auth off (internal only) |
+| Model | organizers' **Llama 3.2 3B Instruct**, InferenceService `llama-32-3b-instruct` in namespace `my-first-model` |
+| Model used (exact OCI URI / tag) | `oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.2-3b-instruct` |
+| `LLM_MODEL` (id from `/v1/models`) | `llama-32-3b-instruct` |
+| Model **internal** endpoint (ends `/v1`) | `http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1` |
+| Model **external** endpoint | none (no route): only reachable from inside the cluster |
+| Token | none: the organizers' model has token auth **off** |
 
 ---
 
@@ -69,7 +70,7 @@
   ```
   ✅ Done when: `oc version` prints a Client Version.
 
-- [x] **0.6 🖱️ Check the organisers have our repo URL** (the Survival Guide says we get cluster access only after we send it,
+- [ ] **0.6 🖱️ Check the organisers have our repo URL** (the Survival Guide says we get cluster access only after we send it,
   and the repo must be **public**). ✅ Done when: we have the console URL + login. Fill in the table above.
 
 ---
@@ -90,8 +91,9 @@
   ```
   ✅ Done when: we know if there is a GPU (`oc describe node | Select-String nvidia.com/gpu`) and roughly how much CPU/memory we may use. Note it in the log.
 
-- [x] **1.3 🖱️ START THE MODEL DEPLOY NOW** (it downloads for 10–20 min, so start it before the app). Do Phase 2 steps
-  **2.1–2.3** now, then come back here while it downloads.
+- [x] **1.3 ~~Start the model deploy~~ → not needed.** The organizers pre-deployed a model in `my-first-model` and confirmed
+  that connecting to it meets the KO criterion. The cluster has **one GPU (NVIDIA L4, 24 GB)** and that model uses it,
+  so a model of our own would stay `Pending` unless we undeploy theirs first. See Phase 2.
 
 - [x] **1.4 💻 Build + deploy the app from `main`.**
   ```powershell
@@ -152,68 +154,58 @@
 
 ## Phase 2 (H0–H12): the model on OpenShift AI → **Sync 2 at H12**
 
-- [x] **2.1 🖱️ Open the RHOAI dashboard.** OpenShift console → app launcher (grid icon, top right) → **Red Hat OpenShift AI**.
-  → **Data science projects** → our project (or create one with the same name as the `oc` project).
-  ✅ Done when: we see the project's page with a **Models** tab.
+> **Decision (H0):** we use the organizers' model, not our own. Organizers on Discord: "your deployed application just needs
+> to connect to this model (or another one - in this case undeploy the running one) to fulfill the KO criteria."
+> The old "deploy our own `cfo-llm`" steps are kept at the end of this phase as **Plan B**.
 
-- [x] **2.2 🖱️ Pick the model.** Must fit one GPU with `--max-model-len=8192`, speak Polish + English, follow JSON instructions.
-  Preferred: an **~8B instruct model** in Red Hat's ModelCar catalog (e.g. Granite 3.x 8B Instruct, or Qwen / Llama 8B instruct).
-  Check the exact OCI URI/tag in the catalog **before** typing it (wrong tags = 20 min wasted).
-  Avoid "thinking/reasoning" models (they print `<think>…</think>` and are slow); if we must use one, do step 3.4.
-  ✅ Done when: the exact `oci://…` URI is in the table.
+- [x] **2.1 💻 Check the organizers' model is up.**
+  ```powershell
+  oc get inferenceservice -n my-first-model
+  ```
+  ✅ Done when: `llama-32-3b-instruct` shows `READY True`.
 
-- [x] **2.3 🖱️ Deploy it.** Models → **single-model serving** → **Deploy model**:
-  - Name: `cfo-llm` (this becomes the model name that vLLM serves: our `LLM_MODEL`)
-  - Serving runtime: **vLLM NVIDIA GPU ServingRuntime for KServe**
-  - Deployment mode: whatever is default; replicas **1**; accelerator **NVIDIA GPU × 1**; size small/medium
-  - Model location: **URI** → the `oci://…` from 2.2
-  - Additional runtime arguments: `--max-model-len=8192`
-  - ✅ Tick **Make deployed models available through an external route** and **Require token authentication**
-  ✅ Done when: the deployment status turns green (`Started`). Watch progress meanwhile:
+- [x] **2.2 💻 Show it in the RHOAI dashboard** (for the jury; the project was made with `oc`, so the dashboard hides it).
   ```powershell
-  oc get pods -w
+  oc label namespace my-first-model opendatahub.io/dashboard=true
   ```
-  ❌ If the pod is stuck `Pending`: `oc describe pod <cfo-llm-pod>` (usually: no free GPU, or memory). If `CrashLoopBackOff`:
-  `oc logs <pod> -c kserve-container --tail=30` (usually out of GPU memory → lower `--max-model-len` to 4096, or a smaller model).
+  ✅ Done when: RHOAI → **Data science projects** → `my-first-model` → **Models** lists it.
 
-- [x] **2.4 🖱️ Copy endpoints + token.** In the model row: **Internal and external endpoint details** → copy both. Token: open
-  the deployment's token section (or the service account secret) and copy it. Put the endpoints in the table, the token **only** in your password manager.
+- [x] **2.3 💻 Test the model from inside the cluster** (it has no external route, so `curl` from the laptop can't reach it).
+  ```powershell
+  oc exec -n my-first-model deploy/llama-32-3b-instruct-predictor -c kserve-container -- curl -s localhost:8080/v1/models
+  ```
+  ✅ Done when: the list has id `llama-32-3b-instruct`. (Tested at H0: a chat call answered "OK" in 0.1 s.)
 
-- [x] **2.5 💻 Test the model from the laptop.**
+- [x] **2.4 💻 Connect the app.** No token, no secret needed.
   ```powershell
-  $env:TOK = "<paste-token>"; curl.exe -s -H "Authorization: Bearer $env:TOK" https://<external-host>/v1/models
+  oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000
   ```
-  ```powershell
-  curl.exe -s -H "Authorization: Bearer $env:TOK" -H "Content-Type: application/json" https://<external-host>/v1/chat/completions -d '{\"model\":\"cfo-llm\",\"messages\":[{\"role\":\"user\",\"content\":\"Odpowiedz jednym słowem: OK\"}],\"max_tokens\":5}'
-  ```
-  ✅ Done when: `/v1/models` lists an id (write it down: it must equal `LLM_MODEL`, normally `cfo-llm`) and the chat call returns text.
-
-- [x] **2.6 💻 Store the token as a secret and connect the app.**
-  ```powershell
-  oc create secret generic llm --from-literal=LLM_API_KEY=$env:TOK
-  ```
-  ```powershell
-  oc set env deploy/warsztat-cfo --from=secret/llm
-  ```
-  ```powershell
-  oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=cfo-llm LLM_BASE_URL=<endpoint>/v1 LLM_TIMEOUT_MS=20000
-  ```
-  Endpoint choice: try the **internal** one first (no internet hop, faster). If `/api/llm/health` shows a certificate or
-  connection error, switch `LLM_BASE_URL` to the **external** URL (the token works for both).
   ✅ Done when: the new pod is Running.
 
-- [x] **2.7 💻 Prove it end to end.**
+- [x] **2.5 💻 Prove it end to end.**
   ```powershell
   curl.exe -s https://<route-host>/api/llm/health
   ```
   ```powershell
-  ./scripts/smoke.ps1 -Base https://<route-host>
+  ./scripts/smoke.ps1 -Base https://<route-host> -RequireModel
   ```
-  ✅ Done when: `{"mode":"openai_compat","model":"cfo-llm","ok":true,…}`, smoke passes, the header badge in the UI is green
+  ✅ Done when: `{"mode":"openai_compat","model":"llama-32-3b-instruct","ok":true,…}`, smoke passes, the header badge in the UI is green
   ("Model: OpenShift AI"), and the hat conference text is **different** from the canned mock text.
+  `oc logs deploy/warsztat-cfo --tail=20` shows one `[llm] ok key=… ms=… tokens=…` line per model call.
   **→ H12 Sync 2: both 60-point items are green.** Take a screenshot for the presentation.
 
-- [x] **2.8 🖱️ Free bonus point.** "Run the model using vLLM on RHOAI" (bonus, 1 pt) is now done. Note it for the jury.
+<details><summary><b>Plan B: deploy our own model</b> (only if the organizers' model breaks, or we need a bigger one)</summary>
+
+1. Undeploy the organizers' model first (the cluster has one GPU), and tell the team.
+2. RHOAI → Data science projects → `cfo-llm` → Models → single-model serving → **Deploy model**: name `cfo-llm`,
+   runtime **vLLM NVIDIA GPU ServingRuntime for KServe**, 1 replica, **NVIDIA GPU × 1**, model location **URI** (an `oci://…`
+   ModelCar; ~8B instruct fits the L4), runtime args `--dtype=half --max-model-len=8192`, tick external route + token auth.
+3. Token: `oc create secret generic llm --from-literal=LLM_API_KEY=<token>` → `oc set env deploy/warsztat-cfo --from=secret/llm`.
+4. `oc set env deploy/warsztat-cfo LLM_MODEL=cfo-llm LLM_BASE_URL=<internal endpoint>/v1`.
+</details>
+
+- [x] **2.6 🖱️ Bonus point?** "Run the model using vLLM on RHOAI" (bonus, 1 pt): the organizers' model *is* vLLM on RHOAI.
+  Ask the organizers whether that counts, or whether the bonus needs a model we deployed ourselves (Plan B).
 
 ---
 
@@ -317,11 +309,12 @@ Each ✍️ step: Claude edits → `npm run typecheck; npm test` → commit → 
 | Build fails | `oc logs build/warsztat-cfo-<n>` | `npm ci` lockfile mismatch → someone must commit `package-lock.json` from `npm install` |
 | Pod `CrashLoopBackOff` | `oc logs deploy/warsztat-cfo --previous` | TypeScript import error from a merge → fix on `main`, `oc start-build` |
 | Route shows "Application not available" | `oc get pods`, `oc get endpoints warsztat-cfo` | pod not ready yet / probe wrong port (must be 8080) |
-| `/api/llm/health` `ok:false`, `401` | token | recreate secret `llm`, `oc rollout restart deploy/warsztat-cfo` |
+| `/api/llm/health` `ok:false`, timeout | model pod | `oc get pods -n my-first-model`; check nobody stopped it in RHOAI |
+| `/api/llm/health` `ok:false`, `401` | token (Plan B only) | recreate secret `llm`, `oc rollout restart deploy/warsztat-cfo` |
 | `ok:false`, `404` / model not found | `/v1/models` id | `LLM_MODEL` must equal the id; `LLM_BASE_URL` must end in `/v1` |
 | `ok:false`, certificate / ECONNREFUSED | which endpoint | switch internal ↔ external URL |
 | Very slow answers | boardroom timing (3.1) | lower `maxTokens`, smaller model, `--max-model-len=4096` |
-| Model pod `Pending` | `oc describe pod` | GPU busy/none: stop other GPU workloads (notebooks) in the project |
+| Model pod `Pending` | `oc describe pod` | only 1 GPU on the cluster: another model or notebook holds it |
 
 General: `oc get pods` · `oc logs deploy/warsztat-cfo --tail=50` · `oc describe pod <name>` · `oc get events --sort-by=.lastTimestamp | Select-Object -Last 15`
 
@@ -333,6 +326,8 @@ General: `oc get pods` · `oc logs deploy/warsztat-cfo --tail=50` · `oc describ
 | H0 | 0.1–0.4 | Claude | Branch up to date with main, pair1 Claude settings copied, `npm install` + typecheck + tests + local smoke all green. `oc` not installed yet → 0.5 open. |
 | H0 | 3.2–3.6 | Claude | `provider.ts`: `maxRetries: 0`, `cleanReply()` strips `<think>`, last-good-answer per `mockKey` in `chatOr`, health cached 30 s. `json.ts`: balanced-brace scan + repairs trailing commas / single quotes. 11 new vitest tests. Dead-model test: health `ok:false`, boardroom falls back in 47 ms. Still to confirm on the cluster: survive model scaled to 0 (3.3). |
 | H0 | 3.7 | Claude | All mockKeys in use (`explain`, `boardroom:*`, `ask:*`, `advice:*`) have answers. Re-check after each Pair 2 merge. |
-| H1 | 1.x / 2.x | Claude + user | 1 GPU on the node, already used by the organisers' `llama-32-3b-instruct` → our `cfo-llm` deploy stuck Pending ("Insufficient nvidia.com/gpu"), deleted. App built from `main` (7efac7d) in `my-first-model`, edge route, probes, resources. Env: `LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=…:8080/v1 LLM_TIMEOUT_MS=20000`. No secret needed. |
-| H1 | 1.7 / 2.7 / 3.1 | Claude | Live smoke with `-RequireModel`: all passed. `/api/llm/health` ok, 69 ms. Boardroom on real model: **15.8 s** (< 25 s ✅). ⚠️ For Pair 2: the model invents numbers (EUR/USD 1.13, forward @ 4.30, "3-month") and prints `38,400,00 zł`; prompts need "use ONLY these numbers". |
 | H0 | 3.8 | Claude | smoke.ps1: `-RequireModel`, `/auth/me`, `/ask` (→ kasia), timings, warning if boardroom > 25 s. |
+| H0 | 0.5, 1.1, 1.2 | Nargiz + Claude | `oc` 4.20 installed in `C:\tools`, logged in, project `cfo-llm`. Cluster: 1 node, 1× NVIDIA L4 24 GB, already used by the organizers' model. |
+| H0 | 1.3, Phase 2 | Nargiz + Claude | Organizers said: use their `llama-32-3b-instruct` (`my-first-model`). Tested inside the cluster: `/v1/models` ok, chat "OK" in 0.1 s. Phase 2 rewritten; own-model steps moved to Plan B. |
+| H1 | 1.4–1.7, 2.1–2.5 | user + Claude | Own `cfo-llm` model deploy stuck Pending (1 GPU taken) → deleted in RHOAI. App built from `main` (7efac7d) in **`my-first-model`**, edge route, probes, resources. First try used port 80 → "Connection error"; fixed to **:8080**. `/api/llm/health` → `openai_compat`, `ok:true`, 69 ms. Smoke `-RequireModel` on the live URL: all passed. Model already visible in the RHOAI dashboard (2.2). |
+| H1 | 3.1 | Claude | Boardroom on the real model: **15.8 s** (< 25 s ✅). ⚠️ For Pair 2: the model invents numbers (EUR/USD 1.13, forward @ 4.30, "3-month") and prints `38,400,00 zł`; prompts need "use ONLY these numbers". Live app still runs `main` (without our provider.ts changes) until our PR is merged + rebuilt. |
