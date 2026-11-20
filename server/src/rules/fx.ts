@@ -3,7 +3,7 @@
 import type { Currency, Invoice } from '@cfo/shared';
 import { db } from '../domain/store';
 import { daysBetween, fmtPLN, invoiceGross, round2 } from '../domain/money';
-import { latestRate, toPLN } from '../domain/fx';
+import { hasRate, latestRate, toPLN } from '../domain/fx';
 import type { DraftAction, Rule } from './index';
 
 /** Propose a hedge when a 5% currency move would cost more than this. Seed data: 320,25 zł. */
@@ -19,12 +19,12 @@ export interface FxExposure {
   net: number; // in the foreign currency. Positive = we owe it (purchases > sales)
   netPLN: number; // the same at today's NBP rate
   shockPLN: number; // how much a 5% move against us costs, in zł
-  trend: { from: number; to: number; weeksUp: number }; // rate 4 weeks ago, today, weeks up in a row
+  trend: { from: number; to: number; weeksUp: number; points: number }; // rate 4 weeks ago, today, weeks up in a row, rates used
 }
 
 const fmtNum = (n: number, digits = 2) => new Intl.NumberFormat('pl-PL', { maximumFractionDigits: digits }).format(n);
-const fmtFx = (n: number, c: ForeignCurrency) => `${fmtNum(n)} ${c}`;
-const fmtRate = (n: number) => `${fmtNum(n, 4)} zł`;
+export const fmtFx = (n: number, c: ForeignCurrency) => `${fmtNum(n)} ${c}`;
+export const fmtRate = (n: number) => `${fmtNum(n, 4)} zł`;
 
 const unpaid = (currency: ForeignCurrency) => db.invoices.filter((i) => !i.paid && i.currency === currency);
 const sumGross = (invoices: Invoice[]) => round2(invoices.reduce((s, i) => s + invoiceGross(i), 0));
@@ -38,15 +38,21 @@ function rateTrend(currency: ForeignCurrency): FxExposure['trend'] {
     .map((r) => r.midPLN);
   let weeksUp = 0;
   for (let i = rates.length - 1; i > 0 && rates[i] > rates[i - 1]; i--) weeksUp++;
-  return { from: rates[0], to: rates[rates.length - 1], weeksUp };
+  return { from: rates[0], to: rates[rates.length - 1], weeksUp, points: rates.length };
 }
+
+/** Currencies with unpaid invoices but no NBP rate: the exposure cannot be converted to złoty (no card, no number). */
+export const missingFxRates = (): ForeignCurrency[] => FOREIGN.filter((c) => unpaid(c).length > 0 && !hasRate(c));
+
+/** The 4-week trend only means something with at least 2 rates. */
+export const hasTrend = (e: FxExposure) => e.trend.points >= 2;
 
 /** What a 5% move against us costs for a net position (in the foreign currency), in zł. */
 const shockOf = (net: number, currency: ForeignCurrency) => round2(Math.abs(toPLN(net, currency)) * SHOCK);
 
-/** Net exposure per currency (only currencies with unpaid invoices). Also used by the boardroom snapshot later. */
+/** Net exposure per currency (only currencies with unpaid invoices and an NBP rate). Used by Kasia's facts, the card explanations, the dashboard and the approve route. */
 export function fxExposures(): FxExposure[] {
-  return FOREIGN.filter((c) => unpaid(c).length > 0).map((currency) => {
+  return FOREIGN.filter((c) => unpaid(c).length > 0 && hasRate(c)).map((currency) => {
     const invoices = unpaid(currency);
     const owe = sumGross(invoices.filter((i) => i.direction === 'purchase'));
     const owed = sumGross(invoices.filter((i) => i.direction === 'sales'));
@@ -82,7 +88,7 @@ function actionsFor(e: FxExposure): DraftAction[] {
   const why = [
     `Net ${weOwe ? 'to pay' : 'to receive'}: ${fmtFx(Math.abs(e.net), c)} = ${fmtPLN(Math.abs(e.netPLN))} at NBP ${fmtRate(latestRate(c))}`,
     `If ${c} ${weOwe ? 'rises' : 'falls'} 5%, you lose ${fmtPLN(e.shockPLN)}`,
-    `${c} went from ${fmtRate(from)} to ${fmtRate(to)} in ${TREND_WEEKS} weeks (up ${weeksUp} week(s) in a row)`,
+    ...(hasTrend(e) ? [`${c} went from ${fmtRate(from)} to ${fmtRate(to)} in ${TREND_WEEKS} weeks (up ${weeksUp} week(s) in a row)`] : []),
   ];
 
   const actions: DraftAction[] = [
@@ -113,7 +119,7 @@ function actionsFor(e: FxExposure): DraftAction[] {
     actions.push({
       cfo: 'kasia',
       kind: 'supplier_payment',
-      tier: 'RECOMMENDED',
+      tier: 'NEEDS_APPROVAL', // it moves money, so the owner must say yes
       execution: 'simulated',
       title: `Pay ${biggest.counterparty.name} early (${c} risk ${fmtPLN(e.shockPLN)} → ${fmtPLN(after.shockPLN)})`,
       why: [

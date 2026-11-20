@@ -23,7 +23,15 @@ export function totalsBetween(from: string, to: string): Map<ExpenseCategory, nu
   return totals;
 }
 
-export const expenses: Rule = () => {
+export interface TopCost {
+  category: ExpenseCategory;
+  amount: number; // last 30 days
+  prev: number; // the 30 days before (0 = no data)
+  sharePct: number; // % of all costs in the last 30 days
+}
+
+/** The biggest cost the owner can change (parts, utilities, other) in the last 30 days, or null. */
+export function topCost(): TopCost | null {
   const today = db.shop.today;
   const cur = lastDays(today, PERIOD_DAYS); // same window as the pie chart
   const prevPeriod = lastDays(today, PERIOD_DAYS, PERIOD_DAYS);
@@ -33,13 +41,19 @@ export const expenses: Rule = () => {
   const top = [...now]
     .filter(([category]) => TIPS[category])
     .sort((a, b) => b[1] - a[1])[0];
+  if (!top) return null;
+  const [category, amount] = top;
+  const total = [...now.values()].reduce((s, v) => s + v, 0);
+  return { category, amount, prev: before.get(category) ?? 0, sharePct: Math.round((amount / total) * 100) };
+}
+
+export const expenses: Rule = () => {
+  const top = topCost();
   if (!top) return [];
 
-  const [category, amount] = top;
+  const { category, amount, prev, sharePct } = top;
   const { label, tip } = TIPS[category]!;
-  const prev = before.get(category) ?? 0;
-  const total = [...now.values()].reduce((s, v) => s + v, 0);
-  const why = [`${label}: ${fmtPLN(amount)} in the last 30 days, ${Math.round((amount / total) * 100)}% of all costs`];
+  const why = [`${label}: ${fmtPLN(amount)} in the last 30 days, ${sharePct}% of all costs`];
 
   let title = `${label} is your biggest cost you can change: ${fmtPLN(amount)}`;
   if (prev > 0) {

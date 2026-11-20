@@ -4,32 +4,46 @@ import { pickCfo } from './boardroom';
 
 describe('pickCfo', () => {
   it.each([
-    ['Czy kurs euro to problem?', 'kasia'],
+    ['Is the euro rate a problem?', 'kasia'],
     ['Should I hedge my EUR invoices?', 'kasia'],
-    ['Ile zapłacę VAT w tym miesiącu?', 'marek'],
-    ['KSeF odrzucił fakturę, co robić?', 'marek'],
+    ['How much VAT do I pay this month?', 'marek'],
+    ['KSeF rejected my invoice, what now?', 'marek'],
     ['When is ZUS due?', 'marek'],
-    ['Czy mam za niską marżę na częściach?', 'tomasz'],
-    ['Jak obciąć koszty?', 'tomasz'],
+    ['Is my margin on parts too low?', 'tomasz'],
+    ['How can I cut costs?', 'tomasz'],
     ['Is my labour rate too low?', 'tomasz'],
-    ['Czy starczy mi gotówki do końca miesiąca?', 'anna'],
-    ['Czy potrzebuję kredytu?', 'anna'],
-    ['Klient się spóźnia z płatnością', 'anna'],
-    ['Czy przetrwamy grudzień?', 'anna'],
-    ['plynnosc finansowa', 'anna'], // no Polish letters
+    ['How much should I charge per hour?', 'tomasz'], // review of bc24564: pricing questions
+    ['How much should I charge for an oil change?', 'tomasz'],
+    ['Will the bank charge me for the overdraft?', 'anna'], // "charge" alone is not pricing
+    ['Anna, how much should I charge per hour?', 'anna'], // a CFO asked by name still wins
+    ['How much should I ask the bank to lend me?', 'anna'], // review of f5f7df5: a loan, not a price
+    ['Will I have enough cash until the end of the month?', 'anna'],
+    ['Do I need a loan?', 'anna'],
+    ['A customer is late paying me', 'anna'],
+    ['Will the cash last through December?', 'anna'],
   ])('%s → %s', (question, cfo) => {
     expect(pickCfo(question)).toBe(cfo);
   });
 
   it('a CFO asked by name always answers', () => {
-    expect(pickCfo('Tomasz, czy kurs euro to problem?')).toBe('tomasz');
+    expect(pickCfo('Tomasz, is the euro rate a problem?')).toBe('tomasz');
   });
 
   it('no keywords → Anna', () => {
-    expect(pickCfo('Dzień dobry!')).toBe('anna');
+    expect(pickCfo('Good morning!')).toBe('anna');
   });
 
   it('short words do not match inside longer ones', () => {
     expect(pickCfo('I went to the hospital')).toBe('anna'); // "pit" inside "hospital"
   });
+});
+
+describe('pickCfo: pricing vs loans (review of f5f7df5)', () => {
+  it.each([
+    ['How much should I ask customers for a brake job?', 'tomasz'],
+    ['How much can I borrow?', 'anna'],
+    ['Should I ask for a bigger credit line?', 'anna'],
+    ['How much VAT should I pay?', 'marek'],
+    ['Is the euro going up?', 'kasia'],
+  ])('%s → %s', (q, cfo) => expect(pickCfo(q)).toBe(cfo));
 });

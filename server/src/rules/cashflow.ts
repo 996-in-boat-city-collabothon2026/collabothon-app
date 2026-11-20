@@ -4,7 +4,7 @@
 import type { Forecast, ForecastPoint, Invoice } from '@cfo/shared';
 import { db } from '../domain/store';
 import { addDays, daysBetween, round2 } from '../domain/money';
-import { invoiceGrossPLN } from '../domain/fx';
+import { convertible, invoiceGrossPLN } from '../domain/fx';
 
 // `paidDate` is not in shared/types.ts yet. When the seed gets it, payer history starts working automatically.
 type PaidInvoice = Invoice & { paidDate?: string };
@@ -37,7 +37,7 @@ export function forecast(days: number): Forecast {
   const today = db.shop.today;
   const delays = payerDelays();
   const inflows = db.invoices
-    .filter((i) => i.direction === 'sales' && !i.paid)
+    .filter((i) => i.direction === 'sales' && !i.paid && convertible(i)) // no NBP rate → cannot count it in złoty
     .map((i) => ({ date: expectedPayDate(i, delays), amount: invoiceGrossPLN(i) }));
   const outflows = db.obligations
     .filter((o) => !o.paid)

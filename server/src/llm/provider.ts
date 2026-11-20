@@ -53,7 +53,12 @@ export function cleanReply(text: string): string {
   let t = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   if (/^<think>/i.test(t)) return ''; // reasoning was cut off before any answer: no usable reply → fallback
   if (t.length > 1 && /^["“„]/.test(t) && /["”]$/.test(t)) t = t.slice(1, -1).trim();
-  return t;
+  return fixMoneyFormat(t);
+}
+
+/** Live Llama writes "-20,275,00 zł" (comma as thousands separator). Our format is "-20 275,00 zł". */
+export function fixMoneyFormat(text: string): string {
+  return text.replace(/\b\d{1,3}(?:,\d{3})+(?=,\d{2}\s?zł)/g, (whole) => whole.replace(/,/g, ' '));
 }
 
 /** Sends one request to the model. `signal` aborts it when the time budget runs out. Replaceable in tests. */

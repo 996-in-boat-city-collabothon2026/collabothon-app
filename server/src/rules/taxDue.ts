@@ -32,6 +32,21 @@ export function taxesDue(withinDays: number): { obligations: Obligation[]; total
   };
 }
 
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const PERIOD_NAME: Record<TaxKind, string> = { VAT: 'VAT', ZUS: 'ZUS', PIT: 'PIT advance' };
+
+/**
+ * English name of a tax obligation, e.g. "VAT for October (JPK_V7M)". The seed label is Polish ("VAT za październik"),
+ * which gave the mixed title "Pay VAT za październik". The period is the month before the due date (VAT by the 25th,
+ * ZUS and PIT by the 20th of the next month).
+ */
+export function taxLabelEn(o: Pick<Obligation, 'kind' | 'dueDate'>): string {
+  const kind = o.kind as TaxKind;
+  const month = Number(o.dueDate.slice(5, 7)); // 1–12; the month before is index month - 2
+  const period = MONTHS_EN[(month + 10) % 12];
+  return `${PERIOD_NAME[kind] ?? o.kind} for ${period}${kind === 'VAT' ? ' (JPK_V7M)' : ''}`;
+}
+
 const when = (days: number) => (days > 0 ? `in ${days} days` : days === 0 ? 'today' : `${-days} days late`);
 
 /** Unpaid obligations of one tax kind due within the window → NEEDS_APPROVAL tax_payment. */
@@ -44,7 +59,7 @@ export function taxPayments(kind: TaxKind): DraftAction[] {
       kind: 'tax_payment',
       tier: 'NEEDS_APPROVAL',
       execution: 'simulated',
-      title: `Pay ${o.label}: ${fmtPLN(o.amountPLN)}`,
+      title: `Pay ${taxLabelEn(o)}: ${fmtPLN(o.amountPLN)}`,
       why: [`${kind} ${fmtPLN(o.amountPLN)} due on ${o.dueDate} (${when(daysBetween(today, o.dueDate))})`, DEADLINE_NOTE[kind]],
       amountPLN: o.amountPLN,
       dueDate: o.dueDate,

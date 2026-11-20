@@ -2,7 +2,7 @@
 import type { Invoice } from '@cfo/shared';
 import { db } from '../domain/store';
 import { daysBetween, fmtPLN } from '../domain/money';
-import { invoiceGrossPLN } from '../domain/fx';
+import { convertible, invoiceGrossPLN } from '../domain/fx';
 import { forecast } from './cashflow';
 import type { DraftAction, Rule } from './index';
 
@@ -32,7 +32,7 @@ export function creditLine(): DraftAction[] {
 export function paymentReminders(): DraftAction[] {
   const today = db.shop.today;
   return db.invoices
-    .filter((i) => i.direction === 'sales' && !i.paid && daysBetween(i.dueDate, today) > 0)
+    .filter((i) => i.direction === 'sales' && !i.paid && daysBetween(i.dueDate, today) > 0 && convertible(i))
     .map((i: Invoice): DraftAction => {
       const late = daysBetween(i.dueDate, today);
       const amount = invoiceGrossPLN(i);
