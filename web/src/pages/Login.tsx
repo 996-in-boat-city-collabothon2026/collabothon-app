@@ -1,5 +1,5 @@
-// Login screen. DEMO only: login + password form (prefilled "demo"), no Google. Logs in as the demo workshop owner.
-import { useState, type FormEvent } from 'react';
+// Login screen. DEMO only: one "Zaloguj się" button, no fields, no Google. Logs in as the demo workshop owner.
+import { useState } from 'react';
 import type { User } from '@cfo/shared';
 import { api } from '../api/client';
 import { CFOS, type CfoId } from '@cfo/shared';
@@ -9,18 +9,10 @@ import AgentHub from '../components/AgentHub';
 import Icon from '../components/Icon';
 
 export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
-  const { t, lang, setLang } = useT();
+  const { t, lang } = useT();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [username, setUsername] = useState('demo');
-  const [password, setPassword] = useState('demo');
-
-  async function login(e: FormEvent) {
-    e.preventDefault();
-    if (!username.trim() || !password) {
-      setError(t('login_missing'));
-      return;
-    }
+  async function login() {
     setBusy(true);
     setError(null);
     try {
@@ -36,12 +28,7 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
 
   return (
     <div className="dot-grid flex min-h-screen flex-col bg-white px-4">
-      <div className="flex justify-end pt-4">
-        <button onClick={() => setLang(lang === 'pl' ? 'en' : 'pl')}
-          className="min-h-12 rounded-full border border-black/10 bg-white px-4 text-sm font-semibold">
-          {lang === 'pl' ? 'EN' : 'PL'}
-        </button>
-      </div>
+      <div className="pt-4" />
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center pb-16">
         <div className="text-center">
@@ -54,24 +41,14 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
           <p className="mt-2 text-lg text-stone-700">{t('login_tagline')}</p>
         </div>
 
-        <form id="login" onSubmit={login} noValidate className="mt-8 space-y-4 reveal glow-mint rounded-[22px] border border-black/10 p-6 shadow-sm">
-          <label className="block space-y-1.5 font-semibold">
-            <span>{t('login_user')}</span>
-            <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username"
-              className="min-h-14 w-full rounded-2xl border border-black/15 bg-white px-4 text-lg font-normal" />
-          </label>
-          <label className="block space-y-1.5 font-semibold">
-            <span>{t('login_pass')}</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password"
-              className="min-h-14 w-full rounded-2xl border border-black/15 bg-white px-4 text-lg font-normal" />
-          </label>
+        <div id="login" className="mt-8 space-y-4 reveal glow-mint rounded-[22px] border border-black/10 p-6 shadow-sm">
           {error && <p role="alert" className="rounded-2xl bg-accent-soft p-3 text-accent-ink">{error}</p>}
-          <button disabled={busy}
+          <button onClick={() => void login()} disabled={busy}
             className="min-h-14 w-full rounded-full bg-accent text-lg font-bold text-white hover:brightness-95 disabled:opacity-60">
             {busy ? t('loading') : t('login')}
           </button>
           <p className="text-center text-stone-700">{t('login_hint')}</p>
-        </form>
+        </div>
 
         {/* The four agents, quiet, under the form */}
         <ul className="mt-8 flex flex-wrap justify-center gap-2" aria-label={t('login_agents')}>
@@ -82,6 +59,7 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
             </li>
           ))}
         </ul>
+        <p className="mt-6 text-center text-sm text-stone-500">{t('runs_on_redhat')}</p>
       </main>
     </div>
   );

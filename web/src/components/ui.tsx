@@ -1,6 +1,7 @@
 // Small shared building blocks. Pair 3 owns and polishes these.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CFOS, HATS, type Action, type CfoId, type Currency, type Execution, type Hat, type LlmHealth, type Tier } from '@cfo/shared';
+import { Link } from 'react-router-dom';
 import { useT } from '../i18n';
 import Icon, { type IconName } from './Icon';
 
@@ -111,7 +112,7 @@ export function FlowStrip({ steps }: { steps: string[] }) {
 
 /** Any avatar with a hat – also used for the Blue-hat chair, who is not a CFO. */
 /** 3D cartoon avatar per hat colour (web/public/avatars/<hat>-hat.png). The Blue-hat chair uses the yellow-hat picture. */
-export const avatarSrc = (hat: Hat) => `/avatars/${hat === 'blue' ? 'yellow' : hat}-hat.png`;
+export const avatarSrc = (hat: Hat) => `/avatars/${hat}-hat.png`;
 
 /** Any avatar with a hat – also used for the Blue-hat chair, who is not a CFO.
  *  Shows the 3D picture when it exists; falls back to a coloured circle with a drawn hat. */
@@ -178,7 +179,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
         <span className="flex w-20 shrink-0 flex-col items-center pt-3 text-center">
           <CfoAvatar cfo={action.cfo} size={36} live />
           <span className="mt-1 text-base font-bold leading-tight">{CFOS[action.cfo].name}</span>
-          <span className="text-sm leading-tight text-zinc-700">{CFOS[action.cfo].rolePl}</span>
+          <span className="text-sm leading-tight text-zinc-700">{CFOS[action.cfo].role}</span>
         </span>
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap gap-1.5">
@@ -216,13 +217,17 @@ export function LlmStatusBadge({ health }: { health: LlmHealth | null }) {
   if (!health) return null;
   const live = health.mode === 'openai_compat';
   const cls = !health.ok ? 'bg-rose-500' : live ? 'bg-accent' : 'bg-amber-400';
-  const label = !health.ok ? 'Model offline' : live ? `Model: OpenShift AI · ${health.model}` : 'Model: mock (local)';
+  const ms = live && health.ok && health.latencyMs > 0 ? ` · ${health.latencyMs} ms` : '';
+  const label = !health.ok ? 'Model offline' : live ? `Model: OpenShift AI · ${health.model}${ms}` : 'Model: mock (local)';
+  // Click → Settings, section "Runs on Red Hat" with the full model and platform details.
   return (
-    <span title={label} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-stone-300 bg-white px-2.5 py-1 text-sm text-stone-700">
+    <Link to="/settings#platform" title={label}
+      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-stone-300 bg-white px-2.5 py-1 text-sm text-stone-700 hover:border-stone-500">
       <span className={`h-2 w-2 shrink-0 rounded-full ${cls}`} aria-hidden="true" />
-      <span className="hidden sm:inline">{label}</span>
-      <span className="sm:hidden">{!health.ok ? 'Offline' : live ? 'OpenShift AI' : 'Mock'}</span>
-    </span>
+      {/* Full label only on wide screens; at 1024 px the menu needs the room (no horizontal scroll). */}
+      <span className="hidden xl:inline">{label}</span>
+      <span className="xl:hidden">{!health.ok ? 'Offline' : live ? 'OpenShift AI' : 'Mock'}</span>
+    </Link>
   );
 }
 

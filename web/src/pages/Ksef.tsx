@@ -37,7 +37,7 @@ export default function Ksef() {
       if (!watching.current.has(inv.id) || inv.ksef.status === 'processing') continue;
       watching.current.delete(inv.id);
       showToast(inv.ksef.status === 'accepted'
-        ? `${t('sent_accepted')} ${inv.number}`
+        ? `${t('sent_accepted')} ${inv.number} · ${t('upo_number')} ${inv.ksef.ksefNumber ?? ''}`
         : `${t('sent_rejected')} ${inv.ksef.rejectionReason ?? inv.number}`);
     }
     if (!processing) return;
@@ -158,13 +158,17 @@ function InvoiceTable({ rows, onSend, onFix, onView }: {
               <span className={`inline-block rounded-full px-2 py-0.5 text-sm font-medium ${CHIP[status].cls}`}>
                 <Icon name={CHIP[status].icon} size={16} className="mr-1 align-[-3px]" />{t(`ks_${status}`)}
               </span>
-              {inv.ksef.ksefNumber && <p className="mt-1 break-all font-mono text-sm text-stone-600">{inv.ksef.ksefNumber}</p>}
-              {inv.ksef.rejectionReason && <p className="mt-1 text-sm text-accent-ink">{inv.ksef.rejectionReason}</p>}
+              {inv.ksef.ksefNumber && (
+                <p className="mt-1 text-sm text-stone-700">
+                  {t('upo_number')}: <span className="break-all font-mono">{inv.ksef.ksefNumber}</span>
+                </p>
+              )}
+              {inv.ksef.rejectionReason && <p className="mt-1 text-sm text-accent-ink">KSeF: „{inv.ksef.rejectionReason}”</p>}
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => onView({ kind: 'XML', inv })} className={`${BTN} border border-zinc-300 bg-white`}>XML</button>
               <button onClick={() => onView({ kind: 'UPO', inv })} disabled={!inv.ksef.upo}
-                className={`${BTN} border border-zinc-300 bg-white disabled:opacity-40`}>UPO</button>
+                className={`${BTN} border border-zinc-300 bg-white disabled:opacity-40`}>{inv.ksef.upo ? t('show_upo') : 'UPO'}</button>
             </div>
             {onSend && status === 'draft' && (
               <button onClick={() => onSend(inv)} className={`${BTN} bg-accent font-bold text-white md:col-span-6 md:justify-self-end`}>
@@ -243,11 +247,14 @@ function DocSheet({ viewer, onClose }: { viewer: Viewer; onClose: () => void }) 
           {xml.data && <pre className="overflow-x-auto rounded-xl bg-ink p-3 text-sm leading-relaxed text-zinc-100">{xml.data}</pre>}
         </>
       ) : upo ? (
+        <>
+        <p className="rounded-2xl bg-emerald-50 p-3 font-semibold text-emerald-800">✅ {t('upo_ok')}</p>
+        <p className="text-stone-700">{t('upo_explain')}</p>
         <dl className="divide-y divide-slate-200 rounded-xl border border-zinc-200">
           {[
             [t('upo_number'), upo.ksefNumber],
             [t('upo_ref'), upo.referenceNumber],
-            [t('upo_received'), new Date(upo.receivedAt).toLocaleString('pl-PL')],
+            [t('upo_received'), new Date(upo.receivedAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })],
           ].map(([k, v]) => (
             <div key={k} className="p-3">
               <dt className="text-sm text-stone-600">{k}</dt>
@@ -255,6 +262,7 @@ function DocSheet({ viewer, onClose }: { viewer: Viewer; onClose: () => void }) 
             </div>
           ))}
         </dl>
+        </>
       ) : (
         <p className="text-stone-600">{t('nothing_here')}</p>
       )}

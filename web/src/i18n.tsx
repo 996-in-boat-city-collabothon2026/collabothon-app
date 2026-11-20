@@ -259,10 +259,7 @@ const DICT: Record<string, { pl: string; en: string }> = {
   send: { pl: 'Wyślij', en: 'Send' },
   close: { pl: 'Zamknij', en: 'Close' },
   // Login form + dashboard
-  login_user: { pl: 'Login', en: 'Login' },
-  login_pass: { pl: 'Hasło', en: 'Password' },
-  login_missing: { pl: 'Wpisz login i hasło.', en: 'Enter login and password.' },
-  login_hint: { pl: 'Dane demo: login „demo”, hasło „demo”.', en: 'Demo data: login “demo”, password “demo”.' },
+  login_hint: { pl: 'Konto demo – bez hasła, jedno kliknięcie.', en: 'Demo account – no password, one click.' },
   above_buffer: { pl: 'powyżej bufora', en: 'above buffer' },
   below_buffer: { pl: 'poniżej bufora', en: 'below buffer' },
   agents_working: { pl: 'Agenci przeglądają faktury i prognozę…', en: 'Agents are checking invoices and the forecast…' },
@@ -344,19 +341,85 @@ const DICT: Record<string, { pl: string; en: string }> = {
   all_done: { pl: 'Nic nie czeka na Twoją decyzję.', en: 'Nothing waits for your decision.' },
   recent_decisions: { pl: 'Ostatnie decyzje', en: 'Recent decisions' },
   waiting: { pl: 'czeka', en: 'waiting' },
+  // Aleksander – KSeF and Settings (new keys only)
+  show_upo: { pl: 'Pokaż UPO', en: 'Show UPO' },
+  upo_ok: { pl: 'Faktura przyjęta przez KSeF (symulacja).', en: 'Invoice accepted by KSeF (simulated).' },
+  upo_explain: {
+    pl: 'UPO to urzędowe potwierdzenie, że faktura trafiła do KSeF. Numer KSeF wpisz w dokumentach do klienta.',
+    en: 'UPO is the official receipt that the invoice reached KSeF. Put the KSeF number on documents for the client.',
+  },
+  mode_ask_explain: { pl: 'agent przygotuje kartę, a Ty klikasz „Zatwierdź” albo „Odrzuć”.', en: 'the agent prepares a card and you click “Approve” or “Reject”.' },
+  mode_auto_explain: { pl: 'agent zrobi to od razu (symulacja) i zapisze w ostatnich decyzjach.', en: 'the agent does it right away (simulated) and lists it in recent decisions.' },
+  kind_fx_hedge: { pl: 'Zabezpieczenie kursu euro', en: 'Lock the euro rate' },
+  hint_ksef_revalidate: { pl: 'Marek sprawdza błędne faktury jeszcze raz. Nic nie wysyła.', en: 'Marek checks rejected invoices again. Sends nothing.' },
+  hint_payment_reminder: { pl: 'Anna wysyła klientowi przypomnienie o zaległej fakturze.', en: 'Anna sends a client a reminder about an overdue invoice.' },
+  hint_tax_payment: { pl: 'Marek płaci podatek w terminie z konta firmy.', en: 'Marek pays the tax on time from the business account.' },
+  hint_supplier_payment: { pl: 'Kasia lub Anna płaci fakturę dostawcy wcześniej.', en: 'Kasia or Anna pays a supplier invoice early.' },
+  hint_credit_line: { pl: 'Anna składa wniosek o kredyt w banku, gdy zabraknie pieniędzy.', en: 'Anna applies for a bank credit line when money runs short.' },
+  hint_fx_hedge: { pl: 'Kasia kupuje euro po stałym kursie (kontrakt forward), żeby faktury w EUR nie podrożały.', en: 'Kasia buys euro at a fixed rate (forward) so EUR invoices do not get more expensive.' },
+  // Aleksander – Red Hat / OpenShift (what the judges score)
+  runs_on_redhat: { pl: 'Działa na Red Hat OpenShift · AI na Red Hat OpenShift AI', en: 'Runs on Red Hat OpenShift · AI on Red Hat OpenShift AI' },
+  thinking_note: {
+    pl: 'Model na OpenShift AI układa wypowiedzi. Zwykle do 24 s – liczby i tak liczą reguły.',
+    en: 'The model on OpenShift AI writes the turns. Usually up to 24 s – the numbers come from the rules anyway.',
+  },
+  platform_title: { pl: 'Działa na Red Hat', en: 'Runs on Red Hat' },
+  platform_note: {
+    pl: 'Cała aplikacja działa w kontenerze na Red Hat OpenShift. Agenci rozmawiają z modelem na Red Hat OpenShift AI (vLLM). Liczby liczą reguły w kodzie, model tylko wyjaśnia i dyskutuje.',
+    en: 'The whole app runs in a container on Red Hat OpenShift. The agents talk to a model on Red Hat OpenShift AI (vLLM). Numbers come from rules in code; the model only explains and debates.',
+  },
+  platform_app: { pl: 'Aplikacja', en: 'App' },
+  platform_app_value: { pl: 'Red Hat OpenShift (1 kontener: API + strona)', en: 'Red Hat OpenShift (1 container: API + web)' },
+  platform_ai: { pl: 'Model AI', en: 'AI model' },
+  platform_runtime: { pl: 'Serwowanie modelu', en: 'Model serving' },
+  platform_latency: { pl: 'Czas odpowiedzi', en: 'Response time' },
+  platform_status: { pl: 'Stan', en: 'Status' },
+  platform_ok: { pl: 'działa', en: 'working' },
+  platform_down: { pl: 'niedostępny – agenci odpowiadają z reguł', en: 'unavailable – agents answer from the rules' },
+  platform_mock: { pl: 'tryb lokalny (mock) – na klastrze będzie OpenShift AI', en: 'local mode (mock) – on the cluster it is OpenShift AI' },
+  platform_fallback: {
+    pl: 'Gdy model nie odpowie, każdy agent ma gotową odpowiedź z reguł – pokaz nigdy się nie zatrzyma.',
+    en: 'If the model does not answer, every agent has a rule-based answer ready – the demo never stops.',
+  },
   team_stage: { pl: 'Twój zespół', en: 'Your team' },
   to_decide: { pl: 'do decyzji', en: 'to decide' },
   nothing_waiting: { pl: 'nic nie czeka', en: 'nothing waiting' },
+  // Aleksander – dashboard tiles and printable report (real API numbers only)
+  short_on: { pl: 'Może zabraknąć pieniędzy', en: 'You may run short of money on' },
+  kpi_balance: { pl: 'Na koncie firmy', en: 'In the business account' },
+  kpi_owed_to_you: { pl: 'Klienci są Ci winni', en: 'Clients owe you' },
+  kpi_overdue_now: { pl: 'Po terminie:', en: 'Overdue:' },
+  kpi_you_owe: { pl: 'Ty jesteś winien', en: 'You owe' },
+  kpi_fx_net: { pl: 'Ryzyko walutowe (EUR/USD, netto):', en: 'Currency risk (EUR/USD, net):' },
+  days_short: { pl: 'dni', en: 'days' },
+  report_title: { pl: 'Raport finansowy', en: 'Financial report' },
+  report_print: { pl: 'Drukuj / Zapisz jako PDF', en: 'Print / Save as PDF' },
+  report_print_hint: { pl: 'W oknie drukowania wybierz „Zapisz jako PDF”, jeśli chcesz plik.', en: 'In the print dialog choose “Save as PDF” to get a file.' },
+  report_prepared: { pl: 'Przygotowano', en: 'Prepared on' },
+  report_in_short: { pl: 'W skrócie', en: 'In short' },
+  report_balance: { pl: 'Na koncie jest', en: 'The account holds' },
+  report_short: { pl: 'Jeśli nic się nie zmieni, może zabraknąć pieniędzy', en: 'If nothing changes, you may run short on' },
+  report_top_cost: { pl: 'Największy koszt w 30 dni –', en: 'Biggest cost in 30 days –' },
+  report_todo: { pl: 'Co zrobić teraz', en: 'What to do now' },
+  report_nothing: { pl: 'Agenci nic nie znaleźli.', en: 'The agents found nothing.' },
+  report_numbers: { pl: 'Najważniejsze liczby', en: 'Key numbers' },
+  report_lowest: { pl: 'Najniższe saldo w 13 tygodni', en: 'Lowest balance in 13 weeks' },
+  report_deadlines: { pl: 'Najbliższe terminy', en: 'Upcoming deadlines' },
+  report_fixed_deadlines: { pl: 'Co miesiąc: ZUS i zaliczka PIT do 20., JPK_V7M i VAT do 25.', en: 'Every month: ZUS and PIT advance by the 20th, JPK_V7M and VAT by the 25th.' },
+  report_law: { pl: 'Zmiany w przepisach', en: 'Changes in the law' },
+  report_law_note: { pl: 'Informacja, nie porada prawna. Sprawdzono', en: 'Information, not legal advice. Checked on' },
+  report_sources: { pl: 'Źródła', en: 'Sources' },
+  report_footer: {
+    pl: 'Wszystkie liczby liczą reguły w kodzie (bank, faktury KSeF, terminy podatkowe). Wszystkie płatności i wysyłki w aplikacji są symulowane.',
+    en: 'All numbers come from rules in code (bank, KSeF invoices, tax deadlines). All payments and submissions in the app are simulated.',
+  },
 };
 
 const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void }>({ lang: 'en', setLang: () => {} });
 
+// The site is English only (team decision, 20.11). The Polish texts stay in DICT in case we switch back.
 function initialLang(): Lang {
-  try {
-    return localStorage.getItem('lang') === 'pl' ? 'pl' : 'en';
-  } catch {
-    return 'en';
-  }
+  return 'en';
 }
 
 export function LangProvider({ children }: { children: ReactNode }) {

@@ -10,7 +10,7 @@
     "today": "2026-11-20"
   },
   "bank": {
-    "name": "Firmowe konto główne",
+    "name": "Main business account",
     "iban": "PL00 0000 0000 0000 0000 0000 0000",
     "balancePLN": 38400
   }
