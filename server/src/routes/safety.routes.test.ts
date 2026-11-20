@@ -89,7 +89,7 @@ const SAFE: Case[] = [
   { name: 'done: hypothetical', question: 'How much VAT do I owe?', cfo: 'marek', text: 'Once VAT of 14,230 zł is paid, the deadline of November 25, 2026 is met.' },
   { name: 'money: supported formats', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14.230,00 PLN, written also as 14,230 zł, due on November 25, 2026.' },
   {
-    name: 'money: a small fee that is in the facts',
+    name: 'money: a small VAT amount that is in the facts (VAT set to 17 zł)',
     question: 'How much VAT do I owe?',
     cfo: 'marek',
     text: 'VAT is 17 zł, due on November 25, 2026. Invoice FV/2026/11/009 must be fixed and sent again.',
@@ -243,10 +243,12 @@ describe('review of f5f7df5', () => {
     { name: 'gain: the loss', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'If EUR rises 5%, you lose 320,25 zł.' },
     { name: 'gain: neutral cost', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'You owe 1500 EUR at 4,27 zł. A 5% rise would cost you 320,25 zł.' },
     {
-      name: 'money: a real 17 zł surcharge in the facts',
+      // Review of 1bdce05: this fixture used to claim "The surcharge is 17 zł" with only VAT set to 17 zł. There is
+      // no fee fact in the domain, so the positive control is the small VAT amount itself.
+      name: 'money: a small VAT of 17 zł in the facts',
       question: 'How much VAT do I owe?',
       cfo: 'marek',
-      text: 'VAT is 17 zł, due on November 25, 2026. The surcharge is 17 zł. Invoice FV/2026/11/009 must be fixed and sent again.',
+      text: 'You owe VAT of 17 zł, due on November 25, 2026. Invoice FV/2026/11/009 must be fixed and sent again.',
       before: () => {
         db.obligations.find((o) => o.id === 'ob-vat-10')!.amountPLN = 17;
       },
@@ -311,6 +313,107 @@ describe('review of f5f7df5', () => {
       expect((await ask('Is the euro rate a problem?')).body.text).toBe(text);
       reply = (m) => (speaker(m) === 'kasia' ? text : '');
       expect((await conference()).body.turns[3].text).toBe(text);
+    });
+  });
+});
+
+// ---------- Review of 1bdce05: facts bound to what they describe, false debits, FX "saves you", false fallbacks ----------
+describe('review of 1bdce05', () => {
+  const vat = 'You owe VAT of 14,230 zł.';
+  const chairSays = (summary: string) => (m: ChatMessage[]) => (isChair(m) ? JSON.stringify({ summary, decisionActionIds: [] }) : '');
+  const UNSAFE3: Case[] = [
+    { name: 'VAT with the ZUS/PIT date', question: 'How much VAT do I owe?', cfo: 'marek', text: 'Your VAT of 14,230 zł is due on December 20, 2026.' },
+    { name: 'ZUS amount told as a surcharge', question: 'How much VAT do I owe?', cfo: 'marek', text: `${vat} The surcharge is 5800 zł.` },
+    { name: 'false debit', question: 'How much VAT do I owe?', cfo: 'marek', text: `${vat} The bank has debited your account.` },
+    { name: 'FX rise "saves you"', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'You owe 1500 EUR. A 5% rise saves you 320,25 zł.' },
+  ];
+  /** Safe controls. `chair: false` when the fact is not in the chair's context (the open cards + the debate). */
+  const SAFE3: (Case & { chair?: false })[] = [
+    { name: 'two obligations, each with its own fact', question: 'How much VAT do I owe?', cfo: 'marek', chair: false,
+      text: 'VAT of 14,230 zł is due on November 25, 2026. ZUS of 5800 zł is due on December 20, 2026.' },
+    { name: 'debit: negation', question: 'How much VAT do I owe?', cfo: 'marek', text: `${vat} The bank has not debited your account.` },
+    { name: 'debit: after', question: 'How much VAT do I owe?', cfo: 'marek', text: `${vat} Check your balance after the bank debits your account.` },
+    { name: 'FX rise costs you', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'You owe 1500 EUR. A 5% rise would cost you 320,25 zł.' },
+    { name: 'Anna: an own amount', question: 'Will I have enough cash?', cfo: 'anna', chair: false, text: 'FlotaTrans owes you 12,300 zł. Ask when it expects to pay.' },
+    { name: 'Tomasz: an own car amount', question: 'Is my labour rate too low?', cfo: 'tomasz', chair: false, text: 'The VW Passat 2015 job is short by 800 zł.' },
+    { name: 'Marek: an own deadline', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is due on November 25, 2026.' },
+    { name: 'Tomasz: an own percentage', question: 'Is my labour rate too low?', cfo: 'tomasz', chair: false, text: 'Parts account for 26% of all costs.' },
+    { name: 'English: set aside for ZUS', question: 'How much VAT do I owe?', cfo: 'marek', chair: false, text: 'Set aside 5800 zł for ZUS.' },
+    { name: 'Tomasz: revenue, not wages', question: 'Is my labour rate too low?', cfo: 'tomasz', chair: false,
+      text: "The 1700 zł is missing revenue, not an increase in mechanics' wages." },
+  ];
+
+  describe.each([
+    ['/api/ask', async (c: Case) => {
+      reply = () => c.text;
+      const r = await ask(c.question);
+      expect(r.body.cfo).toBe(c.cfo);
+      return { status: r.status, shown: r.body.text, fallback: rule(c.cfo) };
+    }],
+    ['agent turn', async (c: Case) => {
+      reply = (m) => (speaker(m) === c.cfo ? c.text : '');
+      const r = await conference();
+      return { status: r.status, shown: r.body.turns.find((t) => t.cfo === c.cfo)!.text, fallback: rule(c.cfo) };
+    }],
+    ['chair summary', async (c: Case) => {
+      reply = chairSays(c.text); // every speaker gives safe rule text, only the chair says the case
+      const r = await conference();
+      return { status: r.status, shown: r.body.summary, fallback: chairFallback() };
+    }],
+  ] as const)('%s', (route, run) => {
+    it.each(UNSAFE3)('unsafe → fallback: $name', async (c) => {
+      const { status, shown, fallback } = await run(c);
+      expect(status).toBe(200);
+      expect(shown).toBe(fallback);
+    });
+    it.each(SAFE3.filter((c) => route !== 'chair summary' || c.chair !== false))('safe → unchanged: $name', async (c) => {
+      const { status, shown } = await run(c);
+      expect(status).toBe(200);
+      expect(shown).toBe(c.text);
+    });
+  });
+
+  it('a reply that really calls the 1700 zł a wage increase still falls back (ask and turn)', async () => {
+    const text = "The 1700 zł is an increase in your mechanics' wages.";
+    reply = () => text;
+    expect((await ask('Is my labour rate too low?')).body.text).toBe(rule('tomasz'));
+    reply = (m) => (speaker(m) === 'tomasz' ? text : '');
+    expect((await conference()).body.turns[2].text).toBe(rule('tomasz'));
+  });
+
+  it('a repeat of another speaker still falls back (Tomasz quoting Anna\'s credit line)', async () => {
+    reply = (m) => (speaker(m) === 'tomasz' ? 'You should consider the credit line of 36 000,00 zł.' : '');
+    expect((await conference()).body.turns[2].text).toBe(rule('tomasz'));
+  });
+
+  it('changed obligations: the binding follows the current facts, not the seed', async () => {
+    db.obligations.find((o) => o.id === 'ob-zus-11')!.amountPLN = 6100;
+    db.obligations.find((o) => o.id === 'ob-vat-10')!.dueDate = '2026-11-24';
+    for (const [text, ok] of [
+      ['ZUS of 6100 zł is due on December 20, 2026.', true],
+      ['ZUS of 5800 zł is due on December 20, 2026.', false],
+      ['VAT of 14,230 zł is due on November 24, 2026.', true],
+      ['VAT of 14,230 zł is due on November 25, 2026.', false],
+      ['VAT of 6100 zł is due on November 24, 2026.', false],
+    ] as const) {
+      reply = () => text;
+      expect([text, (await ask('How much VAT do I owe?')).body.text]).toEqual([text, ok ? text : rule('marek')]);
+    }
+  });
+
+  describe('after settling Krause (owed 2100 EUR, a 5% FALL costs 448,35 zł)', () => {
+    it.each([
+      ['You are owed 2100 EUR. A 5% fall saves you 448,35 zł.', false],
+      ['You are owed 2100 EUR. A 5% fall would cost you 448,35 zł.', true],
+    ] as const)('%s', async (text, ok) => {
+      settlePayment(15372, 'inv-p-002');
+      expect(rule('kasia')).toMatch(/If EUR falls 5%, you lose 448,35/);
+      reply = () => text;
+      expect((await ask('Is the euro rate a problem?')).body.text).toBe(ok ? text : rule('kasia'));
+      reply = (m) => (speaker(m) === 'kasia' ? text : '');
+      expect((await conference()).body.turns[3].text).toBe(ok ? text : rule('kasia'));
+      reply = chairSays(text);
+      expect((await conference()).body.summary).toBe(ok ? text : chairFallback());
     });
   });
 });

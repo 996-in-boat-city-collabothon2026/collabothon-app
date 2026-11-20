@@ -5,11 +5,10 @@ import { CFOS, type Action, type BoardroomResult, type BoardroomTurn, type CfoId
 import { db } from '../domain/store';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
-import { mentionsKeyFact } from './numberGuard';
 import { stripAddress, wholeSentences } from './text';
 import { tidyReply } from './reply';
 import { cfoFacts, type CfoFacts } from './facts';
-import { fixCurrencyPair, replyProblem, textProblem } from './safety';
+import { citesOwnFact, fixCurrencyPair, replyProblem, textProblem } from './safety';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
 
 const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia']; // White → Black → Green → Red, the Blue chair sums up
@@ -64,12 +63,12 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
       { role: 'user', content: turnPrompt(cfo, facts, subject, turns) },
     ], { maxTokens: TURN_MAX_TOKENS, temperature: 0.1, mockKey: `boardroom:${cfo}` });
     // Same check as /api/ask (agents/safety.ts): only this CFO's own rule numbers, English, at least one amount
-    // from its own conclusion (live: Tomasz repeated Anna), nothing "done", no false calm → else the rule conclusion.
-    // "Its own amount" is compared as a number, so "14,230 zł" or "14 230 zł" count as "14 230,00 zł".
+    // from its OWN facts (live: Tomasz repeated Anna), nothing "done", no false calm → else the rule conclusion.
+    // The own fact is compared as a number or date, so "14,230 zł" counts as "14 230,00 zł".
     const text = fixCurrencyPair(stripAddress(tidy(raw, TURN_MAX_WORDS)), facts);
-    const hasKeyFact = mentionsKeyFact(facts.summary, facts.summary);
-    const ownAmount = (t: string) => !hasKeyFact || mentionsKeyFact(t, facts.summary);
-    const problem = replyProblem(text, facts, ownAmount, transcriptOf(turns));
+    const hasKeyFact = citesOwnFact(facts.summary, facts); // a CFO with nothing to report ("Taxes are in order") is free
+    const ownFact = (t: string) => !hasKeyFact || citesOwnFact(t, facts);
+    const problem = replyProblem(text, facts, ownFact, transcriptOf(turns));
     if (problem && problem !== 'empty') console.info(`[guard] boardroom:${cfo} ${problem} → rule conclusion`);
     turns.push({ cfo, text: problem ? facts.summary : text });
   }

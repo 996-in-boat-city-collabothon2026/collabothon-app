@@ -4,7 +4,7 @@
 // A reply is shown only when it passes all of it; otherwise the caller shows the agent's rule conclusion.
 import { db } from '../domain/store';
 import type { CfoFacts } from './facts';
-import { findInventedNumbers } from './numberGuard';
+import { findInventedNumbers, mentionsDateOrPercent, mentionsKeyFact } from './numberGuard';
 import { claimsDone, falseCalm, myMoney } from './text';
 
 /** Polish letters (not "ł": it is in "zł"; not "ó": it is in "Kraków"). */
@@ -53,6 +53,9 @@ const ENGLISH_WORDS = new Set(
   goes open close term deposit income natural hedge match download put biggest change spend spent quote ask other
   costs too little cover covers out today's lowers leaves account money instead number tax sum receive bring same
   new rejected rejection reason wrong digits must you'll you're it's we're don't can't won't isn't per cent percent
+  set aside plan budget prepare priority still both expect expects job jobs account accounts revenue wage wages
+  increase hit floor target spend spending note remember call follow look confirm start mind cash bill bills cent
+  pay paying planning ahead first next ready work works worked quote quotes week month spare stay stays keep keeps
   january february march april may june july august september october november december
   monday tuesday wednesday thursday friday saturday sunday`.split(/\s+/).filter(Boolean),
 );
@@ -101,6 +104,17 @@ export function fixCurrencyPair(text: string, facts: CfoFacts): string {
     const has = (c: string) => new RegExp(`\\b${c}\\b`).test(known);
     return has(a) && !has(b) ? a : has(b) && !has(a) ? b : pair;
   });
+}
+
+/**
+ * Does the reply cite a precise fact of THIS CFO's own current facts: an amount, a deadline, a percent or an invoice?
+ * Review of 1bdce05: the conference only accepted an amount from the CFO's summary, so 73 of 124 correct replies fell
+ * back ("FlotaTrans owes you 12,300 zł", "The VW Passat 2015 job is short by 800 zł"). Today's date does not count, and
+ * another speaker's number is not in these facts, so a CFO who only repeats a colleague still falls back.
+ */
+export function citesOwnFact(reply: string, facts: CfoFacts): boolean {
+  const own = [...facts.lines.filter((l) => !/^Today is\b/.test(l)), facts.summary].join('\n');
+  return mentionsKeyFact(reply, own) || mentionsDateOrPercent(reply, own);
 }
 
 /** Only rule output counts as facts: the owner's question or the meeting topic can never make a number true. */

@@ -185,7 +185,14 @@ function tomasz(): CfoFacts {
     bits.push(`You spend most on ${CATEGORY_EN[top.category]}: ${fmtPLN(top.amount)} in 30 days. Ask other suppliers for a quote.`);
   }
   // Live: "You're paying your labourers 200 zł per hour…": the rule is about prices for customers, not wages.
-  const misread = (reply: string) => labour.length > 0 && /wage|salar|labourers|paying your (mechanics|workers)/i.test(reply);
+  // A wage word that is negated or contrasted in its clause is the RIGHT reading (review of 1bdce05: "The 1700 zł is
+  // missing revenue, not an increase in mechanics' wages." fell back).
+  const misread = (reply: string) =>
+    labour.length > 0 &&
+    [...reply.matchAll(/wage|salar|labourers|paying your (?:mechanics|workers)/gi)].some((m) => {
+      const clause = reply.slice(Math.max(0, m.index! - 45), m.index).split(/[.;!?](?=\s)/).pop() ?? '';
+      return !/\b(?:not|no|never|rather than|instead of|unlike)\b|n't\b/i.test(clause);
+    });
   return { lines, summary: bits.join(' ') || 'Margins and costs are in order.', misread };
 }
 

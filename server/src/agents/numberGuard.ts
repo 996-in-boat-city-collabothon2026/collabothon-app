@@ -98,6 +98,12 @@ export const AMBIGUOUS = 2;
 const LOSS_WORD = /^(?:lose|loses|losing|lost|loss|losses)$/i;
 const GAIN_WORD = /^(?:gain|gains|gained|gaining|earn|earns|earned|earning|profit|profits|win|wins|won|benefit|benefits|windfall)$/i;
 const GAIN_NEAR = /^(?:make|makes|making|made|pocket|pockets|pocketed)$/i;
+/**
+ * "saves you" is a gain only when the currency MOVE is the cause (review of 1bdce05: "A 5% rise saves you 320,25 zł"
+ * when the rise is the loss). With a hedge as the cause it is protection, not a gain ("a forward saves you 320,25 zł").
+ */
+const SAVE_WORD = /^(?:save|saves|saved|saving|spares|spared)$/i;
+const HEDGE_WORD = /^(?:forward|forwards|contract|hedge|hedging|hedged|lock|locks|locking|locked|fix|fixing|protect|protects|protection)$/i;
 const NEGATION_BEFORE = /(?:\b(?:not|never|no)|n't)\s+(?:\p{L}+\s+)?$/iu;
 const GAIN_AFTER = /^\s*(?:zł|PLN|EUR|USD|€)?\s*(?:more\s+)?(?:ahead|better off|richer|windfall|in profit|in the black|profit|gain|bonus)\b/i;
 const LOSS_AFTER = /^\s*(?:zł|PLN|EUR|USD|€)?\s*(?:worse off|poorer|loss|losses|in the red|down)\b/i;
@@ -107,11 +113,12 @@ function outcomeOf(text: string, start: number, end: number): number {
   const window = text.slice(Math.max(0, start - 70), start);
   const clause = window.split(OUTCOME_CLAUSE).pop() ?? '';
   const words = [...clause.matchAll(/\p{L}+/gu)];
+  const moveCaused = words.some((m) => dirOf(m[0]) !== 0) && !words.some((m) => HEDGE_WORD.test(m[0]));
   const found = new Set<number>();
   words.forEach((m, i) => {
     const w = m[0];
     const near = words.length - 1 - i <= 0; // the word right before the amount
-    const dir = LOSS_WORD.test(w) ? -1 : GAIN_WORD.test(w) || (near && GAIN_NEAR.test(w)) ? 1 : 0;
+    const dir = LOSS_WORD.test(w) ? -1 : GAIN_WORD.test(w) || (near && GAIN_NEAR.test(w)) || (moveCaused && SAVE_WORD.test(w)) ? 1 : 0;
     if (dir && !NEGATION_BEFORE.test(clause.slice(0, m.index))) found.add(dir);
   });
   const after = text.slice(end, end + 30).split(/[.;!?](?=\s|$)/)[0];
@@ -293,13 +300,89 @@ export function findInventedNumbers(reply: string, facts: string): string[] {
     if (d && (d.full ? known.dates.full.has(d.full) || known.dates.mdNoYear.has(d.md) : known.dates.md.has(d.md))) continue;
     invented.push(t.neg ? `-${t.raw}` : t.raw);
   }
-  invented.push(...unreadableMoney(reply));
+  invented.push(...unreadableMoney(reply), ...misboundFacts(reply, facts));
   return invented;
 }
 
-// A money amount: "12 300,00 zł", "1500 EUR", "6405,00 PLN". Rates like "4,27 zł" are below MIN_KEY_AMOUNT.
-// (no \\b after "zł": in JS regexes "ł" is not a word character)
-const MONEY = new RegExp(`(${NUMBER.source})\\s*(?:zł|PLN|EUR|USD)(?![A-Za-z])`, 'gi');
+/**
+ * Facts bound to what they describe. Review of 1bdce05: "Your VAT of 14,230 zł is due on December 20, 2026." passed
+ * because December 20 is in the facts (for ZUS and PIT), and "The surcharge is 5800 zł." passed because 5800 zł is
+ * in the facts (for ZUS). A number being somewhere in the facts is not enough:
+ *   - In a clause about ONE obligation (VAT, ZUS or PIT), an amount that the facts give to ANOTHER obligation, and not
+ *     to this one, is invented; so is a date other than its own due date (or today) when the facts give it one.
+ *     A clause naming two obligations ("ZUS and PIT are due on …") is not checked.
+ *   - An amount called a fee, surcharge, penalty, fine or interest needs a fact that calls it that too.
+ * The bindings come from the current facts (one clause of the facts = one obligation), never from the seed.
+ */
+const OBLIGATION = /\b(VAT|ZUS|PIT)\b/g;
+const FEE = /\b(?:surcharges?|fees?|penalt(?:y|ies)|fines?|interest|late charges?)\b/i;
+const FACT_CLAUSES = /\n|[.;!?](?=\s|$)/;
+interface Bound { amounts: number[]; dates: Set<string> }
+function boundParts(clause: string): Bound {
+  const sc = scan(clause);
+  return {
+    amounts: sc.tokens.filter((t) => t.cur).flatMap((t) => t.values),
+    dates: new Set([...sc.dates.full, ...sc.dates.md]),
+  };
+}
+const labelsOf = (clause: string) => [...new Set([...clause.matchAll(OBLIGATION)].map((m) => m[1]))];
+const hasValue = (list: number[], v: number) => list.some((k) => Math.abs(k - v) < TOLERANCE);
+
+/** Due-date wording between the obligation and the date: "VAT … is due on", "pay ZUS by", "the PIT deadline is". */
+const DUE_WORDS = /\b(?:due|deadline|payable|pay|paid|by|until|before)\b/i;
+
+function misboundFacts(reply: string, facts: string): string[] {
+  const all = boundParts(facts); // only numbers the facts DO have: unknown ones are already reported as invented
+  const bound = new Map<string, Bound>();
+  const feeAmounts: number[] = [];
+  const today = new Set<string>();
+  for (const clause of facts.split(FACT_CLAUSES)) {
+    if (/\btoday is\b/i.test(clause)) boundParts(clause).dates.forEach((d) => today.add(d));
+    const labels = labelsOf(clause);
+    if (labels.length === 1) {
+      const b = boundParts(clause);
+      const into = bound.get(labels[0]) ?? { amounts: [], dates: new Set<string>() };
+      into.amounts.push(...b.amounts);
+      b.dates.forEach((d) => into.dates.add(d));
+      bound.set(labels[0], into);
+    }
+    if (FEE.test(clause)) feeAmounts.push(...boundParts(clause).amounts);
+  }
+  const out: string[] = [];
+  for (const clause of reply.split(FACT_CLAUSES)) {
+    const parts = boundParts(clause);
+    if (FEE.test(clause)) for (const v of parts.amounts) if (hasValue(all.amounts, v) && !hasValue(feeAmounts, v)) out.push(`fee ${v}`);
+    const labels = labelsOf(clause);
+    if (labels.length !== 1) continue;
+    const own = bound.get(labels[0]);
+    const others = [...bound].filter(([l]) => l !== labels[0]).map(([, b]) => b);
+    for (const v of parts.amounts) {
+      if (others.some((b) => hasValue(b.amounts, v)) && !(own && hasValue(own.amounts, v))) out.push(`${labels[0]} ${v}`);
+    }
+    const label = clause.search(new RegExp(`\\b${labels[0]}\\b`));
+    for (const d of parts.dates) {
+      if (!all.dates.has(d) || today.has(d) || own?.dates.has(d)) continue;
+      // Only a date told as this obligation's deadline is bound to it ("a balance … on December 20" is not).
+      if (!DUE_WORDS.test(clause.slice(label))) continue;
+      if ((own && own.dates.size > 0) || others.some((b) => b.dates.has(d))) out.push(`${labels[0]} ${d}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * A full date ("November 25, 2026") or a percent ("26%") of the reply that the facts also have. Used with
+ * mentionsKeyFact for "does this reply cite a fact of its own" (review of 1bdce05: "VAT is due on November 25, 2026."
+ * and "Parts account for 26% of all costs." were dropped as having no fact).
+ */
+export function mentionsDateOrPercent(reply: string, facts: string): boolean {
+  const r = scan(reply);
+  const f = scan(facts);
+  // "November 25, 2026", or "November 25" without the year when the facts have that day
+  if ([...r.dates.full].some((d) => f.dates.full.has(d)) || [...r.dates.mdNoYear].some((d) => f.dates.md.has(d))) return true;
+  return r.percents.some((p) => f.percents.some((k) => Math.abs(k.value - p.value) < TOLERANCE && (k.dir === 0 || p.dir === 0 || k.dir === p.dir)));
+}
+
 const MIN_KEY_AMOUNT = 100;
 const INVOICE_NO = /\bFV\/[\w/]+/g;
 
@@ -309,8 +392,9 @@ const INVOICE_NO = /\bFV\/[\w/]+/g;
  * a problem" quoted only the rate; such replies are replaced by the rule conclusion.
  */
 export function mentionsKeyFact(reply: string, facts: string): boolean {
+  // Same money reading as the guard: unit after OR before the number ("14,230 zł", "PLN 14,230", "€1500").
   const amounts = (text: string) =>
-    [...text.matchAll(MONEY)].flatMap((m) => numberValues(m[1].trim())).filter((v) => Math.abs(v) >= MIN_KEY_AMOUNT);
+    scan(text).tokens.filter((t) => t.cur).flatMap((t) => t.values).filter((v) => Math.abs(v) >= MIN_KEY_AMOUNT);
   const known = amounts(facts);
   if (amounts(reply).some((v) => known.some((k) => Math.abs(Math.abs(k) - Math.abs(v)) < TOLERANCE))) return true;
   const invoices = new Set(facts.match(INVOICE_NO) ?? []);
