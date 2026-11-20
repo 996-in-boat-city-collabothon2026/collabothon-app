@@ -1,0 +1,272 @@
+# Reference snapshot only. Do not run `oc apply -f deploy/export/app.yaml`. To recreate the app, follow this runbook: deploy/README.md.
+# (It holds cluster-assigned fields: resourceVersion, uid, status, clusterIP, image digests, and REDACTED webhook secrets,
+#  so applying it can fail half-way or overwrite working settings.)
+# Source: oc get deploy,svc,route,bc,is warsztat-cfo -o yaml. Webhook secrets REDACTED: never commit them.
+apiVersion: v1
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    annotations:
+      deployment.kubernetes.io/revision: "9"
+      image.openshift.io/triggers: '[{"from":{"kind":"ImageStreamTag","name":"warsztat-cfo:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"warsztat-cfo\")].image"}]'
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: "2026-11-20T16:16:14Z"
+    generation: 9
+    labels:
+      app: warsztat-cfo
+      app.kubernetes.io/component: warsztat-cfo
+      app.kubernetes.io/instance: warsztat-cfo
+    name: warsztat-cfo
+    namespace: my-first-model
+    resourceVersion: "1373518"
+    uid: dc51ac23-332b-4f3e-8ad7-c5b4e881a020
+  spec:
+    progressDeadlineSeconds: 600
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      matchLabels:
+        deployment: warsztat-cfo
+    strategy:
+      rollingUpdate:
+        maxSurge: 25%
+        maxUnavailable: 25%
+      type: RollingUpdate
+    template:
+      metadata:
+        annotations:
+          openshift.io/generated-by: OpenShiftNewApp
+        creationTimestamp: null
+        labels:
+          deployment: warsztat-cfo
+      spec:
+        containers:
+        - env:
+          - name: LLM_MODE
+            value: openai_compat
+          - name: LLM_MODEL
+            value: llama-32-3b-instruct
+          - name: LLM_BASE_URL
+            value: http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1
+          - name: LLM_TIMEOUT_MS
+            value: "20000"
+          image: image-registry.openshift-image-registry.svc:5000/my-first-model/warsztat-cfo@sha256:af9eeacab1acd1d5aad7f8bbfad33862b7792382771f9eab0ef6409efd951483
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /api/health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          name: warsztat-cfo
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /api/health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 1
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+            requests:
+              cpu: 200m
+              memory: 256Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+  status:
+    availableReplicas: 1
+    conditions:
+    - lastTransitionTime: "2026-11-20T16:17:49Z"
+      lastUpdateTime: "2026-11-20T16:17:49Z"
+      message: Deployment has minimum availability.
+      reason: MinimumReplicasAvailable
+      status: "True"
+      type: Available
+    - lastTransitionTime: "2026-11-20T16:16:14Z"
+      lastUpdateTime: "2026-11-20T17:53:27Z"
+      message: ReplicaSet "warsztat-cfo-5df98679f9" has successfully progressed.
+      reason: NewReplicaSetAvailable
+      status: "True"
+      type: Progressing
+    observedGeneration: 9
+    readyReplicas: 1
+    replicas: 1
+    updatedReplicas: 1
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: "2026-11-20T16:16:14Z"
+    labels:
+      app: warsztat-cfo
+      app.kubernetes.io/component: warsztat-cfo
+      app.kubernetes.io/instance: warsztat-cfo
+    name: warsztat-cfo
+    namespace: my-first-model
+    resourceVersion: "1271361"
+    uid: 5dcea793-a280-48ef-bc8c-983741aa8a86
+  spec:
+    clusterIP: 172.30.120.9
+    clusterIPs:
+    - 172.30.120.9
+    internalTrafficPolicy: Cluster
+    ipFamilies:
+    - IPv4
+    ipFamilyPolicy: SingleStack
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      deployment: warsztat-cfo
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    annotations:
+      openshift.io/host.generated: "true"
+    creationTimestamp: "2026-11-20T16:18:01Z"
+    labels:
+      app: warsztat-cfo
+      app.kubernetes.io/component: warsztat-cfo
+      app.kubernetes.io/instance: warsztat-cfo
+    name: warsztat-cfo
+    namespace: my-first-model
+    resourceVersion: "1273320"
+    uid: 60e9586f-ec6c-44ad-84f2-dea911659c28
+  spec:
+    host: warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com
+    port:
+      targetPort: 8080-tcp
+    tls:
+      termination: edge
+    to:
+      kind: Service
+      name: warsztat-cfo
+      weight: 100
+    wildcardPolicy: None
+  status:
+    ingress:
+    - conditions:
+      - lastTransitionTime: "2026-11-20T16:18:01Z"
+        status: "True"
+        type: Admitted
+      host: warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com
+      routerCanonicalHostname: router-default.apps.ocp.t8kjt.sandbox1583.opentlc.com
+      routerName: default
+      wildcardPolicy: None
+- apiVersion: build.openshift.io/v1
+  kind: BuildConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: "2026-11-20T16:16:13Z"
+    generation: 4
+    labels:
+      app: warsztat-cfo
+      app.kubernetes.io/component: warsztat-cfo
+      app.kubernetes.io/instance: warsztat-cfo
+    name: warsztat-cfo
+    namespace: my-first-model
+    resourceVersion: "1372138"
+    uid: 9c677b87-7888-4687-be48-25f9bded6ede
+  spec:
+    failedBuildsHistoryLimit: 5
+    nodeSelector: null
+    output:
+      to:
+        kind: ImageStreamTag
+        name: warsztat-cfo:latest
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      git:
+        ref: main
+        uri: https://github.com/996-in-boat-city-collabothon2026/collabothon-app
+      type: Git
+    strategy:
+      dockerStrategy:
+        from:
+          kind: ImageStreamTag
+          name: nodejs-22-minimal:latest
+      type: Docker
+    successfulBuildsHistoryLimit: 5
+    triggers:
+    - github:
+        secret: REDACTED
+      type: GitHub
+    - generic:
+        secret: REDACTED
+      type: Generic
+    - type: ConfigChange
+    - imageChange: {}
+      type: ImageChange
+  status:
+    imageChangeTriggers:
+    - from:
+        name: nodejs-22-minimal:latest
+      lastTriggerTime: null
+      lastTriggeredImageID: registry.access.redhat.com/ubi9/nodejs-22-minimal@sha256:9d04184e8ff59fcc8b25fca6add9be1653b5e446cc955f5b300b3fded79edecd
+    lastVersion: 3
+- apiVersion: image.openshift.io/v1
+  kind: ImageStream
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    creationTimestamp: "2026-11-20T16:16:13Z"
+    generation: 1
+    labels:
+      app: warsztat-cfo
+      app.kubernetes.io/component: warsztat-cfo
+      app.kubernetes.io/instance: warsztat-cfo
+    name: warsztat-cfo
+    namespace: my-first-model
+    resourceVersion: "1373180"
+    uid: e4c77bee-7b28-4bb4-b303-397388b315a1
+  spec:
+    lookupPolicy:
+      local: false
+  status:
+    dockerImageRepository: image-registry.openshift-image-registry.svc:5000/my-first-model/warsztat-cfo
+    tags:
+    - items:
+      - created: "2026-11-20T17:53:11Z"
+        dockerImageReference: image-registry.openshift-image-registry.svc:5000/my-first-model/warsztat-cfo@sha256:af9eeacab1acd1d5aad7f8bbfad33862b7792382771f9eab0ef6409efd951483
+        generation: 1
+        image: sha256:af9eeacab1acd1d5aad7f8bbfad33862b7792382771f9eab0ef6409efd951483
+      - created: "2026-11-20T17:20:25Z"
+        dockerImageReference: image-registry.openshift-image-registry.svc:5000/my-first-model/warsztat-cfo@sha256:07cd9085c2aaeef0c1eb0ee2a3fa184e8f1d44a7a250d7d11035b842cc460a1c
+        generation: 1
+        image: sha256:07cd9085c2aaeef0c1eb0ee2a3fa184e8f1d44a7a250d7d11035b842cc460a1c
+      - created: "2026-11-20T16:17:43Z"
+        dockerImageReference: image-registry.openshift-image-registry.svc:5000/my-first-model/warsztat-cfo@sha256:70ccfcf4b7afbbbf3d2a2eee32ae1ce971f82be7998a121b7cf52ef48f13b6d4
+        generation: 1
+        image: sha256:70ccfcf4b7afbbbf3d2a2eee32ae1ce971f82be7998a121b7cf52ef48f13b6d4
+      tag: latest
+kind: List
+metadata:
+  resourceVersion: ""
