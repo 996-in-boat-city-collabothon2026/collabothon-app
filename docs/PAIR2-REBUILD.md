@@ -167,9 +167,25 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
 
   New test property: every number in every point is a number of the same CFO's fact lines.
 
-- [ ] **M3 `commentProblem` and its tests** (`agents/safety.ts`, new test file)
+- [x] **M3 `commentProblem` and its tests** (`agents/safety.ts`, new test file)
   Done when: every forbidden class from section 3a is rejected, and a set of good hat-style comments is accepted
   (false positives listed next to the box).
+
+  Result: **582/582 tests in 24 files** (75 new in `agents/comment.test.ts`: 53 refused, 22 allowed), typecheck clean, build OK.
+  `commentProblem(comment, critical)` refuses, in this order:
+  1. empty, markup or several lines, more than 25 words, more than one sentence;
+  2. a digit or a number word, money (any currency, also "euro"), a month, a weekday, a relative date (today, tomorrow, late, week…) or `FV`;
+  3. a name: any capitalised word mid-sentence outside a small allowlist (I, VAT, ZUS, PIT, KSeF, NBP, NIP, the CFO names), or the first word of a firm or car name from the data in any case;
+  4. not English (`looksPolish`);
+  5. a market trend (rise, fall, drop, go up…);
+  6. past tense or a done claim (was/were/been/had, irregular past forms, `-ed` words outside a short adjective list, "is set up", "is now active", plus `claimsDone`);
+  7. the owner's money told as the advisor's (`myMoney`), or paying a customer;
+  8. when the CFO has a critical point: a calming word (fine, safe, enough, good shape, don't worry, can wait…).
+
+  Measured:
+  - **Bad replies:** all 76 wrong replies from the review rounds (`zz_attack` + `zz_round2`) are refused as a comment. 0 get through.
+  - **Good comments not used for tuning:** 4 of 30 are refused, all for a stated reason. "today" is a date word; "being paid" and "money left on the table" use past forms; "the rate is locked" is refused on purpose, because it is exactly the done-claim shape.
+  - **Accepted cost:** an over-strict refusal only hides the comment. The rule text is still shown.
 
 - [ ] **M4 `/api/ask` in the new format** (`routes/boardroom.ts`, prompt in `agents/personas.ts`)
   Done when: route tests cover a valid JSON reply, broken JSON, unknown ids, a bad comment, a model timeout and the emergency switch.
