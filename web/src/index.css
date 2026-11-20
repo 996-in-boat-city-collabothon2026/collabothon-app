@@ -7,7 +7,11 @@ html {
 body {
   /* Apple-like: system font, soft grey page, near-black text */
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable", "Segoe UI", Inter, system-ui, sans-serif;
-  background: #f5f5f7;
+  /* White page with the faint dotted grid from the login screen */
+  background-color: #fff;
+  background-image: radial-gradient(rgb(0 0 0 / 0.09) 1px, transparent 1px);
+  background-size: 18px 18px;
+  background-attachment: fixed;
   color: #1d1d1f;
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
@@ -31,7 +35,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .surface {
   background: #fff;
   border-radius: 22px;
-  box-shadow: 0 2px 12px rgb(0 0 0 / 0.05);
+  border: 1px solid rgb(0 0 0 / 0.1);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
 }
 
 /* Faint dotted grid background (calm, techy) */

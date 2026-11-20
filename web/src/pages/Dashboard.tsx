@@ -72,16 +72,20 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <span className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-medium">
+        <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-100 text-xs" aria-hidden="true">⚡</span>
+        {t('agents_on_watch')}
+      </span>
       <PageHeader title={t('dashboard')}>
         <span className="flex flex-wrap items-center gap-2">
         <Link to="/ksef" className="inline-flex min-h-12 items-center gap-3 rounded-full bg-[#0071e3] px-6 font-semibold text-white hover:bg-[#0077ed]">
           🧾 {t('invoices')} <span aria-hidden="true">→</span>
         </Link>
-        <span className="flex items-center gap-1 rounded-full bg-black/[0.06] p-1" role="group" aria-label={t('forecast_title')}>
-          {s && <span className="hidden px-3 text-sm font-medium sm:inline">● {t('today')} {fmtDay(s.shop.today)}</span>}
+        <span className="flex items-center gap-1 rounded-full border border-black/10 bg-white p-1" role="group" aria-label={t('forecast_title')}>
+          {s && <span className="hidden px-3 text-sm font-medium sm:inline">{t('today')} {fmtDay(s.shop.today)}</span>}
           {RANGES.map((r) => (
             <button key={r} onClick={() => setDays(r)} aria-pressed={days === r}
-              className={`min-h-12 rounded-full px-4 text-sm font-semibold ${days === r ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-700'}`}>
+              className={`min-h-12 rounded-full px-4 text-sm font-semibold ${days === r ? 'bg-black/[0.07] text-stone-900' : 'text-stone-700'}`}>
               {r} {t('days')}
             </button>
           ))}
@@ -225,11 +229,11 @@ export default function Dashboard() {
           </ul>
         </Link>
 
-        <section className="rounded-[1.75rem] bg-gradient-to-br from-sky-100 via-white to-emerald-50 p-6 shadow-sm">
+        <section className="rounded-[22px] border border-black/10 bg-gradient-to-br from-emerald-50 via-white to-white p-6">
           <h2 className="text-lg font-semibold">{t('biggest_cost')}</h2>
           {biggest ? (
             <>
-              <p className="mt-2 text-6xl font-bold leading-none tracking-tight">{Math.round(biggest.share * 100)}%</p>
+              <p className="mt-2 text-6xl font-bold leading-none tracking-tight">{Math.round(biggest.share * 100)}<span className="text-emerald-600">%</span></p>
               <p className="mt-2 text-lg">{t(`cat_${biggest.category}`)} · <strong className="tabular-nums">{fmtPLN(biggest.amountPLN)}</strong></p>
               <p className="mt-1 text-stone-700">{t('of_expenses_30')}</p>
             </>
@@ -250,7 +254,7 @@ export default function Dashboard() {
               {running ? t('checking') : t('run_check')} <span aria-hidden="true">→</span>
             </button>
             {open.length > 3 && (
-              <Link to="/approvals" className="inline-flex min-h-12 items-center gap-3 rounded-full bg-white px-6 font-semibold shadow-sm">
+              <Link to="/approvals" className="inline-flex min-h-12 items-center gap-3 rounded-full border border-black/10 bg-white px-6 font-semibold">
                 {t('see_all')} ({open.length}) <span aria-hidden="true">→</span>
               </Link>
             )}
@@ -310,11 +314,11 @@ function AskInline() {
   }
 
   return (
-    <div className="mt-6 rounded-3xl bg-zinc-100 p-2">
+    <div className="mt-6 rounded-3xl border border-black/10 bg-zinc-50 p-2">
       <form onSubmit={ask} className="flex items-center gap-2">
         <label className="sr-only" htmlFor="ask-inline">{t('ask_inline')}</label>
         <input id="ask-inline" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('ask_inline')}
-          className="min-h-12 min-w-0 flex-1 rounded-full bg-white px-5 text-base placeholder:text-stone-600" />
+          className="min-h-12 min-w-0 flex-1 rounded-full border border-black/10 bg-white px-5 text-base placeholder:text-stone-600" />
         <button disabled={busy || !q.trim()} aria-label={t('ask_title')}
           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#0071e3] text-xl text-white disabled:opacity-40">→</button>
       </form>
