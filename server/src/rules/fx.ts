@@ -58,10 +58,12 @@ function actionsFor(e: FxExposure): DraftAction[] {
   if (e.shockPLN <= FX_SHOCK_THRESHOLD_PLN) return [];
 
   const c = e.currency;
-  const weOwe = e.net > 0;
+  const weOwe = e.net > 0; // net payable → buy the currency forward; net receivable → sell it forward
   const purchases = unpaid(c).filter((i) => i.direction === 'purchase');
   const sales = unpaid(c).filter((i) => i.direction === 'sales');
-  const biggest = [...purchases].sort((a, b) => invoiceGross(b) - invoiceGross(a))[0];
+  const byGross = (list: Invoice[]) => [...list].sort((a, b) => invoiceGross(b) - invoiceGross(a))[0];
+  const biggest = byGross(purchases);
+  const anchor = weOwe ? biggest : byGross(sales); // the invoice the forward is about
   const { from, to, weeksUp } = e.trend;
 
   const why = [
@@ -76,15 +78,16 @@ function actionsFor(e: FxExposure): DraftAction[] {
       kind: 'fx_hedge',
       tier: 'NEEDS_APPROVAL',
       execution: 'simulated',
-      title: `Lock the rate with a forward contract for ${fmtFx(Math.abs(e.net), c)} (simulated)`,
+      title: `Lock the rate: ${weOwe ? 'buy' : 'sell'} ${fmtFx(Math.abs(e.net), c)} forward (simulated)`,
       why,
       amountPLN: Math.abs(e.netPLN),
-      dueDate: biggest?.dueDate,
-      refId: biggest?.id,
+      dueDate: anchor?.dueDate,
+      refId: anchor?.id,
     },
   ];
 
-  if (biggest) {
+  // Paying a foreign supplier early only reduces risk when we owe the currency.
+  if (weOwe && biggest) {
     const gross = invoiceGross(biggest);
     actions.push({
       cfo: 'kasia',
@@ -110,7 +113,7 @@ function actionsFor(e: FxExposure): DraftAction[] {
     title: `Natural hedge: match ${c} income against ${c} costs`,
     why: [
       `${c} coming in: ${fmtFx(sumGross(sales), c)}. ${c} going out: ${fmtFx(sumGross(purchases), c)}`,
-      `Only the difference, ${fmtFx(Math.abs(e.net), c)}, is at risk. More ${c} sales shrink it.`,
+      `Only the difference, ${fmtFx(Math.abs(e.net), c)}, is at risk. ${weOwe ? `More ${c} sales shrink it.` : `Paying suppliers in ${c} shrinks it.`}`,
     ],
   });
 
@@ -118,3 +121,11 @@ function actionsFor(e: FxExposure): DraftAction[] {
 }
 
 export const fx: Rule = () => fxExposures().flatMap(actionsFor);
+
+const fingerprint = (a: DraftAction) => JSON.stringify([a.kind, a.title, a.refId ?? null, a.amountPLN ?? null, a.why]);
+
+/** True when the FX rule would propose exactly this card today (same direction, amounts and reasons). */
+export function isCurrentFxCard(card: DraftAction): boolean {
+  const key = fingerprint(card);
+  return fx().some((draft) => fingerprint(draft) === key);
+}

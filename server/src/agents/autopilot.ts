@@ -2,6 +2,7 @@
 import type { Action, AutopilotResult } from '@cfo/shared';
 import { db, logActivity, newId, nowIso } from '../domain/store';
 import { RULES } from '../rules';
+import { isCurrentFxCard } from '../rules/fx';
 import { chatOr } from '../llm/provider';
 
 const isDuplicate = (a: Pick<Action, 'kind' | 'refId' | 'title'>) =>
@@ -10,6 +11,14 @@ const isDuplicate = (a: Pick<Action, 'kind' | 'refId' | 'title'>) =>
 export async function runAutopilot(): Promise<AutopilotResult> {
   const log: string[] = [`Checked ${db.invoices.length} invoices, ${db.obligations.length} obligations, bank balance.`];
   const created: Action[] = [];
+
+  // Kasia's open cards go stale when invoices are paid or rates change: withdraw them so fresh ones can appear.
+  for (const a of db.actions) {
+    if (a.cfo !== 'kasia' || a.status !== 'open' || isCurrentFxCard(a)) continue;
+    a.status = 'rejected';
+    logActivity('kasia', `Withdrawn, numbers changed: ${a.title}`, false, a.id);
+    log.push(`↩ ${a.title} (withdrawn, numbers changed)`);
+  }
 
   for (const rule of RULES) {
     for (const draft of rule()) {

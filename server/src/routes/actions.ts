@@ -4,13 +4,17 @@ import type { Action } from '@cfo/shared';
 import { db, logActivity } from '../domain/store';
 import { fmtPLN } from '../domain/money';
 import { runAutopilot } from '../agents/autopilot';
+import { isCurrentFxCard } from '../rules/fx';
 
 /** What "doing it" means in the simulation. Pair 2: extend per action kind. */
 function simulateExecution(a: Action): string {
   if ((a.kind === 'tax_payment' || a.kind === 'supplier_payment') && a.amountPLN) {
     db.bank.balancePLN -= a.amountPLN;
-    const ob = db.obligations.find((o) => o.id === a.refId);
+    // refId can be the obligation itself or the purchase invoice behind it (Kasia's "pay early" card).
+    const ob = db.obligations.find((o) => o.id === a.refId || (a.refId && o.invoiceId === a.refId));
     if (ob) ob.paid = true;
+    const inv = db.invoices.find((i) => i.id === (ob?.invoiceId ?? a.refId));
+    if (inv) inv.paid = true;
     return `Simulated payment of ${fmtPLN(a.amountPLN)}`;
   }
   if (a.kind === 'credit_line' && a.amountPLN) return `Simulated credit line application for ${fmtPLN(a.amountPLN)}`;
@@ -28,6 +32,10 @@ const routes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>('/actions/:id/approve', async (req, reply) => {
     const a = db.actions.find((x) => x.id === req.params.id);
     if (!a || a.status !== 'open') return reply.code(404).send({ error: 'No open action with this id' });
+    // An FX forward is only valid for the exposure it was made for. Check before anything moves.
+    if (a.kind === 'fx_hedge' && !isCurrentFxCard(a)) {
+      return reply.code(409).send({ error: 'This FX forward is out of date. Run the check again for a fresh proposal.' });
+    }
     a.status = 'approved';
     logActivity('user', `Approved: ${a.title}. ${simulateExecution(a)}`, true, a.id);
     return a;
