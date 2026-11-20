@@ -40,7 +40,10 @@ export function stripAddress(text: string): string {
  * Live: "przypomnienia do klientów zostały wysłane", "zostały zablokowane zlecenia na 1500 EUR".
  */
 const DONE = /\b(?:został[aoy]?|zostały|zostało)\s+(?:już\s+)?(?:wysłan|zablokowan|zapłacon|opłacon|zatwierdzon|otwart|wykonan|przelan|podpisan)\w*|\b(?:wysłał|zapłacił|zablokował|opłacił|zatwierdził|przelał|podpisał)(?:em|am|am|iśmy|yśmy)\b|\b(?:has|have) been (?:sent|paid|locked|approved|opened|signed)\b|\bI(?:'ve| have)? (?:sent|paid|locked|approved|signed)\b/i;
-export const claimsDone = (text: string) => DONE.test(text);
+// Live chair: "It was decided to send reminders…", "no decisions were made, and no actions were assigned".
+// Only the owner decides (golden rule 3): the meeting proposes, it never decides or assigns.
+const DECIDED = /\b(?:it was|it has been|it's been|we(?:'ve| have)?|they) (?:been )?decided\b|\bdecisions? (?:was|were|has been|have been) (?:made|taken)\b|\bactions? (?:was|were|has been|have been) assigned\b|\bzdecydowan|\bpostanowion/i;
+export const claimsDone = (text: string) => DONE.test(text) || DECIDED.test(text);
 
 /** False calm next to a real risk. Live: "stracisz 320,25 zł, a kurs rośnie, to nie masz nic do stracenia". */
 const CALM = /nic do stracenia|nie masz się czym (?:martwić|przejmować)|wszystko (?:musi być|jest|będzie) w porządku|nothing to lose|nothing to worry/i;

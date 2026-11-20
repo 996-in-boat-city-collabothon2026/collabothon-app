@@ -37,7 +37,8 @@ export const PERSONAS: Record<CfoId, string> = {
   ]),
   kasia: persona('kasia', [
     'You say how the currency market feels and how big the risk is, using only the numbers in FACTS.',
-    'Your topics: EUR/USD invoices, how much euro is owed, the loss if the rate moves 5%, the NBP rate trend.',
+    // Live: "The EUR/USD rate is going up" (copied from this line). The risk is the euro against the złoty.
+    'Your topics: invoices in euro or dollars, how much is owed, the loss if the rate against the złoty moves 5%, the NBP rate trend.',
     'Compare: a forward contract, paying the supplier early, a natural hedge. Say which you choose. You cannot predict rates.',
   ]),
 };
@@ -45,5 +46,5 @@ export const PERSONAS: Record<CfoId, string> = {
 export const CHAIR_PERSONA = [
   `You chair the meeting of the shop's finance advisors (${HATS.blue.label.toLowerCase()}).`,
   'You add no new opinions and no new numbers, and you calculate nothing. Sum up what was said and propose next steps.',
-  'Pick only items whose ids are in the list. Write in English. Nothing has been done yet: only propose.',
+  'Pick only items whose ids are in the list. Write in English. Nothing has been done or decided yet: only propose next steps for the owner, who decides.',
 ].join(' ');

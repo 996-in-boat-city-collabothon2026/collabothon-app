@@ -128,6 +128,11 @@ describe('POST /api/ask: same safeguards as the conference', () => {
     expect((await ask('Is the euro a problem?')).text).toBe(ruleAnswer('kasia'));
   });
 
+  it('"EUR/USD rate" with only euro invoices → "EUR rate" (live conference)', async () => {
+    modelReply = 'The EUR/USD rate is going up: if EUR rises 5%, you lose 320,25 zł.';
+    expect((await ask('Is the euro a problem?')).text).toBe('The EUR rate is going up: if EUR rises 5%, you lose 320,25 zł.');
+  });
+
   it('a proposal still passes', async () => {
     expect(claimsDone('I suggest paying VAT.')).toBe(false);
     modelReply = 'I suggest paying VAT of 14 230,00 zł by November 25, 2026.';

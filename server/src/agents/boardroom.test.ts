@@ -10,7 +10,7 @@ import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, snapshot, TURN_MAX_TOKENS,
 import { cfoFacts } from './facts';
 import { explain, explainPL } from './explain';
 import { claimsDone, falseCalm, wholeSentences } from './text';
-import { looksPolish } from './safety';
+import { fixCurrencyPair, looksPolish } from './safety';
 
 const saved = { ...config.llm };
 /** Fake model: `reply(messages)` answers each call. Mode openai_compat so the real chat() path runs. */
@@ -181,6 +181,41 @@ describe('conference: the same safeguards as /api/ask', () => {
     expect(claimsDone('Przypomnienia zostały wysłane.')).toBe(true);
     expect(falseCalm('You have nothing to lose.')).toBe(true);
     expect(falseCalm('You lose 320,25 zł if EUR rises.')).toBe(false);
+  });
+
+  it('only the owner decides: "it was decided" / "no decisions were made" are rejected, proposals pass', () => {
+    expect(claimsDone('It was decided to send reminders to overdue customers.')).toBe(true);
+    expect(claimsDone('However, no decisions were made, and no actions were assigned.')).toBe(true);
+    expect(claimsDone("We've decided to lock the rate.")).toBe(true);
+    expect(claimsDone('The owner decides whether to send reminders.')).toBe(false);
+    expect(claimsDone('Next steps for you to decide: send reminders and lock the EUR rate.')).toBe(false);
+  });
+
+  it('chair says "It was decided…" (live) → rule summary', async () => {
+    await runAutopilot();
+    reply = (m) =>
+      isChair(m)
+        ? '{"summary":"The meeting discussed the credit line and the EUR rate. It was decided to send reminders to overdue customers.","decisionActionIds":[]}'
+        : '';
+    const r = await runBoardroom();
+    const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
+    expect(r.summary).toBe(ruleSummary(approvals, 'en'));
+  });
+
+  it('Kasia "EUR/USD rate" (live, only euro invoices) → "EUR rate", the rest of her turn is kept', async () => {
+    await runAutopilot();
+    reply = (m) =>
+      persona(m, 'kasia') ? 'The EUR/USD rate is going up. I suggest a forward contract for 1500 EUR, or you lose 320,25 zł if EUR rises 5%.' : '';
+    const r = await runBoardroom();
+    expect(r.turns[3].text).toBe('The EUR rate is going up. I suggest a forward contract for 1500 EUR, or you lose 320,25 zł if EUR rises 5%.');
+    const kasiaPrompt = sent.find((c) => persona(c.m, 'kasia'))!.m[0].content;
+    expect(kasiaPrompt).not.toContain('EUR/USD');
+  });
+
+  it('a currency pair the facts really have stays', () => {
+    const facts = { lines: ['USD to pay: 100 USD', 'EUR to pay: 1500 EUR'], summary: '' };
+    expect(fixCurrencyPair('The EUR/USD rate moved.', facts)).toBe('The EUR/USD rate moved.');
+    expect(fixCurrencyPair('The EUR/USD rate moved.', { lines: ['EUR to pay: 1500 EUR'], summary: '' })).toBe('The EUR rate moved.');
   });
 
   it('no EUR rate: Kasia says in English the conversion is unavailable, the other agents finish', async () => {

@@ -14,7 +14,7 @@ import { findInventedNumbers, mentionsKeyFact } from './numberGuard';
 import { claimsDone, falseCalm, stripAddress, wholeSentences } from './text';
 import { tidyReply } from './reply';
 import { cfoFacts, STAGE_LANG, type CfoFacts, type Lang } from './facts';
-import { looksPolish, replyProblem } from './safety';
+import { fixCurrencyPair, looksPolish, replyProblem } from './safety';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
 
 const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia']; // White → Black → Green → Red, the Blue chair sums up
@@ -195,7 +195,7 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
     // Same check as /api/ask (agents/safety.ts): only this CFO's own rule numbers, English, at least one amount
     // from its own conclusion (live: Tomasz repeated Anna), nothing "done", no false calm → else the rule conclusion.
     // "Its own amount" is compared as a number, so "14,230 zł" or "14 230 zł" count as "14 230,00 zł".
-    const text = stripAddress(tidy(raw, lang, TURN_MAX_WORDS));
+    const text = fixCurrencyPair(stripAddress(tidy(raw, lang, TURN_MAX_WORDS)), facts);
     const hasKeyFact = mentionsKeyFact(facts.summary, facts.summary);
     const ownAmount = (t: string) => !hasKeyFact || mentionsKeyFact(t, facts.summary);
     const problem = replyProblem(text, facts, lang, ownAmount, transcriptOf(turns));
@@ -210,7 +210,7 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
     {
       role: 'system',
       content: CHAIR_PERSONA +
-        ' Reply ONLY with JSON: {"summary": string (in English, max 2 sentences, only proposals: nothing is done yet), "decisionActionIds": string[] (ids from the list)}',
+        ' Reply ONLY with JSON: {"summary": string (in English, max 2 sentences, only proposals for the owner: nothing is done or decided yet), "decisionActionIds": string[] (ids from the list)}',
     },
     { role: 'user', content: `ITEMS TO APPROVE:\n${items}\n\nDEBATE:\n${debate}` },
   ], { maxTokens: CHAIR_MAX_TOKENS, temperature: 0.1, mockKey: 'boardroom:chair' });

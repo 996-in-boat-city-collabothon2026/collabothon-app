@@ -8,6 +8,19 @@ import { claimsDone, falseCalm } from './text';
 const POLISH = /[ąćęńśźż]|\b(?:jest|się|że|masz|musisz|ponieważ|oraz|który|która|które|jeśli|zapłać|proponuję|złotych|faktura|faktury)\b/i;
 export const looksPolish = (text: string) => POLISH.test(text);
 
+/**
+ * Live: "The EUR/USD rate is going up" when the shop has only euro invoices: the risk is the euro against the złoty.
+ * A pair like "EUR/USD" becomes the currency the facts talk about ("EUR"); a pair the facts contain stays.
+ */
+export function fixCurrencyPair(text: string, facts: CfoFacts): string {
+  const known = factText(facts);
+  return text.replace(/\b(EUR|USD)\s*\/\s*(EUR|USD)\b/g, (pair, a: string, b: string) => {
+    if (known.includes(pair)) return pair;
+    const has = (c: string) => new RegExp(`\\b${c}\\b`).test(known);
+    return has(a) && !has(b) ? a : has(b) && !has(a) ? b : pair;
+  });
+}
+
 /** Only rule output counts as facts: the owner's question or the meeting topic can never make a number true. */
 export const factText = (facts: CfoFacts) => [...facts.lines, facts.summary].join('\n');
 

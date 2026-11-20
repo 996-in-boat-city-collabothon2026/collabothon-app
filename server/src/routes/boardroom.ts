@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { CFOS, type AskResult, type CfoId } from '@cfo/shared';
 import { runBoardroom, STAGE_LANG } from '../agents/boardroom';
 import { cfoFacts, type CfoFacts, type Lang } from '../agents/facts';
-import { factText, replyProblem } from '../agents/safety';
+import { factText, fixCurrencyPair, replyProblem } from '../agents/safety';
 import { mentionsKeyFact } from '../agents/numberGuard';
 import { PERSONAS } from '../agents/personas';
 import { tidyReply } from '../agents/reply';
@@ -97,7 +97,7 @@ const routes: FastifyPluginAsync = async (app) => {
 
     // Same check as every conference turn (agents/safety.ts). Numbers come ONLY from the rule facts: a number the
     // owner typed ("Czy VAT wynosi 99 999 zł?") is not true just because it is in the question.
-    const answer = tidyReply(raw, lang);
+    const answer = fixCurrencyPair(tidyReply(raw, lang), facts);
     const problem = replyProblem(answer, facts, lang, (t) => mentionsKeyFact(t, factText(facts)));
     if (problem) console.info(`[guard] ask:${cfo} ${problem} → rule answer`);
     const result: AskResult = { cfo, text: problem ? facts.summary : answer };
