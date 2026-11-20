@@ -52,12 +52,12 @@ Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <na
       Use `invoiceGross()` + `toPLN()` / `latestRate()` from `domain/fx.ts`. Never multiply rates by hand.
 - [ ] ±5% shock in zł: `exposurePLN × 0.05` ("If EUR rises 5%, you pay X zł more").
 - [ ] 4-week trend from `db.fxRates` (oldest first): first vs last rate, and "up N weeks in a row".
-- [ ] Shock > 500 zł → `NEEDS_APPROVAL` `fx_hedge`: "Lock the rate with a forward contract for N EUR (simulated)".
+- [ ] Shock > 300 zł (team decision, spec said 500: the seed shock is 320 zł) → `NEEDS_APPROVAL` `fx_hedge`: "Lock the rate with a forward contract for N EUR (simulated)".
       `amountPLN` = exposure in zł, `dueDate` = due date of the biggest foreign payable, `refId` = that invoice id.
 - [ ] Always add `RECOMMENDED` alternatives: "Pay Autoteile Krause early" and "Natural hedge: match EUR income vs EUR costs".
 - [ ] `why[]` has: net exposure (EUR + zł), the 5% shock in zł, the trend ("EUR 4,21 → 4,27 zł in 4 weeks").
 - [ ] Test: seed data (3 600 EUR purchase, 2 100 EUR sale) → net 1 500 EUR → one `fx_hedge` action.
-- [ ] Test: no foreign invoices → no actions. Exposure small (shock < 500 zł) → no `fx_hedge`.
+- [ ] Test: no foreign invoices → no actions. Exposure small (shock ≤ 300 zł) → no `fx_hedge`.
 
 ### [B] ★ 2. `rules/cashflow.ts` + `rules/liquidity.ts` — Anna ⚫ (required by the challenge)
 - [x] `cashflow.ts`: shift each late payer's receivable by their average delay (from paid invoices of the same counterparty);
