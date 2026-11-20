@@ -60,9 +60,9 @@ export function Card({ title, children, className = '' }: { title?: ReactNode; c
 }
 
 const TIER_STYLE: Record<Tier, { icon: IconName; cls: string }> = {
-  ANALYSED: { icon: 'search' as IconName, cls: 'bg-zinc-100 text-ink' },
-  RECOMMENDED: { icon: 'bulb' as IconName, cls: 'bg-zinc-100 text-ink' },
-  NEEDS_APPROVAL: { icon: 'check-hand' as IconName, cls: 'bg-accent-soft text-accent-ink' },
+  ANALYSED: { icon: 'search', cls: 'bg-stone-100 text-stone-700' },
+  RECOMMENDED: { icon: 'bulb', cls: 'bg-amber-50 text-amber-800' },
+  NEEDS_APPROVAL: { icon: 'check-hand', cls: 'bg-rose-50 text-rose-800' },
 };
 
 export function TierBadge({ tier }: { tier: Tier }) {
@@ -74,8 +74,8 @@ export function TierBadge({ tier }: { tier: Tier }) {
 export function ExecutionBadge({ execution }: { execution: Execution }) {
   const { t } = useT();
   return execution === 'simulated'
-    ? <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-0.5 text-sm text-ink"><Icon name="flask" size={15} />{t('simulated')}</span>
-    : <span className="inline-flex items-center gap-1 rounded-full bg-accent-soft px-2 py-0.5 text-sm text-accent-ink"><Icon name="check" size={15} />{t('permitted')}</span>;
+    ? <span className="rounded-full bg-stone-100 px-2 py-0.5 text-sm text-stone-700"><Icon name="flask" size={15} className="mr-1 align-[-2px]" />{t('simulated')}</span>
+    : <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-sm text-emerald-800"><Icon name="check" size={15} className="mr-1 align-[-2px]" />{t('permitted')}</span>;
 }
 
 /** Round avatar in the CFO's colour, wearing their thinking hat (HATS[CFOS[c].hat]). */
@@ -90,7 +90,7 @@ export function CfoAvatar({ cfo, size = 40, live = false }: { cfo: CfoId; size?:
   return (
     <span className="relative inline-flex shrink-0">
       {avatar}
-      <span className="live-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-accent" aria-hidden="true" />
+      <span className="live-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" aria-hidden="true" />
     </span>
   );
 }
@@ -98,11 +98,11 @@ export function CfoAvatar({ cfo, size = 40, live = false }: { cfo: CfoId; size?:
 /** Animated "agent → action → you" strip: shows how a decision flows. Decorative, labels are readable text. */
 export function FlowStrip({ steps }: { steps: string[] }) {
   return (
-    <div className="surface glow-mint flex items-center gap-2 overflow-hidden p-4 sm:gap-3 sm:p-5" aria-label={steps.join(' → ')}>
+    <div className="surface glow-mint flex items-center gap-3 overflow-hidden p-5" aria-label={steps.join(' → ')}>
       {steps.map((s, i) => (
         <span key={s} className="contents">
-          {i > 0 && <span className="flow-line min-w-3 flex-1" aria-hidden="true" />}
-          <span className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-[15px] font-semibold sm:px-3 sm:text-base">{s}</span>
+          {i > 0 && <span className="flow-line min-w-6 flex-1" aria-hidden="true" />}
+          <span className="shrink-0 rounded-full border border-black/10 bg-white px-3 py-2 text-base font-semibold">{s}</span>
         </span>
       ))}
     </div>
@@ -164,7 +164,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
       </div>
       {canDecide && (
         <div className="mt-3 flex gap-2">
-          <button onClick={onApprove} className="min-h-12 flex-1 rounded-full bg-accent py-2 text-lg font-bold text-white">{t('approve')} →</button>
+          <button onClick={onApprove} className="min-h-12 flex-1 rounded-full bg-stone-950 py-2 font-semibold text-white">{t('approve')} →</button>
           <button onClick={onReject} className="min-h-12 flex-1 rounded-full border border-stone-300 bg-white py-2 font-semibold">{t('reject')}</button>
         </div>
       )}
@@ -175,7 +175,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
 export function LlmStatusBadge({ health }: { health: LlmHealth | null }) {
   if (!health) return null;
   const live = health.mode === 'openai_compat';
-  const cls = !health.ok ? 'bg-rose-500' : live ? 'bg-accent' : 'bg-amber-400';
+  const cls = !health.ok ? 'bg-rose-500' : live ? 'bg-emerald-500' : 'bg-amber-400';
   const label = !health.ok ? 'Model offline' : live ? `Model: OpenShift AI · ${health.model}` : 'Model: mock (local)';
   return (
     <span title={label} className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-stone-300 bg-white px-2.5 py-1 text-sm text-stone-700">
@@ -228,7 +228,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
 
 export function Status({ loading, error }: { loading: boolean; error: string | null }) {
   const { t } = useT();
-  if (error) return <p className="rounded-2xl bg-accent-soft p-3 text-accent-ink"><Icon name="alert" size={18} className="mr-1 align-[-3px]" />{error}</p>;
+  if (error) return <p className="rounded-2xl bg-rose-50 p-3 text-rose-800"><Icon name="alert" size={18} className="mr-1 align-[-3px]" />{error}</p>;
   if (loading) return <p className="text-stone-600">{t('loading')}</p>;
   return null;
 }

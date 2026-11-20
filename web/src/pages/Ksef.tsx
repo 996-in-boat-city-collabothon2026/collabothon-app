@@ -8,10 +8,10 @@ import Icon, { type IconName } from '../components/Icon';
 import { normalizeNip, nipProblem } from '../lib/nip';
 
 const CHIP: Record<KsefStatus, { icon: IconName; cls: string }> = {
-  draft: { icon: 'pen' as IconName, cls: 'bg-zinc-200 text-ink' },
-  processing: { icon: 'clock' as IconName, cls: 'bg-zinc-100 text-ink' },
-  accepted: { icon: 'check' as IconName, cls: 'bg-accent-soft text-accent-ink' },
-  rejected: { icon: 'x' as IconName, cls: 'bg-accent-soft text-accent-ink' },
+  draft: { icon: 'pen' as IconName, cls: 'bg-slate-200 text-slate-800' },
+  processing: { icon: 'clock' as IconName, cls: 'bg-amber-100 text-amber-800' },
+  accepted: { icon: 'check' as IconName, cls: 'bg-emerald-100 text-emerald-800' },
+  rejected: { icon: 'x' as IconName, cls: 'bg-rose-100 text-rose-800' },
 };
 
 const BTN = 'min-h-12 rounded-full px-4 text-sm font-semibold';
@@ -71,9 +71,9 @@ export default function Ksef() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">{t('ksef_title')}</h1>
-        <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-sm font-medium text-ink">{t('ksef_sim_badge')}</span>
+        <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-sm font-medium text-violet-800">{t('ksef_sim_badge')}</span>
       </div>
-      <p className="rounded-xl bg-zinc-100 px-4 py-3 text-ink">{t('ksef_sim_notice')}</p>
+      <p className="rounded-xl bg-violet-50 px-4 py-3 text-violet-900">{t('ksef_sim_notice')}</p>
 
       <Status loading={loading && !data} error={error} />
       {data && rows.length === 0 && <Card><p className="text-stone-600">{t('nothing_here')}</p></Card>}
@@ -82,7 +82,7 @@ export default function Ksef() {
         <Card title={
           <span className="flex flex-wrap items-center gap-2">
             {t('sales_invoices')}
-            {toFix > 0 && <span className="rounded-full bg-accent-soft px-2 py-0.5 text-sm text-accent-ink">{toFix} {t('to_fix')}</span>}
+            {toFix > 0 && <span className="rounded-full bg-rose-100 px-2 py-0.5 text-sm text-rose-800">{toFix} {t('to_fix')}</span>}
           </span>
         }>
           <InvoiceTable rows={sales} onSend={(i) => void send(i)} onFix={setFixing} onView={setViewer} />
@@ -104,8 +104,8 @@ export default function Ksef() {
           <Icon name="receipt" size={22} />
           {flight === 'flying'
             ? <span className="flow-line flex-1" aria-hidden="true" />
-            : <span className="h-0.5 flex-1 bg-accent" aria-hidden="true" />}
-          <span className={`rounded-full px-3 py-1 font-semibold ${flight === 'landed' ? 'pop-in bg-accent-soft text-accent-ink' : 'bg-zinc-100'}`}>
+            : <span className="h-0.5 flex-1 bg-emerald-500" aria-hidden="true" />}
+          <span className={`rounded-full px-3 py-1 font-semibold ${flight === 'landed' ? 'pop-in bg-emerald-100 text-emerald-800' : 'bg-zinc-100'}`}>
             {flight === 'landed' ? <><Icon name="check" size={16} className="mr-1 align-[-3px]" />KSeF</> : 'KSeF'}
           </span>
           <span className="sr-only">{t(flight === 'flying' ? 'ksef_flying' : 'ksef_landed')}</span>
@@ -135,7 +135,7 @@ function InvoiceTable({ rows, onSend, onFix, onView }: {
         const busy = status === 'processing';
         return (
           <div key={inv.id} className={`${ROW} rounded-xl border p-3 md:rounded-none md:border-0 md:px-0 md:py-3
-            ${status === 'rejected' ? 'border-accent bg-accent-soft/60' : 'border-zinc-200'}`}>
+            ${status === 'rejected' ? 'border-rose-300 bg-rose-50/60' : 'border-slate-200'}`}>
             <div>
               <p className="font-semibold">{inv.number}</p>
               <p className="text-sm text-stone-600">{fmtDay(inv.issueDate)}</p>
@@ -147,33 +147,33 @@ function InvoiceTable({ rows, onSend, onFix, onView }: {
             <div className="md:text-right">
               <p className="font-semibold tabular-nums">
                 {fmtMoney(inv.gross, cur)}
-                <span className={`ml-2 rounded-md px-1.5 py-0.5 text-sm font-bold md:hidden ${cur === 'PLN' ? 'bg-zinc-100' : 'bg-zinc-100 text-ink'}`}>{cur}</span>
+                <span className={`ml-2 rounded-md px-1.5 py-0.5 text-sm font-bold md:hidden ${cur === 'PLN' ? 'bg-slate-100' : 'bg-blue-100 text-blue-800'}`}>{cur}</span>
               </p>
               {cur !== 'PLN' && <p className="text-sm text-stone-600">≈ {fmtPLN(inv.grossPLN)}</p>}
             </div>
             <div className="hidden md:block">
-              <span className={`rounded-md px-1.5 py-0.5 text-sm font-bold ${cur === 'PLN' ? 'bg-zinc-100' : 'bg-zinc-100 text-ink'}`}>{cur}</span>
+              <span className={`rounded-md px-1.5 py-0.5 text-sm font-bold ${cur === 'PLN' ? 'bg-slate-100' : 'bg-blue-100 text-blue-800'}`}>{cur}</span>
             </div>
             <div className="min-w-0">
               <span className={`inline-block rounded-full px-2 py-0.5 text-sm font-medium ${CHIP[status].cls}`}>
                 <Icon name={CHIP[status].icon} size={16} className="mr-1 align-[-3px]" />{t(`ks_${status}`)}
               </span>
               {inv.ksef.ksefNumber && <p className="mt-1 break-all font-mono text-sm text-stone-600">{inv.ksef.ksefNumber}</p>}
-              {inv.ksef.rejectionReason && <p className="mt-1 text-sm text-accent-ink">{inv.ksef.rejectionReason}</p>}
+              {inv.ksef.rejectionReason && <p className="mt-1 text-sm text-rose-700">{inv.ksef.rejectionReason}</p>}
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => onView({ kind: 'XML', inv })} className={`${BTN} border border-zinc-300 bg-white`}>XML</button>
+              <button onClick={() => onView({ kind: 'XML', inv })} className={`${BTN} border border-slate-300 bg-white`}>XML</button>
               <button onClick={() => onView({ kind: 'UPO', inv })} disabled={!inv.ksef.upo}
-                className={`${BTN} border border-zinc-300 bg-white disabled:opacity-40`}>UPO</button>
+                className={`${BTN} border border-slate-300 bg-white disabled:opacity-40`}>UPO</button>
             </div>
             {onSend && status === 'draft' && (
-              <button onClick={() => onSend(inv)} className={`${BTN} bg-accent font-bold text-white md:col-span-6 md:justify-self-end`}>
+              <button onClick={() => onSend(inv)} className={`${BTN} bg-stone-950 text-white md:col-span-6 md:justify-self-end`}>
                 {t('send_ksef')}
               </button>
             )}
             {onFix && (status === 'rejected' || busy) && (
               <button onClick={() => onFix(inv)} disabled={busy}
-                className={`${BTN} bg-accent text-white disabled:opacity-50 md:col-span-6 md:justify-self-end`}>
+                className={`${BTN} bg-rose-600 text-white disabled:opacity-50 md:col-span-6 md:justify-self-end`}>
                 {busy ? t('ks_processing') : t('fix_resend')}
               </button>
             )}
@@ -204,25 +204,25 @@ function FixSheet({ inv, onClose, onSubmit }: {
 
   return (
     <Sheet title={`${t('fix_resend')} · ${inv.number}`} onClose={onClose}>
-      {inv.ksef.rejectionReason && <p className="rounded-2xl bg-accent-soft p-3 text-accent-ink">KSeF: {inv.ksef.rejectionReason}</p>}
+      {inv.ksef.rejectionReason && <p className="rounded-2xl bg-rose-50 p-3 text-rose-800">KSeF: {inv.ksef.rejectionReason}</p>}
       <form onSubmit={submit} noValidate className="space-y-4">
         <label className="block space-y-1 font-semibold">
           <span>{t('buyer_name')}</span>
           <input value={name} onChange={(e) => setName(e.target.value)} aria-invalid={!!nameErr}
-            className={`${input} ${nameErr ? 'border-accent' : 'border-zinc-300'}`} />
-          {nameErr && <span className="block text-sm font-normal text-accent-ink">{t(nameErr)}</span>}
+            className={`${input} ${nameErr ? 'border-rose-500' : 'border-slate-300'}`} />
+          {nameErr && <span className="block text-sm font-normal text-rose-700">{t(nameErr)}</span>}
         </label>
         <label className="block space-y-1 font-semibold">
           <span>{t('buyer_nip')}</span>
           <input value={nip} onChange={(e) => setNip(e.target.value)} inputMode="numeric" autoComplete="off"
             aria-invalid={!!nipErr} aria-describedby="nip-hint"
-            className={`${input} ${nipErr ? 'border-accent bg-accent-soft' : 'border-accent'}`} />
-          <span id="nip-hint" className={`block text-sm font-normal ${nipErr ? 'text-accent-ink' : 'text-accent-ink'}`}>
+            className={`${input} ${nipErr ? 'border-rose-500 bg-rose-50' : 'border-emerald-500'}`} />
+          <span id="nip-hint" className={`block text-sm font-normal ${nipErr ? 'text-rose-700' : 'text-emerald-700'}`}>
             {nipErr ? t(nipErr) : t('nip_ok')}
           </span>
         </label>
         <button disabled={!!nipErr || !!nameErr}
-          className="min-h-12 w-full rounded-full bg-ink font-semibold text-white disabled:opacity-40">
+          className="min-h-12 w-full rounded-full bg-stone-950 font-semibold text-white disabled:opacity-40">
           {t('resend_btn')}
         </button>
       </form>
@@ -240,10 +240,10 @@ function DocSheet({ viewer, onClose }: { viewer: Viewer; onClose: () => void }) 
       {viewer.kind === 'XML' ? (
         <>
           <Status loading={xml.loading} error={xml.error} />
-          {xml.data && <pre className="overflow-x-auto rounded-xl bg-ink p-3 text-sm leading-relaxed text-zinc-100">{xml.data}</pre>}
+          {xml.data && <pre className="overflow-x-auto rounded-xl bg-slate-900 p-3 text-sm leading-relaxed text-slate-100">{xml.data}</pre>}
         </>
       ) : upo ? (
-        <dl className="divide-y divide-slate-200 rounded-xl border border-zinc-200">
+        <dl className="divide-y divide-slate-200 rounded-xl border border-slate-200">
           {[
             [t('upo_number'), upo.ksefNumber],
             [t('upo_ref'), upo.referenceNumber],

@@ -75,15 +75,15 @@ export default function SettingsPage() {
         <p className="mb-4 text-stone-600">{t('demo_note')}</p>
         {!confirmReset ? (
           <button onClick={() => setConfirmReset(true)}
-            className="min-h-12 rounded-full border border-accent bg-white px-6 font-semibold text-accent-ink hover:bg-accent-soft">
+            className="min-h-12 rounded-full border border-rose-300 bg-white px-6 font-semibold text-rose-700 hover:bg-rose-50">
             ↺ {t('reset_demo')}
           </button>
         ) : (
-          <div role="alertdialog" aria-label={t('reset_confirm')} className="space-y-3 rounded-2xl bg-accent-soft p-4">
-            <p className="font-semibold text-accent-ink">{t('reset_confirm')}</p>
+          <div role="alertdialog" aria-label={t('reset_confirm')} className="space-y-3 rounded-2xl bg-rose-50 p-4">
+            <p className="font-semibold text-rose-900">{t('reset_confirm')}</p>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => void reset()} disabled={resetting}
-                className="min-h-12 rounded-full bg-accent px-6 font-semibold text-white disabled:opacity-60">
+                className="min-h-12 rounded-full bg-rose-600 px-6 font-semibold text-white disabled:opacity-60">
                 {resetting ? t('loading') : t('reset_yes')}
               </button>
               <button onClick={() => setConfirmReset(false)} className="min-h-12 rounded-full border border-stone-300 bg-white px-6 font-semibold">
