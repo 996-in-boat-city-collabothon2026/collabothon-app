@@ -43,6 +43,15 @@ describe('cleanReply', () => {
     expect(cleanReply('<think>Consider VAT')).toBe('');
   });
 
+  it('fixes comma thousands in zł amounts (seen live), leaves other numbers alone', () => {
+    expect(cleanReply('Balance drops to -20,275,00 zł, gap 1,234,567,89 zł.')).toBe(
+      'Balance drops to -20 275,00 zł, gap 1 234 567,89 zł.',
+    );
+    expect(cleanReply('Already right: 12 430,00 zł and 1700,00 zł, rate 4,27, 1500 EUR.')).toBe(
+      'Already right: 12 430,00 zł and 1700,00 zł, rate 4,27, 1500 EUR.',
+    );
+  });
+
   it('keeps a literal </think> inside a normal sentence', () => {
     expect(cleanReply('The literal </think> marks the end.')).toBe('The literal </think> marks the end.');
   });
