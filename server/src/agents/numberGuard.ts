@@ -2,7 +2,7 @@
 // findInventedNumbers(reply, facts) lists every number or date in the reply that does not appear in the facts.
 // A non-empty list → the caller throws the reply away and shows a rule-based fallback instead.
 
-/** Small whole numbers (days, counts, months) are too common to check. Percents are always checked, see PERCENT. */
+/** Small whole numbers (days, counts, months) are too common to check. Percents and money amounts are always checked. */
 const MAX_FREE_INTEGER = 31;
 const TOLERANCE = 0.006; // 320,25 vs 320.25 → same number
 
@@ -22,8 +22,33 @@ const MONTH_DAY = new RegExp(`\\b(${MONTH_RE})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,
 // A number: "14 230,00" (space groups must have exactly 3 digits), "12,300.00", "4,27", "1500".
 // A percent: "5%", "5 %", "4,5%", "5 procent", "5-procentowy", "5 proc.", "5 percent". Checked AS A PERCENT:
 // "4%" is invented even when the facts say "4 tygodnie", and it is never a free small number.
-const PERCENT = /(\d+(?:[.,]\d+)?)\s*(?:%|-?\s*procent\w*|proc\.|percent\b)/gi;
+// The sign is kept: "-5%" and "−5%" (Unicode minus) are a fall, "+5%" a rise.
+const PERCENT = /([-−+]\s?)?(\d+(?:[.,]\d+)?)\s*(?:%|-?\s*procent\w*|proc\.|percent\b)/gi;
 const percentValue = (raw: string) => Number(raw.replace(',', '.'));
+
+/**
+ * Direction of a percent move: +1 rise, -1 fall, 0 not said. "rises 5%" and "falls 5%" have the same number but
+ * opposite meaning (review: "A -5% change would cost you 320,25 zł" while the loss is for a 5% RISE of EUR).
+ * Order: the sign, then the last direction word before it in the same sentence, then the first one after it.
+ */
+const UP = /^(?:rise|rises|rising|rose|risen|up|increase|increases|increased|increasing|grow|grows|growing|higher|strengthens?|appreciates?|podroż\p{L}*|wzro\p{L}*|wzroś\p{L}*|rośnie|rosnie)$/iu;
+const DOWN = /^(?:fall|falls|falling|fell|fallen|drop|drops|dropping|dropped|down|decrease|decreases|decreased|decreasing|lower|weakens?|depreciates?|stanie\p{L}*|spad\p{L}*|tanieje)$/iu;
+const dirOf = (word: string) => (UP.test(word) ? 1 : DOWN.test(word) ? -1 : 0);
+function percentDirection(text: string, start: number, end: number, sign?: string): number {
+  if (sign) return sign.trim() === '+' ? 1 : -1;
+  const before = text.slice(Math.max(0, start - 40), start).split(/[.;:!?]/).pop() ?? '';
+  const words = before.match(/\p{L}+/gu) ?? [];
+  for (let i = words.length - 1; i >= 0; i--) if (dirOf(words[i])) return dirOf(words[i]);
+  const after = text.slice(end, end + 25).split(/[.;:!?,]/)[0];
+  for (const w of after.match(/\p{L}+/gu) ?? []) if (dirOf(w)) return dirOf(w);
+  return 0;
+}
+
+// A money unit right after or right before a number: "17 zł", "1500 EUR", "PLN 17", "€ 17". Every money amount is
+// checked against money amounts in the facts, whatever its size (review: "The late fee is 17 zł" slipped through
+// as a "small number"). "zł" has no \b after it: in JS regexes "ł" is not a word character.
+const UNIT_AFTER = /^\s?(?:zł|złotych|PLN|EUR|USD|euro|€|\$)(?![A-Za-z])/i;
+const UNIT_BEFORE = /(?:^|[^A-Za-z])(?:PLN|EUR|USD|€|\$)\s?$/i;
 const NUMBER = /\d{1,3}(?:[ \u00a0]\d{3})+(?:[.,]\d+)*|\d+(?:[.,]\d+)*/g;
 
 const dateKey = (month: number, day: number) => `${month}-${day}`;
@@ -65,12 +90,16 @@ export function numberValues(raw: string): number[] {
 /** Dates, percents and every number (with its sign) found in a text. */
 function scan(text: string): {
   dates: Dates;
-  numbers: { value: number; neg: boolean }[];
-  percents: { raw: string; value: number }[];
-  tokens: { raw: string; values: number[]; neg: boolean }[];
+  numbers: { value: number; neg: boolean; money: boolean }[];
+  percents: { raw: string; value: number; dir: number }[];
+  tokens: { raw: string; values: number[]; neg: boolean; money: boolean }[];
 } {
   const dates: Dates = { md: new Set(), full: new Set(), mdNoYear: new Set() };
-  const percents = [...text.matchAll(PERCENT)].map((m) => ({ raw: m[0].trim(), value: percentValue(m[1]) }));
+  const percents = [...text.matchAll(PERCENT)].map((m) => ({
+    raw: m[0].trim(),
+    value: percentValue(m[2]),
+    dir: percentDirection(text, m.index!, m.index! + m[0].length, m[1]),
+  }));
 
   const years: number[] = [];
   for (const m of text.matchAll(ISO_DATE)) {
@@ -96,9 +125,13 @@ function scan(text: string): {
       raw: m[0].trim(),
       values: numberValues(m[0].trim()),
       neg: NEGATIVE_BEFORE.test(before.slice(-7)) || NEGATIVE_WORDS_BEFORE.test(before) || NEGATIVE_WORDS_AFTER.test(after),
+      money: UNIT_AFTER.test(after) || UNIT_BEFORE.test(before),
     };
   });
-  const numbers = [...years.map((value) => ({ value, neg: false })), ...tokens.flatMap((t) => t.values.map((value) => ({ value, neg: t.neg })))];
+  const numbers = [
+    ...years.map((value) => ({ value, neg: false, money: false })),
+    ...tokens.flatMap((t) => t.values.map((value) => ({ value, neg: t.neg, money: t.money }))),
+  ];
   return { dates, numbers, percents, tokens };
 }
 
@@ -126,7 +159,9 @@ export function findInventedNumbers(reply: string, facts: string): string[] {
     if (d.full) known.dates.full.add(d.full);
     else known.dates.mdNoYear.add(d.md);
   }
-  const isKnown = (v: number, neg: boolean) => known.numbers.some((k) => Math.abs(k.value - v) < TOLERANCE && k.neg === neg);
+  /** A money amount must match a money amount of the facts ("17 days" never makes "17 zł" true). */
+  const isKnown = (v: number, neg: boolean, money: boolean) =>
+    known.numbers.some((k) => Math.abs(k.value - v) < TOLERANCE && k.neg === neg && (!money || k.money));
   /** A date with a year must match a known full date; without a year, any known day and month is fine. */
   const knownDate = (month: number, day: number, year?: number) =>
     year ? known.dates.full.has(fullKey(year, month, day)) || known.dates.mdNoYear.has(dateKey(month, day)) : known.dates.md.has(dateKey(month, day));
@@ -144,13 +179,16 @@ export function findInventedNumbers(reply: string, facts: string): string[] {
     if (!knownDate(MONTHS[m[1].toLowerCase()], Number(m[2]), m[3] ? Number(m[3]) : undefined)) invented.push(m[0].trim());
   }
 
+  // Same value, and never the opposite direction: "-5%" or "falls 5%" when the facts say "rises 5%" is invented.
+  // A percent with no direction in the reply ("5% risk") or in the facts ("markup below 25%") needs only the value.
   for (const p of out.percents) {
-    if (!known.percents.some((k) => Math.abs(k.value - p.value) < TOLERANCE)) invented.push(p.raw);
+    const ok = known.percents.some((k) => Math.abs(k.value - p.value) < TOLERANCE && (k.dir === 0 || p.dir === 0 || k.dir === p.dir));
+    if (!ok) invented.push(p.raw);
   }
 
   for (const t of out.tokens) {
-    if (!t.neg && t.values.some((v) => Number.isInteger(v) && v <= MAX_FREE_INTEGER)) continue;
-    if (t.values.some((v) => isKnown(v, t.neg))) continue;
+    if (!t.neg && !t.money && t.values.some((v) => Number.isInteger(v) && v <= MAX_FREE_INTEGER)) continue;
+    if (t.values.some((v) => isKnown(v, t.neg, t.money))) continue;
     const d = asDayMonth(t.raw);
     if (d && (d.full ? known.dates.full.has(d.full) || known.dates.mdNoYear.has(d.md) : known.dates.md.has(d.md))) continue;
     invented.push(t.neg ? `-${t.raw}` : t.raw);

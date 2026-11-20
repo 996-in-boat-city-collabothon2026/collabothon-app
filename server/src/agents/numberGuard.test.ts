@@ -121,3 +121,23 @@ describe('numberValues: thousands groups have 3 digits', () => {
     expect(numberValues('14 230,00')).toEqual([14230]);
   });
 });
+
+describe('review of fc04703: money amounts of any size, percent direction', () => {
+  const facts = 'VAT: 14 230,00 zł, due November 25, 2026 (in 5 days)\nLoss if EUR rises 5%: 320,25 zł\nParts markup below 25%';
+  it('a small money amount is checked, unit before or after; a small count is still free', () => {
+    expect(findInventedNumbers('The late fee is 17 zł.', facts)).toEqual(['17']);
+    expect(findInventedNumbers('The late fee is PLN 17.', facts)).toEqual(['17']);
+    expect(findInventedNumbers('Pay within 5 days.', facts)).toEqual([]);
+    expect(findInventedNumbers('It costs 5 zł.', facts)).toEqual(['5']); // "5 days" is not an amount
+    expect(findInventedNumbers('The fee is 17 zł.', `${facts}\nLate fee: 17,00 zł`)).toEqual([]);
+  });
+  it('percent: the opposite direction is invented, the same or none is fine', () => {
+    expect(findInventedNumbers('A -5% change costs you 320,25 zł.', facts)).toEqual(['-5%']);
+    expect(findInventedNumbers('A −5% change costs you 320,25 zł.', facts)).toEqual(['−5%']);
+    expect(findInventedNumbers('If EUR falls 5%, you lose 320,25 zł.', facts)).toEqual(['5%']);
+    expect(findInventedNumbers('If EUR goes up by 5%, you lose 320,25 zł.', facts)).toEqual([]);
+    expect(findInventedNumbers('A 5% rise costs you 320,25 zł.', facts)).toEqual([]);
+    expect(findInventedNumbers('Your markup is lower than 25%.', facts)).toEqual([]); // fact has no direction
+    expect(findInventedNumbers('If EUR rises 4%, you lose 320,25 zł.', facts)).toEqual(['4%']);
+  });
+});

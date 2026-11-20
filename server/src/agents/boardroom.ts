@@ -10,11 +10,11 @@ import { PERIOD_DAYS, totalsBetween } from '../rules/expenses';
 import { fmtFx, fmtRate, fxExposures, hasTrend } from '../rules/fx';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
-import { findInventedNumbers, mentionsKeyFact } from './numberGuard';
-import { claimsDone, falseCalm, stripAddress, wholeSentences } from './text';
+import { mentionsKeyFact } from './numberGuard';
+import { stripAddress, wholeSentences } from './text';
 import { tidyReply } from './reply';
 import { cfoFacts, STAGE_LANG, type CfoFacts, type Lang } from './facts';
-import { fixCurrencyPair, looksPolish, replyProblem } from './safety';
+import { fixCurrencyPair, replyProblem, textProblem } from './safety';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
 
 const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia']; // White → Black → Green → Red, the Blue chair sums up
@@ -127,15 +127,6 @@ export function snapshot(): string {
   return lines.join('\n');
 }
 
-/** Golden rule 1: text with a number or date that is not in `known` is dropped (→ '' → rule-based text). */
-function safe(text: string, known: string, key: string): string {
-  if (!text) return '';
-  const invented = findInventedNumbers(text, known);
-  if (!invented.length) return text;
-  console.info(`[guard] ${key} invented ${JSON.stringify(invented)} → rule-based text`);
-  return '';
-}
-
 /** Model reply → at most 3 clean, whole sentences (B's tidyReply) and never more than `maxWords`. */
 const tidy = (raw: string, lang: Lang, maxWords: number) => wholeSentences(tidyReply(raw, lang), maxWords);
 
@@ -219,9 +210,11 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   const ids = approvals.map((a) => a.id);
   const validIds = (chair?.decisionActionIds ?? []).filter((id) => ids.includes(id));
   // Numbers only from the items and the (already checked) debate; English; the chair only proposes (golden rule 3).
-  let summary = safe(stripAddress(tidy(chair?.summary ?? '', lang, SUMMARY_MAX_WORDS)), [items, debate].join('\n'), 'boardroom:chair');
-  if (summary && (looksPolish(summary) || claimsDone(summary) || falseCalm(summary))) {
-    console.info('[guard] boardroom:chair not English, claims something was done or false calm → rule summary');
+  // Same shared check as every turn and /api/ask (agents/safety.ts textProblem).
+  let summary = stripAddress(tidy(chair?.summary ?? '', lang, SUMMARY_MAX_WORDS));
+  const chairProblem = textProblem(summary, [items, debate].join('\n'), lang);
+  if (chairProblem) {
+    if (chairProblem !== 'empty') console.info(`[guard] boardroom:chair ${chairProblem} → rule summary`);
     summary = '';
   }
   return {

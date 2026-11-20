@@ -38,8 +38,9 @@ export function stripAddress(text: string): string {
 /**
  * Golden rule 3: nothing is done without the owner, so the model must never say it was.
  * Live: "przypomnienia do klientów zostały wysłane", "zostały zablokowane zlecenia na 1500 EUR".
+ * Review: "VAT of 14,230 zł was paid yesterday." ("has not been paid" stays fine: the verb must follow directly).
  */
-const DONE = /\b(?:został[aoy]?|zostały|zostało)\s+(?:już\s+)?(?:wysłan|zablokowan|zapłacon|opłacon|zatwierdzon|otwart|wykonan|przelan|podpisan)\w*|\b(?:wysłał|zapłacił|zablokował|opłacił|zatwierdził|przelał|podpisał)(?:em|am|am|iśmy|yśmy)\b|\b(?:has|have) been (?:sent|paid|locked|approved|opened|signed)\b|\bI(?:'ve| have)? (?:sent|paid|locked|approved|signed)\b/i;
+const DONE = /\b(?:został[aoy]?|zostały|zostało)\s+(?:już\s+)?(?:wysłan|zablokowan|zapłacon|opłacon|zatwierdzon|otwart|wykonan|przelan|podpisan)\w*|\b(?:wysłał|zapłacił|zablokował|opłacił|zatwierdził|przelał|podpisał)(?:em|am|am|iśmy|yśmy)\b|\b(?:has|have|had|was|were|is|are) (?:already |just |now )?(?:been )?(?:sent|paid|locked|approved|opened|signed|transferred|submitted|settled|hedged)\b|\b(?:I|we)(?:'ve| have)? (?:already |just )?(?:sent|paid|locked|approved|signed|transferred)\b/i;
 // Live chair: "It was decided to send reminders…", "no decisions were made, and no actions were assigned".
 // Only the owner decides (golden rule 3): the meeting proposes, it never decides or assigns.
 const DECIDED = /\b(?:it was|it has been|it's been|we(?:'ve| have)?|they) (?:been )?decided\b|\bdecisions? (?:was|were|has been|have been) (?:made|taken)\b|\bactions? (?:was|were|has been|have been) assigned\b|\bzdecydowan|\bpostanowion/i;

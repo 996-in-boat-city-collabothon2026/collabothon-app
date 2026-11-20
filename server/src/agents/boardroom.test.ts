@@ -230,6 +230,40 @@ describe('conference: the same safeguards as /api/ask', () => {
     expect((await runBoardroom()).turns[3].text).toBe('You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł.');
   });
 
+  it('review of fc04703: bad conference turns (done, small fee, wrong FX direction, Polish) → rule conclusions', async () => {
+    await runAutopilot();
+    reply = (m) => {
+      if (isChair(m)) return '';
+      if (persona(m, 'marek')) return 'VAT of 14,230 zł was paid yesterday.';
+      if (persona(m, 'anna')) return 'The balance drops to -20 275,00 zł on December 20, 2026, and the bank fee is 17 zł.';
+      if (persona(m, 'tomasz')) return 'Na 3 zleceniach brakuje 1700,00 zł.';
+      if (persona(m, 'kasia')) return 'A -5% change would cost you 320,25 zł.';
+      return '';
+    };
+    expect((await runBoardroom()).turns.map((t) => t.text)).toEqual(ORDER.map(en));
+  });
+
+  it.each([
+    ['done', '{"summary":"VAT of 14 230,00 zł was paid and the reminders were sent.","decisionActionIds":[]}'],
+    ['Polish', '{"summary":"Podatek VAT wynosi 14 230,00 zł, kurs euro rośnie.","decisionActionIds":[]}'],
+    ['small invented fee', '{"summary":"Pay VAT of 14 230,00 zł and a late fee of 17 zł.","decisionActionIds":[]}'],
+    ['my money', '{"summary":"I would lose 320,25 zł if EUR rises 5%.","decisionActionIds":[]}'],
+  ])('review of fc04703: chair summary with %s → rule summary', async (_, chair) => {
+    await runAutopilot();
+    reply = (m) => (isChair(m) ? chair : '');
+    const r = await runBoardroom();
+    const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
+    expect(r.summary).toBe(ruleSummary(approvals, 'en'));
+    expect(sent).toHaveLength(5); // 4 turns + chair, no extra model call
+  });
+
+  it('a correct chair summary is still shown', async () => {
+    await runAutopilot();
+    const good = 'The advisors propose paying VAT of 14 230,00 zł and sending reminders. The owner decides.';
+    reply = (m) => (isChair(m) ? JSON.stringify({ summary: good, decisionActionIds: [] }) : '');
+    expect((await runBoardroom()).summary).toBe(good);
+  });
+
   it('a currency pair the facts really have stays', () => {
     const facts = { lines: ['USD to pay: 100 USD', 'EUR to pay: 1500 EUR'], summary: '' };
     expect(fixCurrencyPair('The EUR/USD rate moved.', facts)).toBe('The EUR/USD rate moved.');
