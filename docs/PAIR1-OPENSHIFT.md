@@ -31,7 +31,7 @@
 
 ## Phase 0: laptop setup (before H0, ~20 min)
 
-- [ ] **0.1 💻 Get the code on our branch.**
+- [x] **0.1 💻 Get the code on our branch.**
   ```powershell
   git clone https://github.com/996-in-boat-city-collabothon2026/collabothon-app.git
   ```
@@ -40,13 +40,13 @@
   ```
   ✅ Done when: `git branch` shows `* pair1-openshift` and `git log -1` includes the "v2 vision" commit (or newer).
 
-- [ ] **0.2 💻 Keep Claude inside our folders.**
+- [x] **0.2 💻 Keep Claude inside our folders.**
   ```powershell
   New-Item -ItemType Directory -Force .claude; Copy-Item docs/claude-settings/pair1.json .claude/settings.local.json
   ```
   ✅ Done when: the file exists and you restarted `claude`.
 
-- [ ] **0.3 💻 Run the app locally in mock mode.**
+- [x] **0.3 💻 Run the app locally in mock mode.**
   ```powershell
   npm install
   ```
@@ -55,7 +55,7 @@
   ```
   ✅ Done when: http://localhost:5173 opens the app and http://localhost:8080/api/llm/health returns `{"mode":"mock",...,"ok":true}`.
 
-- [ ] **0.4 💻 Local checks are green** (in a second terminal, while `npm run dev` runs):
+- [x] **0.4 💻 Local checks are green** (in a second terminal, while `npm run dev` runs):
   ```powershell
   npm run typecheck; npm test; ./scripts/smoke.ps1
   ```
@@ -228,30 +228,30 @@ Each ✍️ step: Claude edits → `npm run typecheck; npm test` → commit → 
   ✅ Done when: the time is in the log. **Target < 25 s.** If slower: ask Pair 2 to lower `maxTokens` (200 → 150) in their callers,
   and check the GPU isn't shared (`oc adm top pods` if allowed).
 
-- [ ] **3.2 ✍️ Fail fast on a dead model** (`server/src/llm/provider.ts`): `maxRetries: 0` in the OpenAI client, so a dead model costs
+- [x] **3.2 ✍️ Fail fast on a dead model** (`server/src/llm/provider.ts`): `maxRetries: 0` in the OpenAI client, so a dead model costs
   1× timeout, not 2×. Keep `LLM_TIMEOUT_MS=20000` on the cluster.
   ✅ Done when: with `LLM_BASE_URL=http://localhost:1/v1` locally, `/api/boardroom` still answers (fallback text) in about the timeout, not double.
 
-- [ ] **3.3 ✍️ "Last good answer" fallback** (`provider.ts`, inside `chatOr`): keep a `Map<mockKey, string>` of the last
+- [x] **3.3 ✍️ "Last good answer" fallback** (`provider.ts`, inside `chatOr`): keep a `Map<mockKey, string>` of the last
   successful reply. On error/empty reply return the last good answer for that key if we have one, else `fallback`.
   Add a vitest (`server/src/llm/provider.test.ts`) with a fake failing model.
   ✅ Done when: the test passes and the demo survives the model being scaled to 0 for a minute.
 
-- [ ] **3.4 ✍️ Clean model output** (`provider.ts`, in `chat()`): strip `<think>…</think>` blocks and surrounding quotes, trim.
+- [x] **3.4 ✍️ Clean model output** (`provider.ts`, in `chat()`): strip `<think>…</think>` blocks and surrounding quotes, trim.
   Unit test it. ✅ Done when: test passes; no `<think>` text ever reaches the UI.
 
-- [ ] **3.5 ✍️ Robust JSON for the Blue-hat chair** (`server/src/llm/json.ts`): also handle trailing text after the JSON,
+- [x] **3.5 ✍️ Robust JSON for the Blue-hat chair** (`server/src/llm/json.ts`): also handle trailing text after the JSON,
   single quotes, and trailing commas. Add `json.test.ts` with 5 ugly real-world examples (copy real bad replies from `oc logs`).
   ✅ Done when: tests pass; tell Pair 2 the chair parsing is safer.
 
-- [ ] **3.6 ✍️ Cheaper health check** (`provider.ts → llmHealth()`): cache the result for 30 s, so every page load doesn't spend a GPU call.
+- [x] **3.6 ✍️ Cheaper health check** (`provider.ts → llmHealth()`): cache the result for 30 s, so every page load doesn't spend a GPU call.
   ✅ Done when: two quick calls to `/api/llm/health` → the second returns instantly with the same `latencyMs`.
 
-- [ ] **3.7 ✍️ Mock keys stay complete** (`server/src/llm/mock.ts`): whenever Pair 2 adds a new `mockKey`, add a canned answer.
+- [x] **3.7 ✍️ Mock keys stay complete** (`server/src/llm/mock.ts`): whenever Pair 2 adds a new `mockKey`, add a canned answer.
   Check with: `Select-String -Path server/src -Pattern "mockKey" -Recurse` (use Grep in Claude).
   ✅ Done when: every key used in `agents/**` and `routes/**` has an entry (or matches `ask:` / `advice:`).
 
-- [ ] **3.8 ✍️ Stronger smoke** (`scripts/smoke.ps1`): add `-RequireModel` switch that fails if `/api/llm/health` is `mock` or `ok:false`;
+- [x] **3.8 ✍️ Stronger smoke** (`scripts/smoke.ps1`): add `-RequireModel` switch that fails if `/api/llm/health` is `mock` or `ok:false`;
   add `GET /api/auth/me`, `POST /api/ask` with `{"question":"Czy kurs euro to problem?"}`, and print the boardroom time.
   ✅ Done when: `./scripts/smoke.ps1 -Base https://<route-host> -RequireModel` passes on the cluster.
 
@@ -330,4 +330,7 @@ General: `oc get pods` · `oc logs deploy/warsztat-cfo --tail=50` · `oc describ
 ## Progress log (Claude adds a line when a step is ticked)
 | When (H) | Step | Who | Note |
 |---|---|---|---|
-| | | | |
+| H0 | 0.1–0.4 | Claude | Branch up to date with main, pair1 Claude settings copied, `npm install` + typecheck + tests + local smoke all green. `oc` not installed yet → 0.5 open. |
+| H0 | 3.2–3.6 | Claude | `provider.ts`: `maxRetries: 0`, `cleanReply()` strips `<think>`, last-good-answer per `mockKey` in `chatOr`, health cached 30 s. `json.ts`: balanced-brace scan + repairs trailing commas / single quotes. 11 new vitest tests. Dead-model test: health `ok:false`, boardroom falls back in 47 ms. Still to confirm on the cluster: survive model scaled to 0 (3.3). |
+| H0 | 3.7 | Claude | All mockKeys in use (`explain`, `boardroom:*`, `ask:*`, `advice:*`) have answers. Re-check after each Pair 2 merge. |
+| H0 | 3.8 | Claude | smoke.ps1: `-RequireModel`, `/auth/me`, `/ask` (→ kasia), timings, warning if boardroom > 25 s. |

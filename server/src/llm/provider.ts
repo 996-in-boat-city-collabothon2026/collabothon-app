@@ -14,7 +14,7 @@ export interface ChatMessage {
 export interface ChatOptions {
   maxTokens?: number;
   temperature?: number;
-  /** Key used by the mock to pick a canned answer, e.g. "boardroom:marek". Ignored by real models. */
+  /** Key used by the mock to pick a canned answer, e.g. "boardroom:marek". Also keys the "last good answer" memory. */
   mockKey?: string;
 }
 
@@ -25,43 +25,77 @@ function getClient(): OpenAI {
       baseURL: config.llm.baseUrl,
       apiKey: config.llm.apiKey,
       timeout: config.llm.timeoutMs,
-      maxRetries: 1,
+      maxRetries: 0, // fail fast: a dead model costs one timeout, not two. chatOr() has the fallback.
     });
   }
   return client;
 }
 
-export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
-  if (config.llm.mode === 'mock') return mockReply(opts.mockKey, messages);
+/** Removes "thinking" blocks and wrapping quotes some models add, so only the answer reaches the UI. */
+export function cleanReply(text: string): string {
+  let t = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  t = t.replace(/^[\s\S]*<\/think>/i, ''); // an unclosed opening tag was cut off: keep only what follows
+  t = t.trim();
+  if (t.length > 1 && /^["“„]/.test(t) && /["”]$/.test(t)) t = t.slice(1, -1).trim();
+  return t;
+}
 
+/** Test hook: lets unit tests replace the real model call. */
+type ModelCall = (messages: ChatMessage[], opts: ChatOptions) => Promise<string>;
+let modelCall: ModelCall = async (messages, opts) => {
   const res = await getClient().chat.completions.create({
     model: config.llm.model,
     messages,
     max_tokens: opts.maxTokens ?? 300,
     temperature: opts.temperature ?? 0.3,
   });
-  return res.choices[0]?.message?.content?.trim() ?? '';
+  return res.choices[0]?.message?.content ?? '';
+};
+export function setModelCallForTests(fn: ModelCall | null, mode?: 'mock' | 'openai_compat'): void {
+  if (fn) modelCall = fn;
+  if (mode) config.llm.mode = mode;
+  lastGood.clear();
+  healthCache = null;
 }
 
-/** Like chat(), but never throws: returns `fallback` if the model fails or answers empty. */
+export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
+  if (config.llm.mode === 'mock') return mockReply(opts.mockKey, messages);
+  return cleanReply(await modelCall(messages, opts));
+}
+
+// Last successful reply per mockKey. If the model times out mid-demo, we show its previous answer instead of an error.
+const lastGood = new Map<string, string>();
+
+/** Like chat(), but never throws. On failure: the last good answer for this mockKey, else `fallback`. */
 export async function chatOr(fallback: string, messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
   try {
     const text = await chat(messages, opts);
-    return text || fallback;
+    if (text) {
+      if (opts.mockKey) lastGood.set(opts.mockKey, text);
+      return text;
+    }
   } catch (err) {
     console.warn('[llm] falling back:', (err as Error).message);
-    return fallback;
   }
+  return (opts.mockKey && lastGood.get(opts.mockKey)) || fallback;
 }
+
+// Health is cached for 30 s so every page load does not spend a GPU call.
+const HEALTH_TTL_MS = 30_000;
+let healthCache: { at: number; value: LlmHealth } | null = null;
 
 export async function llmHealth(): Promise<LlmHealth> {
   const { mode, model } = config.llm;
   if (mode === 'mock') return { mode, model: 'mock', ok: true, latencyMs: 0 };
+  if (healthCache && Date.now() - healthCache.at < HEALTH_TTL_MS) return healthCache.value;
   const start = Date.now();
+  let value: LlmHealth;
   try {
     await chat([{ role: 'user', content: 'Reply with the single word: OK' }], { maxTokens: 5 });
-    return { mode, model, ok: true, latencyMs: Date.now() - start };
+    value = { mode, model, ok: true, latencyMs: Date.now() - start };
   } catch (err) {
-    return { mode, model, ok: false, latencyMs: Date.now() - start, error: (err as Error).message };
+    value = { mode, model, ok: false, latencyMs: Date.now() - start, error: (err as Error).message };
   }
+  healthCache = { at: Date.now(), value };
+  return value;
 }
