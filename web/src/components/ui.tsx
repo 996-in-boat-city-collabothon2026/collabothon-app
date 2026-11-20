@@ -122,21 +122,33 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
   const [imgOk, setImgOk] = useState(true);
   const hat = HATS[hatId];
   if (imgOk) {
-    // "Breaking the frame": head inside a circle, the hat pops out above it with a white outline.
+    // "Breaking the frame" with no seam: inside the circle the full-colour picture (its own background,
+    // whole body coloured); above the circle the SAME picture without background, so hair + hat stick out.
+    // Both pictures share exactly the same size and position (normalised in web/public/avatars).
     const S = Math.round(size * 1.6);
     const ring = hat.color === '#f8fafc' ? '#a1a1aa' : hat.color;
-    const fig = { width: '130%', left: '-15%', top: '-30%' } as const;
+    const base = avatarSrc(hatId).replace('-hat.png', '');
+    const img = { width: S * 1.32, height: S * 1.32, left: -S * 0.16, top: -S * 0.26 } as const;
+    const ringW = Math.max(2, S / 28);
+    // the cut-out covers everything outside the inner edge of the ring, so the hat sits IN FRONT of the ring
+    const outside = `radial-gradient(circle ${S / 2}px at 50% ${S * 0.26 + S / 2}px, transparent ${S / 2 - ringW - 1}px, #000 ${S / 2 - ringW}px)`;
     return (
       <span title={label} role="img" aria-label={label} className="avatar-3d relative inline-block shrink-0"
-        style={{ width: S, height: S, marginTop: S * 0.3 }}>
-        <span className="absolute inset-0 overflow-hidden rounded-full"
-          style={{ background: '#f4f4f5', boxShadow: `inset 0 0 0 ${Math.max(2, S / 26)}px ${ring}` }}>
-          <img src={avatarSrc(hatId).replace('-hat.png', '-cut.png')} alt="" loading="lazy" decoding="async"
-            onError={() => setImgOk(false)} className="absolute max-w-none" style={fig} />
+        style={{ width: S, height: S, marginTop: S * 0.26 }}>
+        <span className="avatar-fig absolute inset-0">
+          {/* inside the circle: full picture */}
+          <span className="absolute inset-0 overflow-hidden rounded-full">
+            <img src={`${base}-full.png`} alt="" loading="lazy" decoding="async" onError={() => setImgOk(false)}
+              className="absolute max-w-none" style={img} />
+          </span>
+          <span className="pointer-events-none absolute inset-0 rounded-full" style={{ boxShadow: `inset 0 0 0 ${ringW}px ${ring}` }} />
+          {/* outside the circle (top only): cut-out, so the hat breaks the frame */}
+          <span className="absolute" style={{ left: img.left, top: img.top, width: img.width, height: S * 0.26 + S / 2,
+            WebkitMaskImage: outside, maskImage: outside }}>
+            <img src={`${base}-cut.png`} alt="" loading="lazy" decoding="async"
+              className="absolute left-0 top-0 max-w-none" style={{ width: img.width, height: img.height }} />
+          </span>
         </span>
-        {/* the same picture again, only its top part (the hat), drawn over the circle's edge */}
-        <img src={avatarSrc(hatId).replace('-hat.png', '-cut.png')} alt="" aria-hidden="true" loading="lazy" decoding="async"
-          className="avatar-hat pointer-events-none absolute max-w-none" style={{ ...fig, clipPath: 'inset(0 0 62% 0)' }} />
       </span>
     );
   }
@@ -212,8 +224,9 @@ export function LlmStatusBadge({ health }: { health: LlmHealth | null }) {
     <Link to="/settings#platform" title={label}
       className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-stone-300 bg-white px-2.5 py-1 text-sm text-stone-700 hover:border-stone-500">
       <span className={`h-2 w-2 shrink-0 rounded-full ${cls}`} aria-hidden="true" />
-      <span className="hidden sm:inline">{label}</span>
-      <span className="sm:hidden">{!health.ok ? 'Offline' : live ? 'OpenShift AI' : 'Mock'}</span>
+      {/* Full label only on wide screens; at 1024 px the menu needs the room (no horizontal scroll). */}
+      <span className="hidden xl:inline">{label}</span>
+      <span className="xl:hidden">{!health.ok ? 'Offline' : live ? 'OpenShift AI' : 'Mock'}</span>
     </Link>
   );
 }

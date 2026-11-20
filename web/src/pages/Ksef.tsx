@@ -163,7 +163,7 @@ function InvoiceTable({ rows, onSend, onFix, onView }: {
                   {t('upo_number')}: <span className="break-all font-mono">{inv.ksef.ksefNumber}</span>
                 </p>
               )}
-              {inv.ksef.rejectionReason && <p className="mt-1 text-sm text-accent-ink">{inv.ksef.rejectionReason}</p>}
+              {inv.ksef.rejectionReason && <p className="mt-1 text-sm text-accent-ink">KSeF: „{inv.ksef.rejectionReason}”</p>}
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => onView({ kind: 'XML', inv })} className={`${BTN} border border-zinc-300 bg-white`}>XML</button>

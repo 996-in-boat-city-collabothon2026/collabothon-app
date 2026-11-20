@@ -9,6 +9,7 @@ import { LlmStatusBadge } from './components/ui';
 import { useT } from './i18n';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
+import Report from './pages/Report';
 import Approvals from './pages/Approvals';
 import Boardroom from './pages/Boardroom';
 import Ksef from './pages/Ksef';
@@ -55,14 +56,14 @@ export default function App() {
     <div className="min-h-screen">
       {/* Bottom padding: room for the mobile tab bar + the advice bubble, so it never covers the last buttons */}
       <div className="pb-40 md:pb-24">
-        {/* Floating top bar: logo, menu pills (desktop), model, language, sign out */}
+        {/* Floating top bar: logo, menu pills (desktop), model, sign out */}
         <header className="sticky top-0 z-30 bg-paper/85 backdrop-blur-xl">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 py-1 pl-4 pr-2">
             <span className="whitespace-nowrap text-lg font-extrabold tracking-tight"><span aria-hidden="true" className="sm:hidden">W</span><span className="sr-only sm:not-sr-only">WarsztatCFO</span></span>
             <nav aria-label="Menu" className="hidden items-center gap-1 lg:flex">
               {NAV.map((n) => (
                 <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
-                  `flex min-h-12 items-center whitespace-nowrap rounded-full px-4 font-medium ${isActive ? 'bg-accent font-semibold text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
+                  `flex min-h-12 items-center whitespace-nowrap rounded-full px-3 font-medium xl:px-4 ${isActive ? 'bg-accent font-semibold text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
                   {t(n.key)}
                 </NavLink>
               ))}
@@ -82,6 +83,7 @@ export default function App() {
             <Route path="/boardroom" element={<Boardroom />} />
             <Route path="/ksef" element={<Ksef />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/report" element={<Report />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

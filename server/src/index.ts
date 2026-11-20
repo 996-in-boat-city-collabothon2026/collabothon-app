@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config';
+import { llmBudgetHook } from './llm/provider';
 import health from './routes/health';
 import auth from './routes/auth';
 import finance from './routes/finance';
@@ -15,6 +16,9 @@ import settings from './routes/settings';
 import demo from './routes/demo';
 
 const app = Fastify({ logger: { level: 'info' } });
+
+// Every request gets ONE shared LLM time budget (LLM_BUDGET_MS), so a slow model can't make the conference hang.
+app.addHook('onRequest', llmBudgetHook);
 
 for (const plugin of [health, auth, finance, actions, boardroom, ksef, settings, demo]) {
   await app.register(plugin, { prefix: '/api' });
