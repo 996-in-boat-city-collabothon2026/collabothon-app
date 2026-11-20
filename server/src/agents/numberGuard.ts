@@ -59,9 +59,9 @@ function scan(text: string): { dates: Set<string>; numbers: number[]; tokens: { 
   return { dates, numbers: [...years, ...tokens.flatMap((t) => t.values)], tokens };
 }
 
-/** "25.11" written in a reply may be a date (25 November) as well as a number. */
+/** "25.11" or "25.11.2026" written in a reply may be a date (25 November) as well as a number. */
 function asDayMonth(raw: string): string | null {
-  const m = /^(\d{1,2})\.(\d{1,2})$/.exec(raw);
+  const m = /^(\d{1,2})\.(\d{1,2})(?:\.\d{4})?$/.exec(raw);
   if (!m) return null;
   const [day, month] = [Number(m[1]), Number(m[2])];
   return day >= 1 && day <= 31 && month >= 1 && month <= 12 ? dateKey(month, day) : null;
