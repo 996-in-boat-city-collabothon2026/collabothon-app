@@ -166,3 +166,54 @@ button, a { transition-property: color, background-color, border-color; transiti
 .avatar-3d:hover .avatar-fig { animation: none; transform: rotate(-4deg); transition: transform 200ms ease; }
 .avatar-hat { transform-box: fill-box; transform-origin: 50% 60%; animation: avatar-bob 3.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .avatar-fig, .avatar-hat { animation: none; } }
+
+/* ---------- "Drukuj A4": the dashboard on one sheet, readable without a magnifier ---------- */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html { font-size: 12px; }
+  body { background: #fff !important; }
+  header, nav, .no-print, [role="dialog"], button[aria-label] { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  .surface { border: 1px solid #bbb !important; box-shadow: none !important; break-inside: avoid; }
+  .enter, .pop-in, .surface { animation: none !important; }
+  .grid { gap: 8px !important; }
+  .kpi-card { padding: 10px !important; }
+  details:not([open]) { display: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* ---------- Printable report: calm, text-first typography (serif, large, generous spacing) ---------- */
+.report-doc { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif; color: #1a1a1a; }
+.report-kicker { font-size: 1rem; letter-spacing: .06em; text-transform: uppercase; color: #555; }
+.report-h1 { font-family: Georgia, serif; font-size: 2.1rem; line-height: 1.2; font-weight: 700; margin-top: .3rem; letter-spacing: 0; }
+.report-meta { margin-top: .4rem; font-size: 1.05rem; color: #444; }
+.report-section { margin-top: 1.8rem; }
+.report-h2 { font-family: Georgia, serif; font-size: 1.35rem; font-weight: 700; border-bottom: 1px solid #ddd; padding-bottom: .25rem; margin-bottom: .7rem; letter-spacing: 0; }
+.report-p { font-size: 1.12rem; line-height: 1.7; margin-bottom: .7rem; }
+.report-list { font-size: 1.12rem; line-height: 1.7; padding-left: 1.4rem; list-style: decimal; }
+ul.report-list { list-style: disc; }
+.report-list li { margin-bottom: .55rem; }
+.report-owner { color: #555; }
+.report-dl > div { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px dotted #ccc; padding: .45rem 0; font-size: 1.12rem; }
+.report-dl dt { color: #333; }
+.report-dl dd { font-weight: 700; text-align: right; }
+.report-small { font-size: .95rem; line-height: 1.6; color: #444; margin-top: .8rem; }
+.report-small a { text-decoration: underline; }
+@media print {
+  .report-page { max-width: none !important; padding: 0 !important; }
+  .report-doc { border: 0 !important; padding: 0 !important; border-radius: 0 !important; }
+  .report-p, .report-list, .report-dl > div { font-size: 12.5pt; }
+  .report-h1 { font-size: 20pt; }
+  .report-h2 { font-size: 14pt; break-after: avoid; }
+  .report-section { break-inside: avoid-page; }
+}
+
+/* Standing agents (Approvals): calm breathing + sway; the proposing agent nods. */
+.standing-agent .sa-sway { transform-box: view-box; transform-origin: 50% 96%; animation: sa-sway 5s ease-in-out infinite; }
+.standing-agent .sa-upper { transform-box: view-box; transform-origin: 50% 72%; animation: sa-breathe 3.6s ease-in-out infinite; }
+.standing-agent .sa-head { transform-box: view-box; transform-origin: 50% 40%; }
+.standing-agent.is-speaking .sa-head { animation: sa-nod 2.8s ease-in-out infinite; }
+@keyframes sa-sway { 0%, 100% { transform: rotate(-1deg); } 50% { transform: rotate(1deg); } }
+@keyframes sa-breathe { 0%, 100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-3px) scaleY(1.01); } }
+@keyframes sa-nod { 0%, 55%, 100% { transform: rotate(0); } 65% { transform: translateY(5px) rotate(3deg); } 75% { transform: rotate(0); } 85% { transform: translateY(4px) rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) { .standing-agent .sa-sway, .standing-agent .sa-upper, .standing-agent .sa-head { animation: none !important; } }

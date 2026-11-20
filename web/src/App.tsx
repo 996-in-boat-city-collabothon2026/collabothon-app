@@ -9,6 +9,7 @@ import { LlmStatusBadge } from './components/ui';
 import { useT } from './i18n';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
+import Report from './pages/Report';
 import Approvals from './pages/Approvals';
 import Boardroom from './pages/Boardroom';
 import Ksef from './pages/Ksef';
@@ -85,6 +86,7 @@ export default function App() {
             <Route path="/boardroom" element={<Boardroom />} />
             <Route path="/ksef" element={<Ksef />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/report" element={<Report />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
