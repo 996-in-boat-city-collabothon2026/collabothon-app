@@ -1,12 +1,13 @@
 // Owner: Pair 2 (Tomasz 🟢). Money left on the table in repair orders from the last 30 days.
 import type { RepairOrder } from '@cfo/shared';
 import { db } from '../domain/store';
-import { addDays, fmtPLN, round2 } from '../domain/money';
+import { fmtPLN, lastDays, round2 } from '../domain/money';
 import type { DraftAction, Rule } from './index';
 
+/** Orders from the last 30 calendar dates: [today−29, today], same window as the expenses rule. */
 const recentOrders = (): RepairOrder[] => {
-  const from = addDays(db.shop.today, -30);
-  return db.repairOrders.filter((o) => o.date >= from && o.date <= db.shop.today);
+  const { from, to } = lastDays(db.shop.today, 30);
+  return db.repairOrders.filter((o) => o.date >= from && o.date <= to);
 };
 
 /** Labour billed below hours × shop rate → one pricing tip with the missing money and the cars. */

@@ -42,3 +42,14 @@ describe('margin rule (Tomasz)', () => {
     expect(margin()).toHaveLength(0);
   });
 });
+
+describe('margin window: the last 30 calendar dates', () => {
+  beforeEach(() => resetDb());
+
+  it('an order on day −29 counts, one on day −30 does not', () => {
+    db.repairOrders = [order({ id: 'in', car: 'Day 29', date: '2026-10-22', labourBilledPLN: 0 })];
+    expect(labourUnderRate()).toHaveLength(1);
+    db.repairOrders = [order({ id: 'out', car: 'Day 30', date: '2026-10-21', labourBilledPLN: 0 })];
+    expect(labourUnderRate()).toHaveLength(0);
+  });
+});

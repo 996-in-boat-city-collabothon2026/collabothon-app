@@ -41,6 +41,9 @@ function rateTrend(currency: ForeignCurrency): FxExposure['trend'] {
   return { from: rates[0], to: rates[rates.length - 1], weeksUp };
 }
 
+/** What a 5% move against us costs for a net position (in the foreign currency), in zł. */
+const shockOf = (net: number, currency: ForeignCurrency) => round2(Math.abs(toPLN(net, currency)) * SHOCK);
+
 /** Net exposure per currency (only currencies with unpaid invoices). Also used by the boardroom snapshot later. */
 export function fxExposures(): FxExposure[] {
   return FOREIGN.filter((c) => unpaid(c).length > 0).map((currency) => {
@@ -49,9 +52,19 @@ export function fxExposures(): FxExposure[] {
     const owed = sumGross(invoices.filter((i) => i.direction === 'sales'));
     const net = round2(owe - owed);
     const netPLN = toPLN(net, currency);
-    return { currency, net, netPLN, shockPLN: round2(Math.abs(netPLN) * SHOCK), trend: rateTrend(currency) };
+    return { currency, net, netPLN, shockPLN: shockOf(net, currency), trend: rateTrend(currency) };
   });
 }
+
+/** "What if we pay this purchase invoice in full today?" Pure: nothing in db changes. */
+export function exposureAfterPaying(e: FxExposure, invoice: Invoice): { net: number; shockPLN: number } {
+  const net = round2(e.net - invoiceGross(invoice));
+  return { net, shockPLN: shockOf(net, e.currency) };
+}
+
+/** "1 500 EUR to pay" / "2 100 EUR to receive" / "nothing open in EUR". */
+const position = (net: number, c: ForeignCurrency) =>
+  net === 0 ? `nothing open in ${c}` : `${fmtFx(Math.abs(net), c)} ${net > 0 ? 'to pay' : 'to receive'}`;
 
 /** Turn one exposure into Kasia's cards: a hedge to approve + two cheaper ideas. */
 function actionsFor(e: FxExposure): DraftAction[] {
@@ -89,15 +102,26 @@ function actionsFor(e: FxExposure): DraftAction[] {
   // Paying a foreign supplier early only reduces risk when we owe the currency.
   if (weOwe && biggest) {
     const gross = invoiceGross(biggest);
+    const after = exposureAfterPaying(e, biggest);
+    const diff = round2(after.shockPLN - e.shockPLN);
+    const riskLine =
+      diff > 0
+        ? `Careful: paying all ${fmtFx(gross, c)} makes your ${c} risk BIGGER, by ${fmtPLN(diff)}. Pay only part, or hedge the rest`
+        : diff < 0
+          ? `Paying all ${fmtFx(gross, c)} makes your ${c} risk smaller, by ${fmtPLN(-diff)}`
+          : `Paying all ${fmtFx(gross, c)} leaves your ${c} risk the same: ${fmtPLN(e.shockPLN)}`;
     actions.push({
       cfo: 'kasia',
       kind: 'supplier_payment',
       tier: 'RECOMMENDED',
       execution: 'simulated',
-      title: `Pay ${biggest.counterparty.name} early`,
+      title: `Pay ${biggest.counterparty.name} early (${c} risk ${fmtPLN(e.shockPLN)} → ${fmtPLN(after.shockPLN)})`,
       why: [
         `${fmtFx(gross, c)} due on ${biggest.dueDate} (in ${daysBetween(db.shop.today, biggest.dueDate)} days)`,
         `Paying today locks ${fmtRate(latestRate(c))}: ${fmtPLN(toPLN(gross, c))}`,
+        `Now: ${position(e.net, c)}, a 5% ${c} move costs ${fmtPLN(e.shockPLN)}`,
+        `After paying: ${position(after.net, c)}, a 5% ${c} move costs ${fmtPLN(after.shockPLN)}`,
+        riskLine,
       ],
       amountPLN: toPLN(gross, c),
       dueDate: biggest.dueDate,

@@ -184,3 +184,46 @@ describe('approve credit line (Anna)', () => {
     expect(db.bank.balancePLN).toBe(38400 + 36000);
   });
 });
+
+// ---------- Approvals after moving the money effects to domain/settle.ts ----------
+describe('approve: VAT and credit line through domain/settle', () => {
+  beforeEach(() => resetDb());
+
+  const entriesFor = (id: string) => db.activity.filter((e) => e.actionId === id);
+
+  it('current cards → 200, one simulated entry each; balance 38 400 → 24 170 → 60 170 zł', async () => {
+    const app = await makeApp();
+    const cards = await run(app);
+    const vat = cards.find((a) => a.kind === 'tax_payment' && a.refId === 'ob-vat-10')!;
+    const credit = cards.find((a) => a.kind === 'credit_line')!;
+
+    expect((await approve(app, vat.id)).statusCode).toBe(200);
+    expect(db.bank.balancePLN).toBe(24170);
+    expect(db.obligations.find((o) => o.id === 'ob-vat-10')!.paid).toBe(true);
+    expect(entriesFor(vat.id)).toEqual([expect.objectContaining({ actor: 'user', simulated: true })]);
+
+    expect((await approve(app, credit.id)).statusCode).toBe(200);
+    expect(db.bank.balancePLN).toBe(60170);
+    expect(entriesFor(credit.id)).toEqual([expect.objectContaining({ actor: 'user', simulated: true })]);
+
+    // Approving a closed card again: 404, the balance and history do not move a second time.
+    expect((await approve(app, vat.id)).statusCode).toBe(404);
+    expect((await approve(app, credit.id)).statusCode).toBe(404);
+    expect(db.bank.balancePLN).toBe(60170);
+    expect(entriesFor(vat.id)).toHaveLength(1);
+    expect(entriesFor(credit.id)).toHaveLength(1);
+  });
+
+  it('stale open card → 409: no change to balance, status or history', async () => {
+    const app = await makeApp();
+    const credit = (await run(app)).find((a) => a.kind === 'credit_line')!;
+    db.obligations = db.obligations.filter((o) => o.kind !== 'RENT'); // numbers change → card is stale
+    const activity = db.activity.length;
+
+    const res = await approve(app, credit.id);
+    expect(res.statusCode).toBe(409);
+    expect(db.bank.balancePLN).toBe(38400);
+    expect(db.actions.find((a) => a.id === credit.id)!.status).toBe('open');
+    expect(db.activity).toHaveLength(activity);
+  });
+});

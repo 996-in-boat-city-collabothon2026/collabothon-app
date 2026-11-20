@@ -22,8 +22,8 @@
 |---|---|---|---|
 | **liquidity.ts** ★ | **Anna** ⚫ | lowest forecast point < buffer → credit line (gap rounded up to 1 000); overdue sales → reminder | NEEDS_APPROVAL credit_line / payment_reminder |
 | **fx.ts** ★ | **Kasia** 🔴 | per currency: unpaid payables − receivables; ±5% shock in zł; 4-week NBP trend; shock > 300 zł → hedge (team decision: 500 would show no hedge card on the seed, 320 zł) | NEEDS_APPROVAL fx_hedge; RECOMMENDED pay early / natural hedge |
-| vat.ts | Marek | output VAT − input VAT for last month; due the 25th | NEEDS_APPROVAL tax_payment |
-| zus.ts / pit.ts | Marek | due the 20th | NEEDS_APPROVAL tax_payment |
+| vat.ts | Marek | amount and due date (the 25th) come from the unpaid VAT obligation in `db.obligations`, shown when due within 10 days (team decision: the seed holds only part of the period's invoices, so output − input VAT from them would be wrong; seed → 14 230 zł due 2026-11-25) | NEEDS_APPROVAL tax_payment |
+| zus.ts / pit.ts | Marek | same as VAT: unpaid ZUS / PIT obligation due the 20th, within 10 days | NEEDS_APPROVAL tax_payment |
 | ksef.ts | Marek | rejected / missing UPO | ANALYSED ksef_revalidate + RECOMMENDED ksef_fix |
 | cashflow.ts | Anna | `forecast(days)`: shift late payers by their average delay, 30/60/90 days | (data for liquidity.ts) |
 | expenses.ts | Tomasz 🟢 | biggest expense category vs last month (`db.expenses`) | RECOMMENDED cost_cut |

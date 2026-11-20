@@ -33,3 +33,28 @@ describe('ksef rule (Marek)', () => {
     expect(ksef()).toHaveLength(0);
   });
 });
+
+describe('ksef why[]: every line names the invoice and its amount', () => {
+  beforeEach(() => resetDb());
+
+  it('seed: lines carry FV/2026/11/009 and 4 920,00 zł', () => {
+    for (const card of ksef()) {
+      for (const line of card.why) {
+        expect(line).toContain('FV/2026/11/009');
+        expect(line).toMatch(/4\s?920,00\szł/);
+      }
+    }
+  });
+
+  it.each([undefined, '', '   '])('missing or empty rejection reason (%j) still names the invoice and amount', (reason) => {
+    inv('inv-s-003').ksef = { status: 'rejected', rejectionReason: reason };
+    const fix = ksef().find((a) => a.kind === 'ksef_fix')!;
+    expect(fix.why[0]).toMatch(/FV\/2026\/11\/009 \(4\s?920,00\szł\): KSeF gave no reason/);
+  });
+
+  it('foreign invoices show their own currency code', () => {
+    inv('inv-s-005').ksef = { status: 'rejected', rejectionReason: 'Test' };
+    const lines = ksef().filter((a) => a.refId === 'inv-s-005').flatMap((a) => a.why);
+    expect(lines.every((l) => /2\s?100,00\sEUR/.test(l))).toBe(true);
+  });
+});

@@ -1,11 +1,13 @@
 // Owner: Pair 2.
 import type { FastifyPluginAsync } from 'fastify';
-import type { Alert, AppState, ExpenseBreakdown, ExpenseCategory, Kpis } from '@cfo/shared';
+import type { Alert, AppState, ExpenseBreakdown, Kpis } from '@cfo/shared';
 import { db } from '../domain/store';
-import { addDays, daysBetween, fmtPLN, round2 } from '../domain/money';
+import { daysBetween, fmtPLN, lastDays, round2 } from '../domain/money';
 import { fxExposurePLN, invoiceGrossPLN } from '../domain/fx';
 import { forecast } from '../rules/cashflow';
+import { totalsBetween } from '../rules/expenses';
 import { FX_SHOCK_THRESHOLD_PLN, fxExposures } from '../rules/fx';
+import { taxesDue } from '../rules/taxDue';
 
 function kpis(): Kpis {
   const unpaidSales = db.invoices.filter((i) => i.direction === 'sales' && !i.paid);
@@ -22,14 +24,10 @@ function kpis(): Kpis {
   };
 }
 
-/** Pie chart data: money spent in the last `days` days, grouped by category. */
-function expenses(days: number): ExpenseBreakdown {
-  const to = db.shop.today;
-  const from = addDays(to, -days);
-  const totals = new Map<ExpenseCategory, number>();
-  for (const e of db.expenses) {
-    if (e.date >= from && e.date <= to) totals.set(e.category, (totals.get(e.category) ?? 0) + e.amountPLN);
-  }
+/** Pie chart data: money spent in the last `days` calendar dates ([today−(days−1), today]), by category. */
+export function expenseBreakdown(days: number): ExpenseBreakdown {
+  const { from, to } = lastDays(db.shop.today, days); // same window as Tomasz's expenses rule
+  const totals = totalsBetween(from, to);
   const totalPLN = round2([...totals.values()].reduce((s, v) => s + v, 0));
   const byCategory = [...totals]
     .map(([category, amountPLN]) => ({ category, amountPLN: round2(amountPLN), share: totalPLN ? round2(amountPLN / totalPLN) : 0 }))
@@ -67,19 +65,15 @@ export function alerts(): Alert[] {
     });
   }
 
-  // Marek: VAT / ZUS / PIT due in the next 5 days (critical when overdue).
-  const taxes = db.obligations
-    .filter((o) => !o.paid && ['VAT', 'ZUS', 'PIT'].includes(o.kind) && daysBetween(today, o.dueDate) <= TAX_ALERT_DAYS)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  if (taxes.length > 0) {
-    const overdue = taxes.some((o) => daysBetween(today, o.dueDate) < 0);
-    const total = round2(taxes.reduce((s, o) => s + o.amountPLN, 0));
+  // Marek: VAT / ZUS / PIT due in the next 5 days (critical when overdue). Numbers from rules/taxDue.ts.
+  const taxes = taxesDue(TAX_ALERT_DAYS);
+  if (taxes.obligations.length > 0) {
     list.push({
       id: 'tax-due',
       cfo: 'marek',
-      severity: overdue ? 'critical' : 'warning',
-      text: `Taxes due soon: ${taxes.map((o) => `${o.kind} ${fmtPLN(o.amountPLN)} on ${o.dueDate}`).join(', ')}` +
-        (taxes.length > 1 ? ` (total ${fmtPLN(total)})` : ''),
+      severity: taxes.overdue ? 'critical' : 'warning',
+      text: `Taxes due soon: ${taxes.obligations.map((o) => `${o.kind} ${fmtPLN(o.amountPLN)} on ${o.dueDate}`).join(', ')}` +
+        (taxes.obligations.length > 1 ? ` (total ${fmtPLN(taxes.totalPLN)})` : ''),
     });
   }
 
@@ -105,7 +99,7 @@ const routes: FastifyPluginAsync = async (app) => {
     return forecast(days);
   });
 
-  app.get<{ Querystring: { days?: string } }>('/expenses', async (req) => expenses(Number(req.query.days) || 30));
+  app.get<{ Querystring: { days?: string } }>('/expenses', async (req) => expenseBreakdown(Number(req.query.days) || 30));
 
   app.get('/alerts', async (): Promise<Alert[]> => alerts());
 };

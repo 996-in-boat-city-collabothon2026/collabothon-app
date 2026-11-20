@@ -3,22 +3,17 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Action } from '@cfo/shared';
 import { db, logActivity } from '../domain/store';
 import { fmtPLN } from '../domain/money';
+import { openCreditLine, settlePayment } from '../domain/settle';
 import { isCurrentCard, runAutopilot } from '../agents/autopilot';
 
 /** What "doing it" means in the simulation. Pair 2: extend per action kind. */
 function simulateExecution(a: Action): string {
   if ((a.kind === 'tax_payment' || a.kind === 'supplier_payment') && a.amountPLN) {
-    db.bank.balancePLN -= a.amountPLN;
-    // refId can be the obligation itself or the purchase invoice behind it (Kasia's "pay early" card).
-    const ob = db.obligations.find((o) => o.id === a.refId || (a.refId && o.invoiceId === a.refId));
-    if (ob) ob.paid = true;
-    const inv = db.invoices.find((i) => i.id === (ob?.invoiceId ?? a.refId));
-    if (inv) inv.paid = true;
+    settlePayment(a.amountPLN, a.refId);
     return `Simulated payment of ${fmtPLN(a.amountPLN)}`;
   }
   if (a.kind === 'credit_line' && a.amountPLN) {
-    // Demo: the bank grants the line at once and the money is available on the account.
-    db.bank.balancePLN += a.amountPLN;
+    openCreditLine(a.amountPLN);
     return `Simulated credit line of ${fmtPLN(a.amountPLN)} opened, money available on the account`;
   }
   if (a.kind === 'payment_reminder') return 'Simulated reminder e-mail sent';

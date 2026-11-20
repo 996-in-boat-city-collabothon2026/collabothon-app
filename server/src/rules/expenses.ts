@@ -1,14 +1,17 @@
 // Owner: Pair 2 (Tomasz 🟢). Biggest cost the owner can change: last 30 days vs the 30 days before.
 import type { ExpenseCategory } from '@cfo/shared';
 import { db } from '../domain/store';
-import { addDays, fmtPLN, round2 } from '../domain/money';
+import { fmtPLN, lastDays, round2 } from '../domain/money';
 import type { DraftAction, Rule } from './index';
+
+/** Both periods are exactly 30 calendar dates: [today−29, today] vs [today−59, today−30]. */
+export const PERIOD_DAYS = 30;
 
 // Payroll, rent, taxes and leasing are fixed: "cut your taxes" is not a useful tip.
 const TIPS: Partial<Record<ExpenseCategory, { label: string; tip: string }>> = {
-  parts: { label: 'Parts', tip: 'Ask 2 other wholesalers for a quote, or buy the most-used parts in bulk' },
-  utilities: { label: 'Utilities', tip: 'Check your electricity tariff and switch off compressors overnight' },
-  other: { label: 'Other costs', tip: 'Review subscriptions and services you rarely use' },
+  parts: { label: 'Parts', tip: 'ask other wholesalers for a quote, or buy the most-used parts in bulk' },
+  utilities: { label: 'Utilities', tip: 'check your electricity tariff and switch off compressors overnight' },
+  other: { label: 'Other costs', tip: 'review subscriptions and services you rarely use' },
 };
 
 /** Sum per category for expenses dated from `from` to `to` (both included). */
@@ -22,8 +25,10 @@ export function totalsBetween(from: string, to: string): Map<ExpenseCategory, nu
 
 export const expenses: Rule = () => {
   const today = db.shop.today;
-  const now = totalsBetween(addDays(today, -30), today); // same window as the pie chart
-  const before = totalsBetween(addDays(today, -60), addDays(today, -31));
+  const cur = lastDays(today, PERIOD_DAYS); // same window as the pie chart
+  const prevPeriod = lastDays(today, PERIOD_DAYS, PERIOD_DAYS);
+  const now = totalsBetween(cur.from, cur.to);
+  const before = totalsBetween(prevPeriod.from, prevPeriod.to);
 
   const top = [...now]
     .filter(([category]) => TIPS[category])
@@ -39,11 +44,11 @@ export const expenses: Rule = () => {
   let title = `${label} is your biggest cost you can change: ${fmtPLN(amount)}`;
   if (prev > 0) {
     const change = Math.round(((amount - prev) / prev) * 100);
-    if (change <= 0) return []; // spending went down: nothing to say
+    if (change <= 0) return []; // spending did not go up: nothing to say
     title = `${label} up ${change}%: ${fmtPLN(amount)} vs ${fmtPLN(prev)}`;
-    why.push(`The 30 days before: ${fmtPLN(prev)}`);
+    why.push(`${label} in the 30 days before: ${fmtPLN(prev)}`);
   }
-  why.push(tip);
+  why.push(`To lower the ${fmtPLN(amount)} spent on ${label.toLowerCase()} in 30 days: ${tip}`);
 
   const draft: DraftAction = {
     cfo: 'tomasz',

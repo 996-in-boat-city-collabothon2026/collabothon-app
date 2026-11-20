@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db, resetDb } from '../domain/store';
 import { vat } from './vat';
+import { taxesDue } from './taxDue';
 
 const vatOb = () => db.obligations.find((o) => o.id === 'ob-vat-10')!;
 
@@ -38,5 +39,24 @@ describe('vat rule (Marek)', () => {
   it('overdue VAT still shows, marked late', () => {
     db.shop.today = '2026-11-27';
     expect(vat()[0].why[0]).toContain('2 days late');
+  });
+});
+
+describe('taxesDue (numbers for the tax alert)', () => {
+  beforeEach(() => resetDb());
+
+  it('seed, 5 days: only VAT 14 230 zł, not overdue', () => {
+    const t = taxesDue(5);
+    expect(t.obligations.map((o) => o.id)).toEqual(['ob-vat-10']);
+    expect(t.totalPLN).toBe(14230);
+    expect(t.overdue).toBe(false);
+  });
+
+  it('on 12.12.2026, 10 days: overdue VAT + ZUS + PIT = 22 130 zł, earliest first', () => {
+    db.shop.today = '2026-12-12';
+    const t = taxesDue(10);
+    expect(t.obligations.map((o) => o.kind)).toEqual(['VAT', 'ZUS', 'PIT']);
+    expect(t.totalPLN).toBe(22130);
+    expect(t.overdue).toBe(true);
   });
 });
