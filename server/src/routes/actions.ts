@@ -16,7 +16,11 @@ function simulateExecution(a: Action): string {
     if (inv) inv.paid = true;
     return `Simulated payment of ${fmtPLN(a.amountPLN)}`;
   }
-  if (a.kind === 'credit_line' && a.amountPLN) return `Simulated credit line application for ${fmtPLN(a.amountPLN)}`;
+  if (a.kind === 'credit_line' && a.amountPLN) {
+    // Demo: the bank grants the line at once and the money is available on the account.
+    db.bank.balancePLN += a.amountPLN;
+    return `Simulated credit line of ${fmtPLN(a.amountPLN)} opened, money available on the account`;
+  }
   if (a.kind === 'payment_reminder') return 'Simulated reminder e-mail sent';
   return 'Simulated';
 }

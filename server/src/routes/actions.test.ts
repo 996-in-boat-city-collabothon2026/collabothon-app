@@ -157,3 +157,30 @@ describe('stale cards are withdrawn for every agent', () => {
     expect(db.actions.find((a) => a.id === vat.id)!.status).toBe('approved');
   });
 });
+
+// ---------- Credit line (Anna) ----------
+describe('approve credit line (Anna)', () => {
+  beforeEach(() => resetDb());
+
+  it('adds the money to the balance once and closes the gap', async () => {
+    const app = await makeApp();
+    const credit = (await run(app)).find((a) => a.kind === 'credit_line')!;
+    expect(credit.amountPLN).toBe(36000);
+    expect(db.bank.balancePLN).toBe(38400);
+
+    expect((await approve(app, credit.id)).statusCode).toBe(200);
+    expect(db.bank.balancePLN).toBe(38400 + 36000);
+    expect(db.activity[0].text).toContain('credit line');
+    expect(db.activity[0].simulated).toBe(true);
+
+    // The forecast no longer drops below the buffer, so the next run proposes no new credit line.
+    const f = (await app.inject({ url: '/api/forecast?days=30' })).json<Forecast>();
+    expect(f.lowest.balancePLN).toBeGreaterThanOrEqual(f.bufferPLN);
+    await run(app);
+    expect(db.actions.filter((a) => a.kind === 'credit_line' && a.status === 'open')).toHaveLength(0);
+
+    // Approving again cannot add the money twice.
+    expect((await approve(app, credit.id)).statusCode).toBe(404);
+    expect(db.bank.balancePLN).toBe(38400 + 36000);
+  });
+});
