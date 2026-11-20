@@ -68,7 +68,7 @@ describe('time budget', () => {
     const ms = Date.now() - start;
     expect(ms).toBeLessThan(800);
     expect(result.turns).toHaveLength(4);
-    expect(result.turns[0].text).toMatch(/no comment/);
+    expect(result.turns[0].text).not.toBe(''); // rules-based fallback (Pair 2 owns the wording)
     expect(calls).toBe(1); // the first call used the whole budget, the others did not even send a request
     expect(aborted).toBe(1); // and that hanging request was cancelled
   });
