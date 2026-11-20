@@ -30,6 +30,21 @@ describe('tidyReply', () => {
   });
 
   it('does not touch English replies with the Polish glossary', () => {
-    expect(tidyReply("Here's my answer: keep the safety buffer.", 'en')).toBe('keep the safety buffer.');
+    expect(tidyReply("Here's my answer: keep the safety buffer.", 'en')).toBe('Keep the safety buffer.');
+  });
+});
+
+describe('tidyReply: echoed instruction words (live replies on the test instance)', () => {
+  it('drops "Masz, zapłać, wyślij." and a leading "Ty," / "Ty:" / "Masz,"', () => {
+    expect(tidyReply('Masz, zapłać, wyślij. Kurs euro rośnie od 4 tygodni.', 'pl')).toBe('Kurs euro rośnie od 4 tygodni.');
+    expect(tidyReply('Ty, musisz wysłać przypomnienia.', 'pl')).toBe('Musisz wysłać przypomnienia.');
+    expect(tidyReply('Ty: Masz, wyślij fakturę ponownie.', 'pl')).toBe('Wyślij fakturę ponownie.');
+    expect(tidyReply('Masz, popraw dane nabywcy.', 'pl')).toBe('Popraw dane nabywcy.');
+    expect(tidyReply('Właścicielu warsztatu samochodowego, zapłać VAT.', 'pl')).toBe('Zapłać VAT.');
+  });
+
+  it('keeps "Masz" when it is the verb ("you have")', () => {
+    expect(tidyReply('Masz 1500 EUR do zapłaty.', 'pl')).toBe('Masz 1500 EUR do zapłaty.');
+    expect(tidyReply('Masz na koncie 38 400,00 zł.', 'pl')).toBe('Masz na koncie 38 400,00 zł.');
   });
 });

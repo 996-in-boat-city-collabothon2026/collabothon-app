@@ -17,7 +17,10 @@ export type Lang = 'pl' | 'en';
 export interface CfoFacts {
   lines: string[]; // "label: value" facts for the prompt
   summary: string; // 1–2 plain sentences: what the owner should know and do
+  misread?: (reply: string) => boolean; // a mistake seen live on the real model (true = don't show the reply)
 }
+
+const sentencesOf = (text: string) => text.split(/(?<=[.!?])\s+/);
 
 const LANG_PL = /[ąćęłńóśźż]|\b(czy|jak|ile|kiedy|mam|jest|co|mi|się|nie)\b/i;
 export const langOf = (question: string): Lang => (LANG_PL.test(question) ? 'pl' : 'en');
@@ -53,7 +56,7 @@ function anna(lang: Lang): CfoFacts {
         `Bufor bezpieczeństwa: ${fmtPLN(f.bufferPLN)}`,
         ...(gap > 0 ? [`Brakuje do bufora: ${fmtPLN(gap)}`] : []),
         ...(credit ? [`Proponowana linia kredytowa (symulacja): ${fmtPLN(credit)}`] : []),
-        ...(lateText.length ? [`Klienci spóźnieni z zapłatą: ${list(lateText, lang)}`] : []),
+        ...(lateText.length ? [`Klienci, którzy są Ci winni pieniądze i spóźniają się z zapłatą: ${list(lateText, lang)}`] : []),
       ]
     : [
         `Bank balance today: ${fmtPLN(db.bank.balancePLN)}`,
@@ -61,7 +64,7 @@ function anna(lang: Lang): CfoFacts {
         `Safety buffer: ${fmtPLN(f.bufferPLN)}`,
         ...(gap > 0 ? [`Missing to the buffer: ${fmtPLN(gap)}`] : []),
         ...(credit ? [`Proposed credit line (simulated): ${fmtPLN(credit)}`] : []),
-        ...(lateText.length ? [`Customers late with payment: ${list(lateText, lang)}`] : []),
+        ...(lateText.length ? [`Customers who owe you money and are late: ${list(lateText, lang)}`] : []),
       ];
 
   const names = list(late.map((i) => noDemo(i.counterparty.name)), lang);
@@ -74,10 +77,21 @@ function anna(lang: Lang): CfoFacts {
     summary = pl
       ? `Uwaga: ${fmtDate(low.date)} saldo spadnie do ${fmtPLN(low.balancePLN)}, a to ${fmtPLN(gap)} poniżej bufora.`
       : `Careful: on ${fmtDate(low.date)} the balance drops to ${fmtPLN(low.balancePLN)}, ${fmtPLN(gap)} below your buffer.`;
-    if (late.length) summary += pl ? ` Najpierw wyślij przypomnienia do: ${names}.` : ` First send reminders to ${names}.`;
+    if (late.length) {
+      summary += pl
+        ? ` Najpierw wyślij przypomnienia do klientów, którzy Ci nie zapłacili: ${names}.`
+        : ` First send reminders to the customers who have not paid you: ${names}.`;
+    }
     if (credit) summary += pl ? ` Jeśli to nie wystarczy, linia kredytowa ${fmtPLN(credit)}.` : ` If that is not enough, a credit line of ${fmtPLN(credit)}.`;
   }
-  return { lines, summary };
+  // Live: "zapłać FlotaTrans 12 300 zł" — but FlotaTrans owes the shop money, not the other way round.
+  const customers = late.map((i) => noDemo(i.counterparty.name).split(/\s+/)[0].toLowerCase());
+  const misread = (reply: string) =>
+    sentencesOf(reply).some((sen) => {
+      const s = sen.toLowerCase();
+      return customers.some((c) => s.includes(c)) && /zapła|\bpay/.test(s) && !/przypom|remind|winn|\bowe|nie zapłacil|not paid|haven't paid/.test(s);
+    });
+  return { lines, summary, misread };
 }
 
 function kasia(lang: Lang): CfoFacts {
@@ -107,6 +121,14 @@ function kasia(lang: Lang): CfoFacts {
       pl
         ? `Strata, jeśli ${c} ${weOwe ? 'podrożeje' : 'stanieje'} o 5%: ${fmtPLN(e.shockPLN)}`
         : `Loss if ${c} ${weOwe ? 'rises' : 'falls'} 5%: ${fmtPLN(e.shockPLN)}`,
+      // Spelled out: the small model said "the euro is not a problem because it is rising".
+      pl
+        ? weOwe
+          ? `Rosnący kurs ${c} to dla Ciebie strata: za te same ${c} zapłacisz więcej złotych`
+          : `Spadający kurs ${c} to dla Ciebie strata: za te same ${c} dostaniesz mniej złotych`
+        : weOwe
+          ? `A rising ${c} rate is bad for you: the same ${c} cost you more złoty`
+          : `A falling ${c} rate is bad for you: the same ${c} bring you less złoty`,
     );
     const hedge = e.shockPLN > FX_SHOCK_THRESHOLD_PLN;
     if (hedge) {
@@ -120,7 +142,10 @@ function kasia(lang: Lang): CfoFacts {
             (hedge ? `I suggest locking the rate with a forward contract for ${amount}.` : 'The risk is small, no action needed for now.'),
     );
   }
-  return { lines, summary: parts.join(' ') };
+  // Live: "Kurs euro nie jest problemem, bo rośnie" while the shop owes euro and a hedge is proposed.
+  const risky = exposures.some((e) => e.shockPLN > FX_SHOCK_THRESHOLD_PLN);
+  const misread = (reply: string) => risky && /nie jest problemem|nie ma problemu|not a problem|no problem/i.test(reply);
+  return { lines, summary: parts.join(' '), misread };
 }
 
 function marek(lang: Lang): CfoFacts {
@@ -175,8 +200,8 @@ function tomasz(lang: Lang): CfoFacts {
   if (labour.length) {
     lines.push(
       pl
-        ? `Robocizna policzona poniżej stawki ${rate} za godzinę: ${labour.length} zlecenia, brakuje razem ${fmtPLN(sumMissing(labour))}`
-        : `Labour billed below your ${rate} hourly rate: ${labour.length} orders, ${fmtPLN(sumMissing(labour))} missing in total`,
+        ? `Klientom policzyłeś robociznę poniżej Twojej stawki ${rate} za godzinę (to Twoje ceny, nie pensje mechaników): ${labour.length} zlecenia, brakuje razem ${fmtPLN(sumMissing(labour))}`
+        : `You billed customers for labour below your ${rate} hourly rate (your prices, not your mechanics' pay): ${labour.length} orders, ${fmtPLN(sumMissing(labour))} missing in total`,
       ...labour.map(({ o, missing }) => (pl ? `- ${o.car}: brakuje ${fmtPLN(missing)}` : `- ${o.car}: ${fmtPLN(missing)} missing`)),
     );
   }
@@ -202,8 +227,8 @@ function tomasz(lang: Lang): CfoFacts {
     const cars = list(labour.map(({ o }) => o.car), lang);
     bits.push(
       pl
-        ? `Na ${labour.length} zleceniach policzyłeś robociznę za tanio: brakuje ${fmtPLN(sumMissing(labour))} (${cars}). Licz pełne godziny po ${rate}.`
-        : `On ${labour.length} orders you billed labour too cheaply: ${fmtPLN(sumMissing(labour))} missing (${cars}). Bill the full hours at ${rate}.`,
+        ? `Na ${labour.length} zleceniach policzyłeś klientom robociznę za tanio: brakuje ${fmtPLN(sumMissing(labour))} (${cars}). Licz pełne godziny po ${rate}.`
+        : `On ${labour.length} orders you billed customers too little for labour: ${fmtPLN(sumMissing(labour))} missing (${cars}). Bill the full hours at ${rate}.`,
     );
   }
   if (markup.length) {
@@ -217,7 +242,9 @@ function tomasz(lang: Lang): CfoFacts {
     const name = (pl ? CATEGORY_PL : CATEGORY_EN)[top.category];
     bits.push(pl ? `Najwięcej wydajesz na ${name}: ${fmtPLN(top.amount)} w 30 dni. Zapytaj o ofertę innych dostawców.` : `You spend most on ${name}: ${fmtPLN(top.amount)} in 30 days. Ask other suppliers for a quote.`);
   }
-  return { lines, summary: bits.join(' ') || (pl ? 'Marże i koszty są w porządku.' : 'Margins and costs are in order.') };
+  // Live: "You're paying your labourers 200 zł per hour…" — the rule is about prices for customers, not wages.
+  const misread = (reply: string) => labour.length > 0 && /pensj|wynagrodzen|wypłat|wage|salar|labourers|paying your (mechanics|workers)/i.test(reply);
+  return { lines, summary: bits.join(' ') || (pl ? 'Marże i koszty są w porządku.' : 'Margins and costs are in order.'), misread };
 }
 
 const BUILDERS: Record<CfoId, (lang: Lang) => CfoFacts> = { anna, kasia, marek, tomasz };
@@ -226,5 +253,5 @@ const BUILDERS: Record<CfoId, (lang: Lang) => CfoFacts> = { anna, kasia, marek, 
 export function cfoFacts(cfo: CfoId, lang: Lang): CfoFacts {
   const f = BUILDERS[cfo](lang);
   const today = lang === 'pl' ? `Dziś jest ${fmtDate(db.shop.today)}` : `Today is ${fmtDate(db.shop.today)}`;
-  return { lines: [today, ...f.lines], summary: f.summary };
+  return { ...f, lines: [today, ...f.lines] };
 }

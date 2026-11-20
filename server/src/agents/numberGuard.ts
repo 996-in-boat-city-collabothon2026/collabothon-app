@@ -34,10 +34,13 @@ export function numberValues(raw: string): number[] {
   const seps = s.match(/[ .,]/g) ?? [];
   if (seps.length === 0) return [Number(s)];
 
-  const values = new Set<number>([Number(parts.join(''))]); // every separator = thousands grouping
+  // Thousands groups always have 3 digits: "4,27" is never 427, but "1,500" may be 1500.
+  const groupsOk = (groups: string[]) => groups.slice(1).every((g) => g.length === 3);
+  const values = new Set<number>();
+  if (groupsOk(parts)) values.add(Number(parts.join(''))); // every separator = thousands grouping
   const last = parts[parts.length - 1];
   const lastSep = seps[seps.length - 1];
-  if (lastSep !== ' ' && last.length <= 3) {
+  if (lastSep !== ' ' && last.length <= 3 && groupsOk(parts.slice(0, -1))) {
     // the last , or . is the decimal point, everything before it is grouping
     values.add(Number(`${parts.slice(0, -1).join('')}.${last}`));
   }
@@ -115,4 +118,24 @@ export function findInventedNumbers(reply: string, facts: string): string[] {
     invented.push(t.raw);
   }
   return invented;
+}
+
+// A money amount: "12 300,00 zł", "1500 EUR", "6405,00 PLN". Rates like "4,27 zł" are below MIN_KEY_AMOUNT.
+// (no \\b after "zł": in JS regexes "ł" is not a word character)
+const MONEY = new RegExp(`(${NUMBER.source})\\s*(?:zł|PLN|EUR|USD)(?![A-Za-z])`, 'gi');
+const MIN_KEY_AMOUNT = 100;
+const INVOICE_NO = /\bFV\/[\w/]+/g;
+
+/**
+ * True when the reply actually uses the facts: at least one money amount (≥ 100) from the facts, or an invoice
+ * number from the facts. Live test: "Jak obciąć koszty?" got generic talk with no numbers, and "Kurs euro nie jest
+ * problemem" quoted only the rate; such replies are replaced by the rule conclusion.
+ */
+export function mentionsKeyFact(reply: string, facts: string): boolean {
+  const amounts = (text: string) =>
+    [...text.matchAll(MONEY)].flatMap((m) => numberValues(m[1].trim())).filter((v) => Math.abs(v) >= MIN_KEY_AMOUNT);
+  const known = amounts(facts);
+  if (amounts(reply).some((v) => known.some((k) => Math.abs(Math.abs(k) - Math.abs(v)) < TOLERANCE))) return true;
+  const invoices = new Set(facts.match(INVOICE_NO) ?? []);
+  return (reply.match(INVOICE_NO) ?? []).some((n) => invoices.has(n));
 }
