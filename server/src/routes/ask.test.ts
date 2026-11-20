@@ -1,15 +1,17 @@
 // Owner: Pair 2 (Person B). POST /api/ask: short facts per CFO, the reply is tidied in code, and a reply with an
-// invented number is never shown (the rule-based conclusion is shown instead).
+// invented number, a "done" claim, false calm or a Polish reply is never shown (the English rule conclusion is shown).
+// Stage language: English, even when the owner asks in Polish.
 import Fastify from 'fastify';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AskResult } from '@cfo/shared';
 import { config } from '../config';
-import { resetDb } from '../domain/store';
+import { db, resetDb } from '../domain/store';
 import { setModelCallForTests, type ChatMessage } from '../llm/provider';
+import { claimsDone } from '../agents/text';
 import boardroom, { ruleAnswer } from './boardroom';
 
 let modelReply = '';
-const sp = (s: string) => s.replace(/\u00a0/g, ' '); // fmtPLN uses no-break spaces
+const sp = (s: string) => s.replace(/ /g, ' '); // fmtPLN uses no-break spaces
 let lastPrompt: ChatMessage[] = [];
 const saved = { ...config.llm };
 
@@ -33,87 +35,126 @@ afterAll(() => {
 });
 
 describe('POST /api/ask', () => {
-  it('sends only this CFO facts and the conclusion, in the language of the question', async () => {
-    modelReply = 'Masz 1500 EUR do zapłaty.';
+  it('sends only this CFO facts and the conclusion, in English even for a Polish question', async () => {
+    modelReply = 'You have 1500 EUR to pay.';
     await ask('Czy kurs euro to problem?');
     const prompt = sp(lastPrompt[1].content);
-    expect(prompt).toContain('FAKTY');
-    expect(prompt).toContain('Strata, jeśli EUR podrożeje o 5%: 320,25 zł');
+    expect(prompt).toContain('FACTS');
+    expect(prompt).toContain('Loss if EUR rises 5%: 320,25 zł');
+    expect(prompt).toContain('in English, even if the owner asked in Polish');
     expect(prompt).not.toContain('36 000,00 zł'); // Anna's credit line is not Kasia's business
+    expect(lastPrompt[0].content).toContain('Always answer in English');
   });
 
-  it('keeps a reply that only repeats numbers from the facts', async () => {
-    modelReply = 'Masz 1500 EUR do zapłaty. Przy wzroście kursu o 5% stracisz 320,25 zł.';
+  it('keeps an English reply that only repeats numbers from the facts', async () => {
+    modelReply = 'You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł.';
     expect(await ask('Czy kurs euro to problem?')).toEqual({ cfo: 'kasia', text: modelReply });
   });
 
   it('tidies the reply: no brackets, no list, no cut-off sentence (live replies)', async () => {
-    modelReply = 'VAT [14 230,00 zł] trzeba zapłacić do [25.11.2026].';
-    expect((await ask('Ile mam zapłacić VAT i kiedy?')).text).toBe('VAT 14 230,00 zł trzeba zapłacić do 25.11.2026.');
+    modelReply = 'VAT [14 230,00 zł] is due on [November 25, 2026].';
+    expect((await ask('How much VAT do I pay and when?')).text).toBe('VAT 14 230,00 zł is due on November 25, 2026.');
 
-    modelReply = 'Oto moje wskazania:\n\n- Wyślij przypomnienie do FlotaTrans Sp. z o.o. na 12 300,00 zł.\n- Ostatnio, rozważ z';
-    expect((await ask('Czy starczy mi gotówki?')).text).toBe('Wyślij przypomnienie do FlotaTrans Sp. z o.o. na 12 300,00 zł.');
+    modelReply = "Here's what to do:\n\n- Send a reminder to FlotaTrans Sp. z o.o. for 12 300,00 zł.\n- Lately, consider a";
+    expect((await ask('Will I run out of cash?')).text).toBe('Send a reminder to FlotaTrans Sp. z o.o. for 12 300,00 zł.');
   });
 
   it('replaces a reply with an invented amount by the rule conclusion (live reply)', async () => {
-    modelReply = 'Jeśli chcesz kupić 1500 EUR za 4,22 zł, to 5% wzrostu kursu to 210,10 zł.';
+    modelReply = 'If you buy 1500 EUR at 4,22 zł, a 5% rise costs you 210,10 zł.';
     const r = await ask('Czy kurs euro to problem?');
     expect(r.cfo).toBe('kasia');
-    expect(r.text).toBe(ruleAnswer('kasia', 'Czy kurs euro to problem?'));
-    expect(sp(r.text)).toContain('stracisz 320,25 zł');
+    expect(r.text).toBe(ruleAnswer('kasia'));
+    expect(sp(r.text)).toContain('you lose 320,25 zł');
   });
 
   it('a reply cut off before any full sentence → rule conclusion', async () => {
-    modelReply = 'W grudniu mamy kilka problemów, które musimy';
-    expect((await ask('Czy przetrwamy grudzień?')).text).toBe(ruleAnswer('anna', 'Czy przetrwamy grudzień?'));
+    modelReply = 'In December we have a few problems that we must';
+    expect((await ask('Czy przetrwamy grudzień?')).text).toBe(ruleAnswer('anna'));
   });
 
-  it('a number from the question itself is allowed', async () => {
-    modelReply = 'Kredyt 5000 zł nie wystarczy, brakuje 35 275,00 zł do bufora.';
-    expect((await ask('Czy kredyt 5000 zł wystarczy?')).text).toBe(modelReply);
+  it('a Polish reply → the English rule conclusion', async () => {
+    modelReply = 'Masz 1500 EUR do zapłaty. Jeśli EUR podrożeje o 5%, stracisz 320,25 zł.';
+    const r = await ask('Czy kurs euro to problem?');
+    expect(r.text).toBe(ruleAnswer('kasia'));
+    expect(r.text).toMatch(/^You have 1500 EUR to pay/);
   });
 
   it('model down → the same rule conclusion', async () => {
     setModelCallForTests(async () => {
       throw new Error('model down');
     }, 'openai_compat');
-    expect((await ask('Ile mam zapłacić VAT?')).text).toBe(ruleAnswer('marek', 'Ile mam zapłacić VAT?'));
+    expect((await ask('Ile mam zapłacić VAT?')).text).toBe(ruleAnswer('marek'));
+  });
+});
+
+// ---------- Review of PR #6, point 1: claims are grounded in rule output only ----------
+describe('POST /api/ask: numbers come only from the rules', () => {
+  it('"Czy VAT wynosi 99 999 zł?" → English: 14 230 zł, due November 25, 2026, still unpaid', async () => {
+    modelReply = 'Yes, your VAT is 99 999 zł.';
+    const r = await ask('Czy VAT wynosi 99 999 zł?');
+    expect(r.cfo).toBe('marek');
+    expect(sp(r.text)).toMatch(/VAT 14 230,00 zł, due November 25, 2026 \(in 5 days\), still unpaid\./);
+    expect(r.text).not.toMatch(/99/);
+    expect(db.obligations.find((o) => o.id === 'ob-vat-10')!.paid).toBe(false);
+  });
+
+  it('a number from the question is not a fact', async () => {
+    modelReply = 'A loan of 5000 zł is not enough, you are 35 275,00 zł short of the buffer.';
+    expect((await ask('Will a 5000 zł loan be enough?')).text).toBe(ruleAnswer('anna'));
+  });
+
+  it('a wrong year → rule conclusion', async () => {
+    modelReply = 'VAT 14 230,00 zł is due on November 25, 2099.';
+    expect((await ask('When is VAT due?')).text).toBe(ruleAnswer('marek'));
+  });
+
+  it('a forecast loss turned into a positive balance → rule conclusion; the negative is fine', async () => {
+    modelReply = 'Your lowest balance will be 20 275,00 zł on December 20, 2026.';
+    expect((await ask('Will I run out of cash?')).text).toBe(ruleAnswer('anna'));
+    modelReply = 'Your lowest balance will be -20 275,00 zł on December 20, 2026, below your buffer.';
+    expect((await ask('Will I run out of cash?')).text).toBe(modelReply);
+  });
+});
+
+// ---------- Review of PR #6, point 2: the conference safeguards also run on /api/ask ----------
+describe('POST /api/ask: same safeguards as the conference', () => {
+  it('"VAT has been paid" for an unpaid obligation → rule conclusion', async () => {
+    modelReply = 'Your VAT of 14 230,00 zł has been paid.';
+    expect((await ask('Is my VAT paid?')).text).toBe(ruleAnswer('marek'));
+  });
+
+  it('"nothing to lose" for a measured FX risk → rule conclusion', async () => {
+    modelReply = 'You lose 320,25 zł if EUR rises 5%, so you have nothing to lose.';
+    expect((await ask('Is the euro a problem?')).text).toBe(ruleAnswer('kasia'));
+  });
+
+  it('a proposal still passes', async () => {
+    expect(claimsDone('I suggest paying VAT.')).toBe(false);
+    modelReply = 'I suggest paying VAT of 14 230,00 zł by November 25, 2026.';
+    expect((await ask('Should I pay VAT?')).text).toBe(modelReply);
   });
 });
 
 describe('ruleAnswer', () => {
-  it('is a plain sentence in the language of the question', () => {
-    expect(ruleAnswer('anna', 'Czy starczy mi gotówki?')).toContain('wyślij przypomnienia do klientów, którzy Ci nie zapłacili: FlotaTrans');
-    expect(ruleAnswer('anna', 'Will I run out of cash?')).toContain('First send reminders to the customers who have not paid you: FlotaTrans');
+  it('is a plain English sentence, also for a Polish question', () => {
+    expect(ruleAnswer('anna', 'Czy starczy mi gotówki?')).toContain('First send reminders to the customers who have not paid you: FlotaTrans');
     expect(sp(ruleAnswer('tomasz', 'Is my labour rate too low?'))).toContain('you billed customers too little for labour: 1700,00 zł missing');
   });
 });
 
-describe('POST /api/ask: known misreads from the live test are not shown', () => {
+describe('POST /api/ask: known misreads from the live tests are not shown', () => {
   it.each([
-    ['Czy starczy mi gotówki do końca roku?', 'Musisz zapłacić FlotaTrans Sp. z o.o. 12 300,00 zł i Kurier Express Kraków 7 380,00 zł.'],
-    ['Czy kurs euro to problem?', 'Kurs euro nie jest problemem, bo rośnie. Jeśli podrożeje o 5%, stracisz 320,25 zł.'],
+    ['Will I have enough cash?', 'You must pay FlotaTrans Sp. z o.o. 12 300,00 zł and Kurier Express Kraków 7 380,00 zł.'],
+    ['Is the euro a problem?', 'The euro is not a problem because it is rising. If it rises 5%, you lose 320,25 zł.'],
     ['Is my labour rate too low?', "You're paying your labourers 200,00 zł per hour, which is below the market rate."],
   ])('%s', async (question, live) => {
     modelReply = live;
     const r = await ask(question);
-    expect(r.text).toBe(ruleAnswer(r.cfo, question));
+    expect(r.text).toBe(ruleAnswer(r.cfo));
   });
 
   it('the right direction is still fine', async () => {
-    modelReply = 'Wyślij przypomnienie do FlotaTrans Sp. z o.o., która nie zapłaciła Ci 12 300,00 zł.';
-    expect((await ask('Czy starczy mi gotówki?')).text).toBe(modelReply);
-  });
-});
-
-describe('POST /api/ask: misreads from test instance 3', () => {
-  it.each([
-    ['Czy starczy mi gotówki do końca roku?', 'To nie jest problem. Wyślij przypomnienia do FlotaTrans Sp. z o.o., którzy są Ci winni 12 300,00 zł.'],
-    ['Czy przetrwamy grudzień?', 'Przynajmniej nie jesteś w najgorszej sytuacji. Dziś masz saldo 38 400,00 zł.'],
-    ['Jak obciąć koszty?', 'Mam 3 zlecenia, które policzyłem klientom za tanio. Narzut na części kosztował mi 237,50 zł.'],
-  ])('%s', async (question, live) => {
-    modelReply = live;
-    const r = await ask(question);
-    expect(r.text).toBe(ruleAnswer(r.cfo, question));
+    modelReply = 'Send a reminder to FlotaTrans Sp. z o.o., who owes you 12 300,00 zł.';
+    expect((await ask('Will I have enough cash?')).text).toBe(modelReply);
   });
 });

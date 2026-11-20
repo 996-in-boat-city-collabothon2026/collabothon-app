@@ -7,14 +7,15 @@ import { fmtPLN, lastDays } from '../domain/money';
 import { latestRate } from '../domain/fx';
 import { forecast } from '../rules/cashflow';
 import { PERIOD_DAYS, totalsBetween } from '../rules/expenses';
-import { fmtFx, fmtRate, fxExposures } from '../rules/fx';
+import { fmtFx, fmtRate, fxExposures, hasTrend } from '../rules/fx';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
 import { findInventedNumbers } from './numberGuard';
 import { claimsDone, falseCalm, stripAddress, wholeSentences } from './text';
 import { amountsIn, keepsAmount } from './explain';
 import { tidyReply } from './reply';
-import { cfoFacts, langOf, type CfoFacts, type Lang } from './facts';
+import { cfoFacts, type CfoFacts, type Lang } from './facts';
+import { looksPolish, replyProblem } from './safety';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
 
 const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia']; // White → Black → Green → Red, the Blue chair sums up
@@ -107,7 +108,8 @@ export function snapshot(): string {
   for (const e of fxExposures()) {
     const weOwe = e.net > 0;
     lines.push(
-      `Kurs ${e.currency} (NBP) dziś: ${fmtRate(latestRate(e.currency))}, ${e.trend.weeksUp ? `rośnie od ${e.trend.weeksUp} tygodni` : 'nie rośnie'} (4 tygodnie temu: ${fmtRate(e.trend.from)}).`,
+      `Kurs ${e.currency} (NBP) dziś: ${fmtRate(latestRate(e.currency))}` +
+        (hasTrend(e) ? `, ${e.trend.weeksUp ? `rośnie od ${e.trend.weeksUp} tygodni` : 'nie rośnie'} (4 tygodnie temu: ${fmtRate(e.trend.from)}).` : '.'),
       `${e.currency} netto ${weOwe ? 'do zapłaty' : 'do otrzymania'}: ${fmtFx(Math.abs(e.net), e.currency)} = ${fmtPLN(Math.abs(e.netPLN))}.`,
       `Ryzyko ${e.currency} przy ${weOwe ? '+5%' : '−5%'}: ${fmtPLN(e.shockPLN)}.`,
     );
@@ -178,9 +180,12 @@ export function ruleSummary(approvals: Action[], lang: Lang): string {
 
 const ChairSchema = z.object({ summary: z.string(), decisionActionIds: z.array(z.string()) });
 
+/** Stage language: every agent and the chair speak English, whatever language the owner or the topic uses. */
+export const STAGE_LANG: Lang = 'en';
+
 export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
-  const subject = topic?.trim() || 'Przegląd miesiąca';
-  const lang: Lang = langOf(subject);
+  const subject = topic?.trim() || 'Monthly review';
+  const lang = STAGE_LANG;
   const turns: BoardroomTurn[] = [];
 
   for (const cfo of ORDER) {
@@ -189,17 +194,13 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
       { role: 'system', content: PERSONAS[cfo] },
       { role: 'user', content: turnPrompt(cfo, facts, subject, turns, lang) },
     ], { maxTokens: TURN_MAX_TOKENS, temperature: 0.1, mockKey: `boardroom:${cfo}` });
-    // Allowed numbers: only this CFO's own facts and the topic. And the turn must say at least one amount from its
-    // own conclusion: otherwise it repeated a colleague (live: Tomasz said Anna's credit line) → the rule conclusion.
-    const known = [...facts.lines, facts.summary, subject].join('\n');
-    const text = safe(stripAddress(tidy(raw, lang, TURN_MAX_WORDS)), known, `boardroom:${cfo}`);
-    const problem = !text ? ''
-      : !(keepsAmount(text, facts.summary) || amountsIn(facts.summary).length === 0) ? 'off-topic (no own amount)'
-        : claimsDone(text) ? 'claims something was done'
-          : falseCalm(text) || facts.misread?.(text) ? 'known misread'
-            : '';
-    if (problem) console.info(`[guard] boardroom:${cfo} ${problem} → rule conclusion`);
-    turns.push({ cfo, text: text && !problem ? text : facts.summary });
+    // Same check as /api/ask (agents/safety.ts): only this CFO's own rule numbers, English, at least one amount
+    // from its own conclusion (live: Tomasz repeated Anna), nothing "done", no false calm → else the rule conclusion.
+    const text = stripAddress(tidy(raw, lang, TURN_MAX_WORDS));
+    const ownAmount = (t: string) => keepsAmount(t, facts.summary) || amountsIn(facts.summary).length === 0;
+    const problem = replyProblem(text, facts, lang, ownAmount);
+    if (problem && problem !== 'empty') console.info(`[guard] boardroom:${cfo} ${problem} → rule conclusion`);
+    turns.push({ cfo, text: problem ? facts.summary : text });
   }
 
   const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
@@ -209,18 +210,18 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
     {
       role: 'system',
       content: CHAIR_PERSONA +
-        ` Reply ONLY with JSON: {"summary": string (${lang === 'pl' ? 'po polsku' : 'in English'}, max 2 sentences), "decisionActionIds": string[] (ids from the list)}`,
+        ' Reply ONLY with JSON: {"summary": string (in English, max 2 sentences, only proposals: nothing is done yet), "decisionActionIds": string[] (ids from the list)}',
     },
-    { role: 'user', content: `${lang === 'pl' ? 'SPRAWY DO ZATWIERDZENIA' : 'ITEMS TO APPROVE'}:\n${items}\n\n${lang === 'pl' ? 'DYSKUSJA' : 'DEBATE'}:\n${debate}` },
+    { role: 'user', content: `ITEMS TO APPROVE:\n${items}\n\nDEBATE:\n${debate}` },
   ], { maxTokens: CHAIR_MAX_TOKENS, temperature: 0.1, mockKey: 'boardroom:chair' });
 
   const chair = extractJson(chairRaw, ChairSchema);
   const ids = approvals.map((a) => a.id);
   const validIds = (chair?.decisionActionIds ?? []).filter((id) => ids.includes(id));
-  let summary = safe(stripAddress(tidy(chair?.summary ?? '', lang, SUMMARY_MAX_WORDS)), [items, debate, subject].join('\n'), 'boardroom:chair');
-  // The chair only proposes (golden rule 3): "were sent / were locked" → rule summary.
-  if (summary && (claimsDone(summary) || falseCalm(summary))) {
-    console.info('[guard] boardroom:chair claims something was done → rule summary');
+  // Numbers only from the items and the (already checked) debate; English; the chair only proposes (golden rule 3).
+  let summary = safe(stripAddress(tidy(chair?.summary ?? '', lang, SUMMARY_MAX_WORDS)), [items, debate].join('\n'), 'boardroom:chair');
+  if (summary && (looksPolish(summary) || claimsDone(summary) || falseCalm(summary))) {
+    console.info('[guard] boardroom:chair not English, claims something was done or false calm → rule summary');
     summary = '';
   }
   return {

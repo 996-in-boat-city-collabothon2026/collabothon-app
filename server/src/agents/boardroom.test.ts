@@ -55,8 +55,11 @@ describe('snapshot (Polish, labelled numbers from the rules)', () => {
   });
 });
 
-describe('conference: prompts and limits', () => {
-  it('each turn gets only its own CFO facts, Polish by default, 120 tokens, temperature 0.1', async () => {
+const en = (c: CfoId) => cfoFacts(c, 'en').summary;
+const persona = (m: ChatMessage[], c: CfoId) => m[0].content.includes(`You are ${c[0].toUpperCase()}${c.slice(1)}`);
+
+describe('conference: English on stage, prompts and limits', () => {
+  it('Polish topic → each turn still gets English facts and must answer in English; 120 tokens, temperature 0.1', async () => {
     await runAutopilot();
     sent.length = 0;
     await runBoardroom('Czy przeżyjemy grudzień?');
@@ -64,30 +67,39 @@ describe('conference: prompts and limits', () => {
     expect(turns).toHaveLength(4);
     turns.forEach((c, i) => {
       expect(c.o).toMatchObject({ maxTokens: TURN_MAX_TOKENS, temperature: 0.1 });
-      expect(c.m[1].content).toContain(cfoFacts(ORDER[i], 'pl').summary);
-      expect(c.m[1].content).toContain('po polsku');
+      expect(c.m[1].content).toContain(en(ORDER[i]));
+      expect(c.m[1].content).toContain('in English');
     });
-    expect(turns[3].m[1].content).not.toMatch(/Saldo na koncie dziś/); // Kasia does not get Anna's balance facts
+    expect(turns[3].m[1].content).not.toMatch(/Bank balance today/); // Kasia does not get Anna's balance facts
     expect(turns[3].m[1].content).toMatch(/^Marek: .*$/m); // but she hears the earlier turns
     expect(sent.find((c) => isChair(c.m))!.o).toMatchObject({ maxTokens: CHAIR_MAX_TOKENS, temperature: 0.1 });
     expect(TURN_MAX_TOKENS).toBeLessThanOrEqual(130);
   });
 
-  it('a long reply cut mid-word becomes whole sentences within the word limit; preamble and "Ty:" dropped', async () => {
+  it('no topic → "Monthly review", English rule fallbacks everywhere when the model is down', async () => {
     await runAutopilot();
-    const cfoIn = (m: ChatMessage[]) => ORDER.find((c) => m[0].content.includes(`Jesteś ${c[0].toUpperCase()}${c.slice(1)}`))!;
-    const filler = Array.from({ length: 12 }, (_, i) => `To jest zdanie numer ${i + 1}.`).join(' ') + ' I urwa';
-    reply = (m) =>
-      isChair(m) ? '{"summary":"Krótko i jasno.","decisionActionIds":[]}'
-        : `Oto moja odpowiedź: Ty: ${cfoFacts(cfoIn(m), 'pl').summary.split(/(?<=\.)\s/)[0]} ${filler}`;
+    reply = (m) => (isChair(m) ? 'Sure! Here is the summary: {broken' : '');
+    const r = await runBoardroom();
+    expect(sent.find((c) => !isChair(c.m))!.m[1].content).toContain('MEETING TOPIC: Monthly review');
+    expect(r.turns.map((t) => t.text)).toEqual(ORDER.map(en));
+    expect(r.summary).toMatch(/^For your decision: /);
+    expect(r.decisionActionIds).toHaveLength(db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL').length);
+  });
+
+  it('a long reply cut mid-word becomes whole sentences within the word limit; preamble and address dropped', async () => {
+    await runAutopilot();
+    const cfoIn = (m: ChatMessage[]) => ORDER.find((c) => persona(m, c))!;
+    const filler = Array.from({ length: 12 }, (_, i) => `This is sentence number ${i + 1}.`).join(' ') + ' And then it bre';
+    const first = (c: CfoId) => en(c).split(/(?<=\.)\s/)[0];
+    reply = (m) => (isChair(m) ? '{"summary":"Short and clear.","decisionActionIds":[]}' : `Here's my answer: ${first(cfoIn(m))} ${filler}`);
     const r = await runBoardroom();
     for (const t of r.turns) {
-      expect(t.text.startsWith(cfoFacts(t.cfo, 'pl').summary.split(/(?<=\.)\s/)[0].slice(0, 12))).toBe(true);
-      expect(t.text).not.toMatch(/^(Oto|Ty)/);
+      expect(t.text.startsWith(first(t.cfo).slice(0, 12))).toBe(true);
+      expect(t.text).not.toMatch(/^Here/);
       expect(t.text.split(/\s+/).length).toBeLessThanOrEqual(TURN_MAX_WORDS);
       expect(t.text).toMatch(/\.$/);
     }
-    expect(r.summary).toBe('Krótko i jasno.');
+    expect(r.summary).toBe('Short and clear.');
   });
 
   it('own facts come last in the prompt, after what the others said', async () => {
@@ -95,83 +107,69 @@ describe('conference: prompts and limits', () => {
     sent.length = 0;
     await runBoardroom();
     const kasia = sent.filter((c) => !isChair(c.m))[3].m[1].content;
-    expect(kasia.indexOf('CO POWIEDZIELI INNI')).toBeLessThan(kasia.indexOf('TWOJE FAKTY'));
-    expect(kasia).not.toMatch(/na "Ty"/);
+    expect(kasia.indexOf('WHAT THE OTHERS SAID')).toBeLessThan(kasia.indexOf('YOUR FACTS'));
   });
 });
 
-describe('conference: number guard and fallbacks', () => {
+describe('conference: the same safeguards as /api/ask', () => {
   it('invented numbers → that turn says the rule conclusion; chair summary → rule summary', async () => {
     await runAutopilot();
     reply = (m) => {
-      if (isChair(m)) return '{"summary":"Strata 50 230,00 zł w grudniu.","decisionActionIds":[]}';
-      if (m[0].content.includes('Jesteś Anna')) return 'Razem 14 230 + 36 000 = 50 230,00 zł straty.';
-      if (m[0].content.includes('Jesteś Kasia')) return 'EUR wzrosło o 4,5% w tym miesiącu. Zablokuj kurs.';
-      if (m[0].content.includes('Jesteś Tomasz')) return 'Brakuje 1700,00 zł na robociźnie. Licz pełne godziny.';
-      return 'Nic ważnego.';
+      if (isChair(m)) return '{"summary":"A loss of 50 230,00 zł in December.","decisionActionIds":[]}';
+      if (persona(m, 'anna')) return '14 230 + 36 000 = 50 230,00 zł of losses.';
+      if (persona(m, 'kasia')) return 'EUR went up 4,5% this month. Lock the rate.';
+      if (persona(m, 'tomasz')) return 'You are missing 1700,00 zł on labour. Bill the full hours.';
+      return 'Nothing important.';
     };
     const r = await runBoardroom();
     const text = (c: CfoId) => r.turns.find((t) => t.cfo === c)!.text;
-    expect(text('anna')).toBe(cfoFacts('anna', 'pl').summary);
-    expect(text('kasia')).toBe(cfoFacts('kasia', 'pl').summary); // "4,5%" is not in Kasia's facts
-    expect(text('tomasz')).toBe('Brakuje 1700,00 zł na robociźnie. Licz pełne godziny.'); // real number, kept
+    expect(text('anna')).toBe(en('anna'));
+    expect(text('kasia')).toBe(en('kasia')); // "4,5%" is not in Kasia's facts
+    expect(text('tomasz')).toBe('You are missing 1700,00 zł on labour. Bill the full hours.'); // real number, kept
     const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
-    expect(r.summary).toBe(ruleSummary(approvals, 'pl'));
-    expect(r.summary).toMatch(/^Do Twojej decyzji: .*36\s000,00\szł/);
+    expect(r.summary).toBe(ruleSummary(approvals, 'en'));
   });
 
-  it('a turn that repeats a colleague (no own amount, or a colleague\'s amount) → its own rule conclusion', async () => {
+  it('a Polish turn, a repeated colleague, a done-claim, false calm or a flipped sign → rule conclusion', async () => {
     await runAutopilot();
     reply = (m) => {
-      if (isChair(m)) return '{"summary":"Krótko.","decisionActionIds":[]}';
-      if (m[0].content.includes('Jesteś Tomasz')) return 'Ty: Ty musisz rozważyć linię kredytową 36 000,00 zł.';
-      if (m[0].content.includes('Jesteś Marek')) return 'Wyślij przypomnienia do klientów.';
+      if (isChair(m)) return '{"summary":"The forward for 1500 EUR has been locked and the reminders were sent.","decisionActionIds":[]}';
+      if (persona(m, 'marek')) return 'VAT 14 230,00 zł trzeba zapłacić do 25.11.2026.'; // Polish
+      if (persona(m, 'tomasz')) return 'You should consider the credit line of 36 000,00 zł.'; // Anna's number
+      if (persona(m, 'kasia')) return 'If EUR rises 5%, you lose 320,25 zł, so you have nothing to lose.';
+      if (persona(m, 'anna')) return 'Your lowest balance will be 20 275,00 zł on December 20, 2026.'; // loss → positive
       return '';
     };
     const r = await runBoardroom();
-    expect(r.turns.find((t) => t.cfo === 'tomasz')!.text).toBe(cfoFacts('tomasz', 'pl').summary);
-    expect(r.turns.find((t) => t.cfo === 'marek')!.text).toBe(cfoFacts('marek', 'pl').summary);
-  });
-
-  it('golden rule 3: a turn or the chair saying something WAS done → rule text', async () => {
-    await runAutopilot();
-    reply = (m) => {
-      if (isChair(m)) return '{"summary":"Decyzją zostały zablokowane zlecenia na 1500 EUR, a przypomnienia do klientów zostały wysłane.","decisionActionIds":[]}';
-      if (m[0].content.includes('Jesteś Kasia')) return 'Jeśli EUR podrożeje o 5%, stracisz 320,25 zł, a kurs rośnie, to nie masz nic do stracenia.';
-      if (m[0].content.includes('Jesteś Anna')) return 'Wysłałam przypomnienia, saldo 20.12.2026 to -20 275,00 zł.';
-      return '';
-    };
-    const r = await runBoardroom();
-    expect(r.turns.find((t) => t.cfo === 'kasia')!.text).toBe(cfoFacts('kasia', 'pl').summary);
-    expect(r.turns.find((t) => t.cfo === 'anna')!.text).toBe(cfoFacts('anna', 'pl').summary);
-    expect(r.summary).toMatch(/^Do Twojej decyzji/);
+    expect(r.turns.map((t) => t.text)).toEqual(ORDER.map(en));
+    expect(r.summary).toMatch(/^For your decision: /);
   });
 
   it('done-claim and false-calm checks do not fire on proposals', () => {
-    expect(claimsDone('Proponuję wysłać przypomnienia i zablokować kurs.')).toBe(false);
-    expect(claimsDone('Faktura musi zostać wysłana ponownie.')).toBe(false);
+    expect(claimsDone('I suggest sending reminders and locking the rate.')).toBe(false);
+    expect(claimsDone('The invoice must be sent again.')).toBe(false);
+    expect(claimsDone('The reminders have been sent.')).toBe(true);
     expect(claimsDone('Przypomnienia zostały wysłane.')).toBe(true);
-    expect(claimsDone('I have paid the VAT.')).toBe(true);
-    expect(falseCalm('Saldo spadnie, ale wszystko musi być w porządku.')).toBe(true);
-    expect(falseCalm('Stracisz 320,25 zł, jeśli EUR podrożeje.')).toBe(false);
+    expect(falseCalm('You have nothing to lose.')).toBe(true);
+    expect(falseCalm('You lose 320,25 zł if EUR rises.')).toBe(false);
   });
 
-  it('model down → every turn is its rule conclusion; broken chair JSON → Polish rule summary, all approvals', async () => {
+  it('no EUR rate: Kasia says in English the conversion is unavailable, the other agents finish', async () => {
+    db.fxRates = db.fxRates.filter((r) => r.currency !== 'EUR');
     await runAutopilot();
-    reply = (m) => (isChair(m) ? 'Sure! Here is the summary: {broken' : '');
-    const r = await runBoardroom('Przegląd miesiąca');
-    expect(r.turns.map((t) => t.text)).toEqual(ORDER.map((c) => cfoFacts(c, 'pl').summary));
-    expect(r.summary).toMatch(/^Do Twojej decyzji/);
-    expect(r.decisionActionIds).toHaveLength(db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL').length);
+    const r = await runBoardroom();
+    expect(r.turns).toHaveLength(4);
+    expect(r.turns.find((t) => t.cfo === 'kasia')!.text).toMatch(/no NBP rate for EUR, so the conversion to złoty is unavailable/);
+    expect(r.turns.find((t) => t.cfo === 'anna')!.text).toBe(en('anna'));
+    expect(db.actions.some((a) => a.kind === 'credit_line')).toBe(true);
   });
 
-  it('English topic → English prompts and English fallbacks', async () => {
-    await runAutopilot();
-    sent.length = 0;
-    const r = await runBoardroom('Should we lock the EUR rate?');
-    expect(sent[0].m[1].content).toContain('in English');
-    expect(r.turns.map((t) => t.text)).toEqual(ORDER.map((c) => cfoFacts(c, 'en').summary));
-    expect(r.summary).toMatch(/^For your decision: /);
+  it('one EUR rate: Kasia quotes it, no 4-week trend', async () => {
+    db.fxRates = [...db.fxRates.filter((r) => r.currency !== 'EUR'), { currency: 'EUR', date: '2026-11-19', midPLN: 4.27 }];
+    const f = cfoFacts('kasia', 'en');
+    expect(f.lines.join('\n')).toMatch(/at the NBP rate 4,27 zł/);
+    expect(f.lines.join('\n')).not.toMatch(/4 weeks ago/);
+    expect(f.summary).not.toMatch(/going up/);
   });
 });
 

@@ -8,7 +8,7 @@ import { daysBetween, fmtPLN } from '../domain/money';
 import { latestRate } from '../domain/fx';
 import { forecast } from '../rules/cashflow';
 import { creditLine, paymentReminders } from '../rules/liquidity';
-import { FX_SHOCK_THRESHOLD_PLN, fxExposures } from '../rules/fx';
+import { FX_SHOCK_THRESHOLD_PLN, fxExposures, hasTrend, missingFxRates } from '../rules/fx';
 import { taxesDue } from '../rules/taxDue';
 import { topCost } from '../rules/expenses';
 import { labourGaps, lowMarkups, sumMissing } from '../rules/margin';
@@ -27,6 +27,13 @@ export const langOf = (question: string): Lang => (LANG_PL.test(question) ? 'pl'
 
 /** "2026-12-20" → "20.12.2026" */
 export const fmtDate = (iso: string) => iso.slice(0, 10).split('-').reverse().join('.');
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** "2026-11-25" → "November 25, 2026" (English facts: the model then writes the date the same way). */
+export const fmtDateEn = (iso: string) => {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  return `${MONTHS_EN[m - 1]} ${d}, ${y}`;
+};
+const dateIn = (iso: string, lang: Lang) => (lang === 'pl' ? fmtDate(iso) : fmtDateEn(iso));
 const fmtNum = (n: number, digits = 2) => new Intl.NumberFormat('pl-PL', { maximumFractionDigits: digits }).format(n);
 const noDemo = (name: string) => name.replace(/\s*\(demo\)/g, '').trim();
 const inDays = (iso: string, lang: Lang) => {
@@ -60,7 +67,7 @@ function anna(lang: Lang): CfoFacts {
       ]
     : [
         `Bank balance today: ${fmtPLN(db.bank.balancePLN)}`,
-        `Lowest balance in the 30-day forecast (future, not today): ${fmtPLN(low.balancePLN)} on ${fmtDate(low.date)}`,
+        `Lowest balance in the 30-day forecast (future, not today): ${fmtPLN(low.balancePLN)} on ${fmtDateEn(low.date)}`,
         `Safety buffer: ${fmtPLN(f.bufferPLN)}`,
         ...(gap > 0 ? [`Missing to the buffer: ${fmtPLN(gap)}`] : []),
         ...(credit ? [`Proposed credit line (simulated): ${fmtPLN(credit)}`] : []),
@@ -72,11 +79,11 @@ function anna(lang: Lang): CfoFacts {
   if (gap <= 0) {
     summary = pl
       ? `Gotówki wystarczy: najniższe saldo w prognozie to ${fmtPLN(low.balancePLN)} (${fmtDate(low.date)}), powyżej bufora ${fmtPLN(f.bufferPLN)}.`
-      : `You have enough cash: the lowest forecast balance is ${fmtPLN(low.balancePLN)} (${fmtDate(low.date)}), above the ${fmtPLN(f.bufferPLN)} buffer.`;
+      : `You have enough cash: the lowest forecast balance is ${fmtPLN(low.balancePLN)} (${fmtDateEn(low.date)}), above the ${fmtPLN(f.bufferPLN)} buffer.`;
   } else {
     summary = pl
       ? `Uwaga: ${fmtDate(low.date)} saldo spadnie do ${fmtPLN(low.balancePLN)}, a to ${fmtPLN(gap)} poniżej bufora.`
-      : `Careful: on ${fmtDate(low.date)} the balance drops to ${fmtPLN(low.balancePLN)}, ${fmtPLN(gap)} below your buffer.`;
+      : `Careful: on ${fmtDateEn(low.date)} the balance drops to ${fmtPLN(low.balancePLN)}, ${fmtPLN(gap)} below your buffer.`;
     if (late.length) {
       summary += pl
         ? ` Najpierw wyślij przypomnienia do klientów, którzy Ci nie zapłacili: ${names}.`
@@ -100,6 +107,19 @@ function anna(lang: Lang): CfoFacts {
 function kasia(lang: Lang): CfoFacts {
   const pl = lang === 'pl';
   const exposures = fxExposures();
+  // No NBP rate for a currency with open invoices: say so, never guess a conversion (the other agents still run).
+  const missing = missingFxRates();
+  const noRate = missing.map((c) =>
+    pl ? `Brak kursu NBP dla ${c}: nie da się przeliczyć faktur w ${c} na złote` : `No NBP rate for ${c}: the conversion of ${c} invoices to złoty is unavailable`,
+  );
+  if (exposures.length === 0 && missing.length) {
+    return {
+      lines: noRate,
+      summary: pl
+        ? `Nie mogę policzyć ryzyka walutowego: brak kursu NBP dla ${missing.join(', ')}, więc przeliczenie na złote jest niedostępne.`
+        : `I cannot measure the currency risk: there is no NBP rate for ${missing.join(', ')}, so the conversion to złoty is unavailable.`,
+    };
+  }
   if (exposures.length === 0) {
     return {
       lines: [pl ? 'Brak nieopłaconych faktur w walutach obcych' : 'No unpaid foreign-currency invoices'],
@@ -114,13 +134,16 @@ function kasia(lang: Lang): CfoFacts {
     const amount = `${fmtNum(Math.abs(e.net))} ${c}`;
     const rate = `${fmtNum(latestRate(c), 4)} zł`;
     const { from, to, weeksUp } = e.trend;
+    const trend = hasTrend(e); // one rate only → no "4 weeks ago" line
     lines.push(
       pl
         ? `${c} ${weOwe ? 'do zapłaty' : 'do otrzymania'} (po odjęciu wpływów): ${amount} = ${fmtPLN(Math.abs(e.netPLN))} po kursie NBP ${rate}`
         : `${c} ${weOwe ? 'to pay' : 'to receive'} (net): ${amount} = ${fmtPLN(Math.abs(e.netPLN))} at the NBP rate ${rate}`,
-      pl
-        ? `Kurs ${c} 4 tygodnie temu: ${fmtNum(from, 4)} zł, dziś: ${rate}${weeksUp > 0 ? ` (rośnie od ${weeksUp} tygodni)` : ''}`
-        : `${c} rate 4 weeks ago: ${fmtNum(from, 4)} zł, today: ${rate}${weeksUp > 0 ? ` (up ${weeksUp} weeks in a row)` : ''}`,
+      ...(!trend ? [] : [
+        pl
+          ? `Kurs ${c} 4 tygodnie temu: ${fmtNum(from, 4)} zł, dziś: ${rate}${weeksUp > 0 ? ` (rośnie od ${weeksUp} tygodni)` : ''}`
+          : `${c} rate 4 weeks ago: ${fmtNum(from, 4)} zł, today: ${rate}${weeksUp > 0 ? ` (up ${weeksUp} weeks in a row)` : ''}`,
+      ]),
       pl
         ? `Strata, jeśli ${c} ${weOwe ? 'podrożeje' : 'stanieje'} o 5%: ${fmtPLN(e.shockPLN)}`
         : `Loss if ${c} ${weOwe ? 'rises' : 'falls'} 5%: ${fmtPLN(e.shockPLN)}`,
@@ -148,7 +171,7 @@ function kasia(lang: Lang): CfoFacts {
   // Live: "Kurs euro nie jest problemem, bo rośnie" while the shop owes euro and a hedge is proposed.
   const risky = exposures.some((e) => e.shockPLN > FX_SHOCK_THRESHOLD_PLN);
   const misread = (reply: string) => risky && /nie jest problemem|nie ma problemu|not a problem|no problem/i.test(reply);
-  return { lines, summary: parts.join(' '), misread };
+  return { lines: [...lines, ...noRate], summary: parts.join(' '), misread };
 }
 
 function marek(lang: Lang): CfoFacts {
@@ -159,7 +182,7 @@ function marek(lang: Lang): CfoFacts {
     ...taxes.map((o) =>
       pl
         ? `${o.label}: ${fmtPLN(o.amountPLN)}, termin ${fmtDate(o.dueDate)} (${inDays(o.dueDate, lang)})`
-        : `${o.kind}: ${fmtPLN(o.amountPLN)}, due ${fmtDate(o.dueDate)} (${inDays(o.dueDate, lang)})`,
+        : `${o.kind}: ${fmtPLN(o.amountPLN)}, due ${fmtDateEn(o.dueDate)} (${inDays(o.dueDate, lang)}), unpaid`,
     ),
     ...rejected.map((i) =>
       pl
@@ -175,7 +198,7 @@ function marek(lang: Lang): CfoFacts {
     bits.push(
       pl
         ? `Najbliższy termin: ${next.label} ${fmtPLN(next.amountPLN)} do ${fmtDate(next.dueDate)} (${inDays(next.dueDate, lang)}).`
-        : `Next deadline: ${next.kind} ${fmtPLN(next.amountPLN)} by ${fmtDate(next.dueDate)} (${inDays(next.dueDate, lang)}).`,
+        : `Next deadline: ${next.kind} ${fmtPLN(next.amountPLN)}, due ${fmtDateEn(next.dueDate)} (${inDays(next.dueDate, lang)}), still unpaid.`,
     );
   }
   if (rejected.length) {
@@ -258,6 +281,6 @@ const BUILDERS: Record<CfoId, (lang: Lang) => CfoFacts> = { anna, kasia, marek, 
 /** Facts + conclusion for one CFO. Today's date and balance are always included. */
 export function cfoFacts(cfo: CfoId, lang: Lang): CfoFacts {
   const f = BUILDERS[cfo](lang);
-  const today = lang === 'pl' ? `Dziś jest ${fmtDate(db.shop.today)}` : `Today is ${fmtDate(db.shop.today)}`;
+  const today = lang === 'pl' ? `Dziś jest ${fmtDate(db.shop.today)}` : `Today is ${dateIn(db.shop.today, lang)}`;
   return { ...f, lines: [today, ...f.lines] };
 }

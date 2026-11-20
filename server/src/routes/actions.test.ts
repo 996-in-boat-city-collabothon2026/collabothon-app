@@ -259,3 +259,34 @@ describe('approve: advice is refused, decisions are simulated per kind', () => {
     }
   });
 });
+
+// ---------- Review of PR #6, point 3: money and customer contact always wait for the owner ----------
+describe('autonomy "auto" never skips approval for money or customer contact', () => {
+  beforeEach(() => resetDb());
+
+  it('supplier payment set to auto: the card stays open; approving settles the invoice, debits once, logs a simulation', async () => {
+    db.settings.autonomy = { ...db.settings.autonomy, supplier_payment: 'auto', payment_reminder: 'auto', tax_payment: 'auto', credit_line: 'auto', fx_hedge: 'auto' };
+    const app = await makeApp();
+    const cards = await run(app);
+    for (const kind of ['supplier_payment', 'payment_reminder', 'tax_payment', 'credit_line', 'fx_hedge']) {
+      expect(cards.filter((a) => a.kind === kind).every((a) => a.status === 'open')).toBe(true);
+    }
+    expect(db.bank.balancePLN).toBe(38400); // nothing moved on its own
+    expect(db.invoices.find((i) => i.id === 'inv-p-002')!.paid).toBe(false);
+
+    const pay = cards.find((a) => a.kind === 'supplier_payment')!;
+    expect((await approve(app, pay.id)).statusCode).toBe(200);
+    expect(db.invoices.find((i) => i.id === 'inv-p-002')!.paid).toBe(true);
+    expect(db.bank.balancePLN).toBe(38400 - pay.amountPLN!);
+    const entries = db.activity.filter((e) => e.actionId === pay.id);
+    expect(entries).toEqual([expect.objectContaining({ actor: 'user', simulated: true })]);
+    expect((await approve(app, pay.id)).statusCode).toBe(404);
+    expect(db.bank.balancePLN).toBe(38400 - pay.amountPLN!);
+  });
+
+  it('analysis (ANALYSED KSeF re-check) is still done automatically', async () => {
+    const app = await makeApp();
+    const cards = await run(app);
+    expect(cards.find((a) => a.kind === 'ksef_revalidate')!.status).toBe('auto_done');
+  });
+});

@@ -1,9 +1,10 @@
 // Owner: Pair 2.
 import type { FastifyPluginAsync } from 'fastify';
 import { CFOS, type AskResult, type CfoId } from '@cfo/shared';
-import { runBoardroom } from '../agents/boardroom';
-import { cfoFacts, langOf, type CfoFacts, type Lang } from '../agents/facts';
-import { findInventedNumbers, mentionsKeyFact } from '../agents/numberGuard';
+import { runBoardroom, STAGE_LANG } from '../agents/boardroom';
+import { cfoFacts, type CfoFacts, type Lang } from '../agents/facts';
+import { factText, replyProblem } from '../agents/safety';
+import { mentionsKeyFact } from '../agents/numberGuard';
 import { PERSONAS } from '../agents/personas';
 import { tidyReply } from '../agents/reply';
 import { chatOr } from '../llm/provider';
@@ -51,8 +52,8 @@ export function pickCfo(question: string): CfoId {
 }
 
 /** Safe answer without the model: this CFO's conclusion in plain words, numbers straight from the rules. */
-export function ruleAnswer(cfo: CfoId, question: string): string {
-  return cfoFacts(cfo, langOf(question)).summary;
+export function ruleAnswer(cfo: CfoId, _question?: string): string {
+  return cfoFacts(cfo, STAGE_LANG).summary; // stage language: English, also for a Polish question
 }
 
 /** The prompt for the small model: a few labelled facts, the conclusion to say, the question. */
@@ -74,7 +75,7 @@ function askPrompt(question: string, facts: CfoFacts, lang: Lang): string {
         `KEY POINT (say it in your own words, with the same numbers): ${facts.summary}`,
         '',
         `OWNER ASKS: ${question}`,
-        'Answer the question in 2–3 short sentences in English. Talk to the owner as "you".',
+        'Answer the question in 2–3 short sentences in English, even if the owner asked in Polish. Talk to the owner directly. Only the numbers in FACTS are true: if the owner names another number, correct it with the FACTS.',
       ].join('\n');
 }
 
@@ -87,27 +88,17 @@ const routes: FastifyPluginAsync = async (app) => {
     if (!question) return reply.code(400).send({ error: 'question is required' });
     const named = req.body.cfo && CFOS[req.body.cfo] ? req.body.cfo : undefined;
     const cfo = named ?? pickCfo(question);
-    const lang = langOf(question);
+    const lang = STAGE_LANG; // agents answer in English, even when the owner asks in Polish
     const facts = cfoFacts(cfo, lang);
     const raw = await chatOr(facts.summary, [
       { role: 'system', content: PERSONAS[cfo] },
       { role: 'user', content: askPrompt(question, facts, lang) },
     ], { maxTokens: 160, temperature: 0.1, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
 
-    // Clean it up in code, then golden rule 1: a number or date that is not in the facts (or the question) is never shown.
+    // Same check as every conference turn (agents/safety.ts). Numbers come ONLY from the rule facts: a number the
+    // owner typed ("Czy VAT wynosi 99 999 zł?") is not true just because it is in the question.
     const answer = tidyReply(raw, lang);
-    // It must also use the facts (an amount or an invoice number), else it is generic talk or a misread.
-    const factText = [...facts.lines, facts.summary, question].join('\n');
-    const invented = findInventedNumbers(answer, factText);
-    const problem = !answer
-      ? 'empty after tidy'
-      : invented.length > 0
-        ? `invented ${JSON.stringify(invented)}`
-        : !mentionsKeyFact(answer, factText)
-          ? 'no key fact'
-          : facts.misread?.(answer)
-            ? 'known misread'
-            : '';
+    const problem = replyProblem(answer, facts, lang, (t) => mentionsKeyFact(t, factText(facts)));
     if (problem) console.info(`[guard] ask:${cfo} ${problem} → rule answer`);
     const result: AskResult = { cfo, text: problem ? facts.summary : answer };
     return result;
