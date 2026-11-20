@@ -43,7 +43,7 @@ export function useCountUp(target: number | undefined, ms = 900): number | undef
 export function PageHeader({ title, children }: { title: ReactNode; children?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
-      <h1 className="text-gradient pb-1 text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
+      <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
       {children}
     </div>
   );
@@ -78,12 +78,34 @@ export function ExecutionBadge({ execution }: { execution: Execution }) {
 }
 
 /** Round avatar in the CFO's colour, wearing their thinking hat (HATS[CFOS[c].hat]). */
-export function CfoAvatar({ cfo, size = 40 }: { cfo: CfoId; size?: number }) {
+/** Pass live to show a small green "working" dot with a ripple. */
+export function CfoAvatar({ cfo, size = 40, live = false }: { cfo: CfoId; size?: number; live?: boolean }) {
   const { lang } = useT();
   const c = CFOS[cfo];
   const hat = HATS[c.hat];
   const label = `${c.name} – ${lang === 'pl' ? c.rolePl : c.role} · ${lang === 'pl' ? hat.labelPl : hat.label}`;
-  return <HatAvatar letter={c.name[0]} color={c.color} hat={c.hat} label={label} size={size} />;
+  const avatar = <HatAvatar letter={c.name[0]} color={c.color} hat={c.hat} label={label} size={size} />;
+  if (!live) return avatar;
+  return (
+    <span className="relative inline-flex shrink-0">
+      {avatar}
+      <span className="live-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-emerald-500" aria-hidden="true" />
+    </span>
+  );
+}
+
+/** Animated "agent → action → you" strip: shows how a decision flows. Decorative, labels are readable text. */
+export function FlowStrip({ steps }: { steps: string[] }) {
+  return (
+    <div className="surface glow-mint flex items-center gap-3 overflow-hidden p-5" aria-label={steps.join(' → ')}>
+      {steps.map((s, i) => (
+        <span key={s} className="contents">
+          {i > 0 && <span className="flow-line min-w-6 flex-1" aria-hidden="true" />}
+          <span className="shrink-0 rounded-full border border-black/10 bg-white px-3 py-2 text-base font-semibold">{s}</span>
+        </span>
+      ))}
+    </div>
+  );
 }
 
 /** Any avatar with a hat – also used for the Blue-hat chair, who is not a CFO. */
@@ -116,7 +138,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
   return (
     <article className="rounded-3xl bg-white p-4">
       <div className="flex items-start gap-3">
-        <CfoAvatar cfo={action.cfo} size={36} />
+        <CfoAvatar cfo={action.cfo} size={36} live />
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap gap-1.5">
             <TierBadge tier={action.tier} />

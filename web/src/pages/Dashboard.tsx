@@ -70,7 +70,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-5">
       <span className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-medium">
         <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-100 text-xs" aria-hidden="true">⚡</span>
         {t('agents_on_watch')}
@@ -95,18 +95,18 @@ export default function Dashboard() {
       <Status loading={state.loading && !s} error={state.error} />
 
       {/* Row 1: the balance, then the cash forecast. One message per card. */}
-      <div className="grid gap-8 lg:grid-cols-[1fr_1.7fr]">
-        <section className="surface glow-mint flex flex-col justify-center p-8">
-          <h2 className="text-xl font-semibold">{t('you_have')}</h2>
-          {k && <p className="mt-3 text-5xl font-bold leading-none tracking-tight tabular-nums sm:text-6xl" aria-label={fmtPLN(k.balancePLN)}>{fmtPLN(shownBalance ?? k.balancePLN)}</p>}
+      <div className="grid gap-5 lg:grid-cols-[1fr_1.7fr]">
+        <section className="surface glow-mint flex flex-col justify-center p-6">
+          <h2 className="text-lg font-semibold">{t('you_have')}</h2>
+          {k && <p className="mt-3 text-5xl font-bold leading-none tracking-tight tabular-nums" aria-label={fmtPLN(k.balancePLN)}>{fmtPLN(shownBalance ?? k.balancePLN)}</p>}
           {s && <p className="mt-4 text-lg text-stone-800">{t('today')} {fmtDay(s.shop.today)}</p>}
         </section>
 
-        <section className="surface min-w-0 p-8">
-          <h2 className="text-xl font-semibold">{t('forecast_title')}</h2>
+        <section className="surface min-w-0 p-5">
+          <h2 className="text-lg font-semibold">{t('forecast_title')}</h2>
           <Status loading={forecast.loading && !f} error={forecast.error} />
           {verdict && (
-            <p className={`mt-3 text-2xl font-bold leading-snug ${verdict.tone === 'ok' ? 'text-emerald-800' : verdict.tone === 'warn' ? 'text-amber-800' : 'text-rose-700'}`}>
+            <p className={`mt-2 text-xl font-bold leading-snug ${verdict.tone === 'ok' ? 'text-emerald-800' : verdict.tone === 'warn' ? 'text-amber-800' : 'text-rose-700'}`}>
               {verdict.tone === 'ok' ? '✓' : '⚠'} {verdict.text}
             </p>
           )}
@@ -115,16 +115,16 @@ export default function Dashboard() {
       </div>
 
       {/* Row 2: expenses donut + two simple facts */}
-      <div className="grid gap-8 lg:grid-cols-[1.7fr_1fr]">
-        <section className="surface p-8">
-          <h2 className="text-xl font-semibold">{t('expenses_30')}</h2>
+      <div className="grid gap-5 lg:grid-cols-[1.7fr_1fr]">
+        <section className="surface p-5">
+          <h2 className="text-lg font-semibold">{t('expenses_30')}</h2>
           <Status loading={expenses.loading && !ex} error={expenses.error} />
           {ex && ex.byCategory.length > 0 && (
-            <div className="mt-6 flex flex-col items-center gap-8 sm:flex-row">
-              <div className="relative h-56 w-56 shrink-0" role="img" aria-label={`${t('expenses_30')}: ${fmtPLN(ex.totalPLN)}`}>
+            <div className="mt-4 flex flex-col items-center gap-6 sm:flex-row">
+              <div className="donut-in relative h-44 w-44 shrink-0" role="img" aria-label={`${t('expenses_30')}: ${fmtPLN(ex.totalPLN)}`}>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-lg text-stone-800">{t('total')}</span>
-                  <strong className="text-xl tabular-nums">{fmtPLN(ex.totalPLN)}</strong>
+                  <span className="text-base text-stone-800">{t('total')}</span>
+                  <strong className="text-lg tabular-nums">{fmtPLN(ex.totalPLN)}</strong>
                 </div>
                 <ResponsiveContainer>
                   <PieChart>
@@ -135,11 +135,11 @@ export default function Dashboard() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <ul className="w-full space-y-3 text-lg">
+              <ul className="w-full space-y-2 text-[17px]">
                 {ex.byCategory.map((c) => (
                   <li key={c.category} className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-3">
-                      <span className="h-4 w-4 shrink-0 rounded-full" style={{ background: CAT_COLOR[c.category] }} aria-hidden="true" />
+                      <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: CAT_COLOR[c.category] }} aria-hidden="true" />
                       {t(`cat_${c.category}`)}
                     </span>
                     <span className="font-semibold tabular-nums">{fmtPLN(c.amountPLN)}</span>
@@ -150,9 +150,9 @@ export default function Dashboard() {
           )}
         </section>
 
-        <div className="grid gap-8">
-          <section className="surface p-8">
-            <h2 className="text-xl font-semibold">{t('next_deadline')}</h2>
+        <div className="grid gap-5">
+          <section className="surface p-5">
+            <h2 className="text-lg font-semibold">{t('next_deadline')}</h2>
             {k?.nextDeadline ? (
               <>
                 <p className="mt-3 text-4xl font-bold tracking-tight tabular-nums">{fmtPLN(k.nextDeadline.amountPLN)}</p>
@@ -161,28 +161,28 @@ export default function Dashboard() {
             ) : <p className="mt-3 text-lg text-stone-800">—</p>}
           </section>
 
-          <Link to="/approvals" className="surface block p-8 hover:ring-2 hover:ring-emerald-600">
-            <h2 className="text-xl font-semibold">{t('waiting_for_you')}</h2>
-            <p className="mt-3 text-6xl font-bold leading-none tracking-tight">{actions.data ? count('NEEDS_APPROVAL') : '…'}</p>
+          <Link to="/approvals" className="surface block p-5 hover:ring-2 hover:ring-emerald-600">
+            <h2 className="text-lg font-semibold">{t('waiting_for_you')}</h2>
+            <p className="mt-2 text-5xl font-bold leading-none tracking-tight">{actions.data ? count('NEEDS_APPROVAL') : '…'}</p>
             <p className="mt-3 text-lg font-semibold text-emerald-700">{t('see_all')} →</p>
           </Link>
         </div>
       </div>
 
       {/* The AI team: 4 agents connected to the data sources */}
-      <section className="surface glow-mint grid items-center gap-6 p-8 lg:grid-cols-[1fr_1.3fr]">
+      <section className="surface glow-mint grid items-center gap-4 p-5 sm:grid-cols-[1.4fr_1fr]">
         <div>
-          <h2 className="text-3xl font-semibold tracking-tight"><span className="text-gradient">{t('hub_title')}</span></h2>
+          <h2 className="text-2xl font-semibold tracking-tight">{t('hub_title')}</h2>
           <p className="mt-3 text-lg text-stone-800">{t('hub_text')}</p>
         </div>
-        <AgentHub />
+        <AgentHub className="mx-auto max-w-[300px]" />
       </section>
 
       {/* What the agents found – the 3 most important, approvals first */}
-      <section className="space-y-4 pt-4">
+      <section className="space-y-4 pt-2">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-3xl font-semibold tracking-tight">{t('agents_found')}</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">{t('agents_found')}</h2>
             <p className="text-stone-700">🔍 {t('legend_analysed')} · 💡 {t('legend_recommended')} · ✋ {t('legend_approval')}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -205,7 +205,7 @@ export default function Dashboard() {
         {actions.data && open.length === 0 && (
           <p className="surface p-6 text-center text-lg text-stone-700">{t('all_quiet')}</p>
         )}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-5 lg:grid-cols-3">
           {open.slice(0, 3).map((a) => (
             <div key={a.id} className="surface p-1">
               <ActionCard action={a} onApprove={() => void decide(a, true)} onReject={() => void decide(a, false)} />
@@ -231,7 +231,7 @@ function CashChart({ f }: { f: Forecast }) {
   const yTicks = [...new Set([Math.round(min / 10000) * 10000, 0, Math.round(max / 10000) * 10000])];
   const tys = (v: number) => (v === 0 ? '0 zł' : `${Math.round(v / 1000)} tys. zł`);
   return (
-    <div className="mt-6 h-80" role="img"
+    <div className="cash-chart mt-3 h-60" role="img"
       aria-label={`${t('forecast_title')}: ${t('lowest_point')} ${fmtPLN(f.lowest.balancePLN)}, ${fmtDay(f.lowest.date)}`}>
       <ResponsiveContainer>
         <AreaChart data={pts} margin={{ top: 16, right: 30, left: 0, bottom: 4 }}>

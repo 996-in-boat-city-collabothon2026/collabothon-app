@@ -100,7 +100,7 @@ export default function AskBubble() {
       )}
 
       <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? t('close') : t('ask_title')}
-        className="fixed bottom-20 right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 ring-4 ring-emerald-100 text-2xl text-white shadow-md hover:bg-stone-800 md:bottom-6">
+        className="fixed bottom-20 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 ring-4 ring-emerald-100 text-2xl text-white shadow-md hover:bg-stone-800 md:bottom-6">
         {open ? '✕' : '💬'}
       </button>
     </>

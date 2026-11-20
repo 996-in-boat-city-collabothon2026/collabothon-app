@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import type { Action } from '@cfo/shared';
 import { api, useApi } from '../api/client';
-import { ActionCard, Card, CfoAvatar, Status, fmtPLN, useToast } from '../components/ui';
+import { ActionCard, Card, CfoAvatar, FlowStrip, Status, fmtPLN, useToast } from '../components/ui';
 import { useT } from '../i18n';
 
 export default function Approvals() {
@@ -30,9 +30,11 @@ export default function Approvals() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-gradient pb-1 text-4xl font-semibold tracking-tight">✋ {t('approvals')}</h1>
+        <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">✋ {t('approvals')}</h1>
         {data && <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-sm text-rose-800">{queue.length} {t('waiting')}</span>}
       </div>
+
+      <FlowStrip steps={[t('flow_agent'), t('flow_action'), t('flow_you')]} />
 
       <div aria-live="polite" className="flex items-baseline justify-between surface px-5 py-4">
         <span className="text-stone-600">{t('balance')}</span>

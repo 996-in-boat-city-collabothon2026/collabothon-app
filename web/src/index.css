@@ -57,7 +57,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 /* Cards slide in gently, one after another */
 @keyframes fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-.surface, .reveal { animation: fade-up .55s cubic-bezier(.2,.7,.2,1) both; }
+.surface, .reveal { animation: fade-up .55s cubic-bezier(.2,.7,.2,1) backwards; }
 main .surface:nth-of-type(2), main .reveal:nth-of-type(2) { animation-delay: .08s; }
 main .surface:nth-of-type(3), main .reveal:nth-of-type(3) { animation-delay: .16s; }
 main .surface:nth-of-type(4), main .reveal:nth-of-type(4) { animation-delay: .24s; }
@@ -77,4 +77,38 @@ main .surface:nth-of-type(4), main .reveal:nth-of-type(4) { animation-delay: .24
 @media (prefers-reduced-motion: reduce) {
   .hub-dot { display: none; }
   .ai-shimmer { color: #1d1d1f; background: none; }
+}
+
+/* ---------- more motion (all switched off by prefers-reduced-motion above) ---------- */
+/* Cards lift a little under the mouse */
+.surface { transition: transform .25s ease, box-shadow .25s ease; }
+@media (hover: hover) { .surface:hover { transform: translateY(-3px); box-shadow: 0 12px 30px -12px rgb(16 185 129 / .25); } }
+
+/* Donut spins in */
+@keyframes donut-in { from { transform: rotate(-120deg) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+.donut-in .recharts-surface { animation: donut-in .9s cubic-bezier(.2,.8,.2,1) .15s backwards; transform-origin: center; }
+
+/* Cash line draws from left to right, the lowest point pulses */
+@keyframes draw { from { stroke-dashoffset: 4000; } to { stroke-dashoffset: 0; } }
+.cash-chart .recharts-area-curve { stroke-dasharray: 4000; animation: draw 1.8s ease-out .2s backwards; }
+@keyframes fill-in { from { opacity: 0; } }
+.cash-chart .recharts-area-area { animation: fill-in 1.2s ease .9s backwards; }
+@keyframes dot-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.45); } }
+.cash-chart .recharts-reference-dot circle { animation: dot-pulse 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+
+/* Speech bubbles pop in */
+@keyframes pop-in { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+.pop-in { animation: pop-in .35s cubic-bezier(.2,.8,.2,1) backwards; }
+
+/* Live status dot with ripple */
+@keyframes ripple { from { transform: scale(1); opacity: .6; } to { transform: scale(2.6); opacity: 0; } }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: #10b981; animation: ripple 1.6s ease-out infinite; }
+
+/* A dot travelling along a connector line (flow strips) */
+@keyframes travel { from { left: 0%; } to { left: 100%; } }
+.flow-line { position: relative; height: 2px; background: rgb(16 185 129 / .35); }
+.flow-line::after { content: ""; position: absolute; top: -4px; width: 10px; height: 10px; margin-left: -5px; border-radius: 9999px; background: #059669; animation: travel 1.6s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .surface:hover { transform: none; }
+  .live-dot::after, .flow-line::after { display: none; }
 }

@@ -44,15 +44,22 @@ export default function Ksef() {
     return () => window.clearTimeout(id);
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Small animation while an invoice "flies" to the (simulated) KSeF gateway
+  const [flight, setFlight] = useState<'flying' | 'landed' | null>(null);
+
   async function send(inv: KsefInvoiceRow, fix?: Pick<Invoice, 'counterparty'>) {
+    setFlight('flying');
     try {
       watching.current.add(inv.id);
       await api.sendInvoice(inv.id, fix);
+      setFlight('landed');
     } catch {
       watching.current.delete(inv.id);
+      setFlight(null);
       showToast(t('send_failed'));
     }
     await reload();
+    window.setTimeout(() => setFlight(null), 2200);
   }
 
   const sales = rows.filter((i) => i.direction === 'sales');
@@ -62,7 +69,7 @@ export default function Ksef() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-gradient pb-1 text-4xl font-semibold tracking-tight">{t('ksef_title')}</h1>
+        <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">{t('ksef_title')}</h1>
         <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-sm font-medium text-violet-800">🧪 {t('ksef_sim_badge')}</span>
       </div>
       <p className="rounded-xl bg-violet-50 px-4 py-3 text-violet-900">🧪 {t('ksef_sim_notice')}</p>
@@ -91,6 +98,18 @@ export default function Ksef() {
           onSubmit={(counterparty) => { const inv = fixing; setFixing(null); void send(inv, { counterparty }); }} />
       )}
       {viewer && <DocSheet viewer={viewer} onClose={() => setViewer(null)} />}
+      {flight && (
+        <div role="status" className="pop-in fixed inset-x-4 bottom-28 z-50 mx-auto flex max-w-md items-center gap-3 rounded-full border border-black/10 bg-white px-4 py-3 shadow-lg md:bottom-8">
+          <span className="text-xl" aria-hidden="true">🧾</span>
+          {flight === 'flying'
+            ? <span className="flow-line flex-1" aria-hidden="true" />
+            : <span className="h-0.5 flex-1 bg-emerald-500" aria-hidden="true" />}
+          <span className={`rounded-full px-3 py-1 font-semibold ${flight === 'landed' ? 'pop-in bg-emerald-100 text-emerald-800' : 'bg-zinc-100'}`}>
+            {flight === 'landed' ? '✓ KSeF' : 'KSeF'}
+          </span>
+          <span className="sr-only">{t(flight === 'flying' ? 'ksef_flying' : 'ksef_landed')}</span>
+        </div>
+      )}
       {toast}
     </div>
   );

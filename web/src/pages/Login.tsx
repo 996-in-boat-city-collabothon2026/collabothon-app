@@ -44,12 +44,12 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center pb-16">
         <div className="text-center">
-          <div className="reveal mx-auto -mt-6 mb-2 max-w-xs"><AgentHub /></div>
+          <div className="reveal mx-auto -mt-4 mb-1 max-w-[220px]"><AgentHub /></div>
           <span className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-medium">
             <span className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-100 text-xs" aria-hidden="true">⚡</span>
             {t('login_demo_note')}
           </span>
-          <h1 className="text-gradient mt-5 pb-1 text-5xl font-semibold tracking-tight">WarsztatCFO</h1>
+          <h1 className="text-gradient mt-3 pb-1 text-4xl font-semibold tracking-tight">WarsztatCFO</h1>
           <p className="mt-2 text-lg text-stone-700">{t('login_tagline')}</p>
         </div>
 

@@ -79,7 +79,7 @@ export default function Boardroom() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-gradient pb-1 text-4xl font-semibold tracking-tight">👥 {t('boardroom_title')}</h1>
+        <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">👥 {t('boardroom_title')}</h1>
         <p className="text-slate-600">{t('boardroom_intro')}</p>
       </div>
 
@@ -145,8 +145,8 @@ export default function Boardroom() {
             {result.turns.slice(0, shown).map((turn, i) => {
               const hat = HATS[CFOS[turn.cfo].hat];
               return (
-                <li key={i} className="flex gap-3">
-                  <CfoAvatar cfo={turn.cfo} size={40} />
+                <li key={i} className="pop-in flex gap-3">
+                  <CfoAvatar cfo={turn.cfo} size={40} live={i === shown - 1} />
                   <div className="min-w-0 flex-1">
                     <p className="mb-1 flex flex-wrap items-center gap-2 text-sm font-semibold">
                       {CFOS[turn.cfo].name}
@@ -155,14 +155,14 @@ export default function Boardroom() {
                         {lang === 'pl' ? hat.labelPl : hat.label}
                       </span>
                     </p>
-                    <p className="rounded-2xl rounded-tl-sm bg-slate-100 p-3">{turn.text}</p>
+                    <p className="rounded-2xl rounded-tl-sm border border-black/5 bg-zinc-50 p-3">{turn.text}</p>
                   </div>
                 </li>
               );
             })}
             {typing && typing !== 'chair' && phase === 'talking' && (
-              <li className="flex items-center gap-3 text-sm text-stone-600">
-                <CfoAvatar cfo={typing} size={40} />
+              <li className="pop-in flex items-center gap-3 text-base text-stone-700">
+                <CfoAvatar cfo={typing} size={40} live />
                 <span className="rounded-2xl bg-slate-100 px-3 py-3"><TypingDots /></span>
                 {CFOS[typing].name} {t('is_typing')}
               </li>
