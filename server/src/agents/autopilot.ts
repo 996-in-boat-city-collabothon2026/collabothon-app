@@ -6,15 +6,15 @@ import { chatOr } from '../llm/provider';
 import { findInventedNumbers } from './numberGuard';
 import { wholeSentences } from './text';
 import { tidyReply } from './reply';
-import { cfoFacts } from './facts';
+import { explainPL, keepsAmount } from './explain';
+import { stripAddress } from './text';
 
 const EXPLAIN_MAX_WORDS = 45;
-/** Polish, no preamble, amounts copied exactly from POWODY (the rules' why[]). */
+/** The model only rephrases the rule text (explainPL); no preamble, same numbers. */
 export const EXPLAIN_PROMPT = [
-  'Wyjaśnij właścicielowi warsztatu samochodowego, po polsku, w 2 krótkich zdaniach, dlaczego ta sprawa czeka na zgodę.',
-  'Zacznij od razu od sedna: bez wstępu, bez "Oto", bez powitania.',
-  'Kwoty i daty przepisz dokładnie tak, jak są w POWODACH lub FAKTACH (np. "36 000,00 zł"). Nie licz, nie zaokrąglaj, nie dodawaj innych liczb.',
-  'Saldo z prognozy to przyszłość, a nie saldo dziś. Wszystko jest symulowane: nie pisz, że coś już zapłacono lub wysłano.',
+  'Przepisz WYJAŚNIENIE prostszymi słowami, po polsku, w 2 krótkich zdaniach, dla właściciela warsztatu samochodowego.',
+  'Zacznij od razu od sedna: bez wstępu, bez powitania, bez zwracania się po imieniu ani "Właścicielu".',
+  'Kwoty i daty przepisz dokładnie jak w WYJAŚNIENIU. Nie licz, nie zaokrąglaj, nie dodawaj innych liczb ani powodów.',
 ].join(' ');
 
 const isDuplicate = (a: Pick<Action, 'kind' | 'refId' | 'title'>) =>
@@ -66,22 +66,17 @@ export async function runAutopilot(): Promise<AutopilotResult> {
     created
       .filter((a) => a.tier === 'NEEDS_APPROVAL' && a.status === 'open')
       .map(async (a) => {
-        const facts = cfoFacts(a.cfo, 'pl'); // Polish, labelled ("to przyszłość, nie dziś"), numbers from rules
+        // The rules write the Polish explanation; the model only says it more naturally (live: free text went wrong).
+        const base = explainPL(a);
         const text = await chatOr('', [
           { role: 'system', content: EXPLAIN_PROMPT },
-          {
-            role: 'user',
-            content: [
-              `SPRAWA: ${a.title}`, 'POWODY:', ...a.why.map((w) => `- ${w}`),
-              'FAKTY:', ...facts.lines.map((l) => `- ${l}`),
-            ].join('\n'),
-          },
+          { role: 'user', content: `WYJAŚNIENIE (powiedz to prościej, te same liczby):\n${base}` },
         ], { maxTokens: 120, temperature: 0.1, mockKey: 'explain' });
-        const clean = wholeSentences(tidyReply(text, 'pl'), EXPLAIN_MAX_WORDS);
-        // Golden rule 1: any number or date not in the card or the facts → use the rules' own reasons instead.
-        const invented = findInventedNumbers(clean, [a.title, ...a.why, ...facts.lines].join('\n'));
-        if (invented.length) console.info(`[guard] explain:${a.kind} invented ${JSON.stringify(invented)} → why[]`);
-        a.explanation = (!invented.length && clean) || a.why.join('. ');
+        const clean = stripAddress(wholeSentences(tidyReply(text, 'pl'), EXPLAIN_MAX_WORDS));
+        // Golden rule 1 + the key amount must survive; otherwise show the rule text itself.
+        const invented = findInventedNumbers(clean, base);
+        if (invented.length) console.info(`[guard] explain:${a.kind} invented ${JSON.stringify(invented)} → rule text`);
+        a.explanation = clean && !invented.length && keepsAmount(clean, base) ? clean : base;
       }),
   );
 

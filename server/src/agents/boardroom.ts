@@ -11,7 +11,8 @@ import { fmtFx, fmtRate, fxExposures } from '../rules/fx';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
 import { findInventedNumbers } from './numberGuard';
-import { wholeSentences } from './text';
+import { stripAddress, wholeSentences } from './text';
+import { amountsIn, keepsAmount } from './explain';
 import { tidyReply } from './reply';
 import { cfoFacts, langOf, type CfoFacts, type Lang } from './facts';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
@@ -139,23 +140,27 @@ const tidy = (raw: string, lang: Lang, maxWords: number) => wholeSentences(tidyR
 
 const transcriptOf = (turns: BoardroomTurn[]) => turns.map((t) => `${CFOS[t.cfo].name}: ${t.text}`).join('\n');
 
-/** One CFO's turn prompt: only this CFO's facts (B's cfoFacts), the topic, and what the others said. */
-function turnPrompt(facts: CfoFacts, subject: string, turns: BoardroomTurn[], lang: Lang): string {
+/**
+ * One CFO's turn prompt. The others' words come FIRST and this CFO's own facts LAST: live, the small model
+ * copied the previous speaker (Tomasz repeated Anna) when the transcript was at the end.
+ */
+function turnPrompt(cfo: CfoId, facts: CfoFacts, subject: string, turns: BoardroomTurn[], lang: Lang): string {
   const so = transcriptOf(turns);
+  const name = CFOS[cfo].name;
   return lang === 'pl'
     ? [
-        'FAKTY (tylko tych liczb wolno Ci użyć):', ...facts.lines.map((l) => `- ${l}`), '',
-        `NAJWAŻNIEJSZE (powiedz to swoimi słowami, z tymi samymi liczbami): ${facts.summary}`, '',
         `TEMAT NARADY: ${subject}`,
-        `CO POWIEDZIELI INNI:\n${so || '(nikt jeszcze nie mówił)'}`, '',
-        'Twoja kolej: 2 krótkie zdania po polsku, do właściciela na "Ty". Nie powtarzaj innych. Niczego nie licz.',
+        `CO POWIEDZIELI INNI (nie powtarzaj tego):\n${so || '(nikt jeszcze nie mówił)'}`, '',
+        `TWOJE FAKTY, ${name} (tylko tych liczb wolno Ci użyć):`, ...facts.lines.map((l) => `- ${l}`), '',
+        `TWÓJ WNIOSEK (powiedz go swoimi słowami, z tymi samymi liczbami): ${facts.summary}`, '',
+        'Mów tylko o swoim temacie, 2 krótkie zdania po polsku, zwracaj się wprost do właściciela. Niczego nie licz.',
       ].join('\n')
     : [
-        'FACTS (the only numbers you may use):', ...facts.lines.map((l) => `- ${l}`), '',
-        `KEY POINT (say it in your own words, with the same numbers): ${facts.summary}`, '',
         `MEETING TOPIC: ${subject}`,
-        `WHAT THE OTHERS SAID:\n${so || '(nobody has spoken yet)'}`, '',
-        'Your turn: 2 short sentences in English, talk to the owner as "you". Do not repeat the others. Do not calculate.',
+        `WHAT THE OTHERS SAID (do not repeat it):\n${so || '(nobody has spoken yet)'}`, '',
+        `YOUR FACTS, ${name} (the only numbers you may use):`, ...facts.lines.map((l) => `- ${l}`), '',
+        `YOUR KEY POINT (say it in your own words, with the same numbers): ${facts.summary}`, '',
+        'Talk only about your own area, 2 short sentences in English, directly to the owner. Do not calculate.',
       ].join('\n');
 }
 
@@ -182,12 +187,15 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
     const facts = cfoFacts(cfo, lang);
     const raw = await chatOr('', [
       { role: 'system', content: PERSONAS[cfo] },
-      { role: 'user', content: turnPrompt(facts, subject, turns, lang) },
+      { role: 'user', content: turnPrompt(cfo, facts, subject, turns, lang) },
     ], { maxTokens: TURN_MAX_TOKENS, temperature: 0.1, mockKey: `boardroom:${cfo}` });
-    // Allowed numbers: this CFO's facts, the topic and the (already checked) earlier turns.
-    const known = [...facts.lines, facts.summary, subject, transcriptOf(turns)].join('\n');
-    const text = safe(tidy(raw, lang, TURN_MAX_WORDS), known, `boardroom:${cfo}`);
-    turns.push({ cfo, text: text || facts.summary });
+    // Allowed numbers: only this CFO's own facts and the topic. And the turn must say at least one amount from its
+    // own conclusion: otherwise it repeated a colleague (live: Tomasz said Anna's credit line) → the rule conclusion.
+    const known = [...facts.lines, facts.summary, subject].join('\n');
+    const text = safe(stripAddress(tidy(raw, lang, TURN_MAX_WORDS)), known, `boardroom:${cfo}`);
+    const onTopic = text && (keepsAmount(text, facts.summary) || amountsIn(facts.summary).length === 0);
+    if (text && !onTopic) console.info(`[guard] boardroom:${cfo} off-topic (no own amount) → rule conclusion`);
+    turns.push({ cfo, text: onTopic ? text : facts.summary });
   }
 
   const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
@@ -205,7 +213,7 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   const chair = extractJson(chairRaw, ChairSchema);
   const ids = approvals.map((a) => a.id);
   const validIds = (chair?.decisionActionIds ?? []).filter((id) => ids.includes(id));
-  const summary = safe(tidy(chair?.summary ?? '', lang, SUMMARY_MAX_WORDS), [items, debate, subject].join('\n'), 'boardroom:chair');
+  const summary = safe(stripAddress(tidy(chair?.summary ?? '', lang, SUMMARY_MAX_WORDS)), [items, debate, subject].join('\n'), 'boardroom:chair');
   return {
     turns,
     summary: summary || ruleSummary(approvals, lang),

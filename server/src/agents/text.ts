@@ -22,3 +22,15 @@ export function wholeSentences(text: string, maxWords: number): string {
   const cut = words(t).slice(0, maxWords).join(' ').replace(/[,;:–-]+$/, '');
   return cut ? `${cut}…` : '';
 }
+
+/**
+ * Live replies began with the way we told the model to talk: "Ty: Ty musisz…", "Właścicielu warsztatu, …".
+ * Drop such an address at the start and capitalise the rest.
+ */
+export function stripAddress(text: string): string {
+  const t = text
+    .replace(/^(?:\s*(?:Ty|Właściciel(?:u)?(?: warsztatu(?: samochodowego)?)?)\s*[:,]\s*)+/i, '')
+    .replace(/^Ty\s+(?=\p{Ll})/u, '')
+    .trim();
+  return t ? t[0].toUpperCase() + t.slice(1) : t;
+}
