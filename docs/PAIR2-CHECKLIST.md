@@ -14,8 +14,27 @@ Claude prompt template (then `/clear` between tasks):
 
 ---
 
-## H0: setup (both people)
-- [ ] `git switch pair2-agents` → `git merge main` → `npm install` → `npm run dev` opens on :5173.
+## Who does what (2 people, 2 laptops)
+Every task below is tagged **[A]**, **[B]** or **[A+B]**. Each person owns different files, so you never edit the same file at once.
+
+| Hours | Person A | Person B |
+|---|---|---|
+| H0–12 | ★ `rules/fx.ts` (Kasia) · `rules/vat.ts`, `zus.ts`, `pit.ts`, `ksef.ts` (Marek) · `rules/index.ts` wiring | ★ `rules/cashflow.ts` + `liquidity.ts` (Anna) · `rules/expenses.ts`, `margin.ts` (Tomasz) |
+| H12–24 | `agents/autopilot.ts` · `routes/actions.ts` (approve + simulated execution) | `routes/finance.ts` (alerts) · `pickCfo()` in `routes/boardroom.ts` |
+| H24–36 | `agents/boardroom.ts` (turn order, snapshot, Blue-hat chair JSON) | `agents/personas.ts` · prompt tuning on the real model |
+
+**How you work in parallel**
+- Each person has their own branch: `pair2-a` and `pair2-b` (create from `pair2-agents`).
+  Merge into `pair2-agents` when a task is green; then the other person runs `git merge pair2-agents`.
+- `rules/index.ts` (the `RULES` list) is edited **only by A**. B tells A "add `liquidity` to RULES" in chat.
+- `shared/types.ts`: agree between you first, one person edits, then tell the whole team.
+- `domain/**` helpers (money, fx, store): ask the other person before changing a shared helper.
+- Merge `pair2-agents` → `main` together at each sync checkpoint (one PR, both look at it).
+
+---
+
+## H0: setup [A+B] (both laptops)
+- [ ] `git switch pair2-agents` → `git merge main` → `git switch -c pair2-a` (or `pair2-b`) → `git push -u origin pair2-a` → `npm install` → `npm run dev` opens on :5173.
 - [ ] `npm test` and `npm run typecheck` are green before touching anything.
 - [ ] Copy `docs/claude-settings/pair2.json` to `.claude/settings.local.json` (keeps Claude in our folders).
 - [ ] Read `shared/types.ts` (`Action`, `Tier`, `ActionKind`, `CFOS`, `HATS`) and `server/src/rules/index.ts` (`DraftAction`, `Rule`).
@@ -28,7 +47,7 @@ Claude prompt template (then `/clear` between tasks):
 Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <name>: Rule`, a test file
 `server/src/rules/<name>.test.ts` (copy the style of `domain/money.test.ts`), then add it to `RULES` in `rules/index.ts`.
 
-### ★ 1. `rules/fx.ts` — Kasia 🔴 (required by the challenge, do first)
+### [A] ★ 1. `rules/fx.ts` — Kasia 🔴 (required by the challenge, do first)
 - [ ] Per currency (EUR, USD): net exposure = unpaid foreign purchases − unpaid foreign sales, in that currency.
       Use `invoiceGross()` + `toPLN()` / `latestRate()` from `domain/fx.ts`. Never multiply rates by hand.
 - [ ] ±5% shock in zł: `exposurePLN × 0.05` ("If EUR rises 5%, you pay X zł more").
@@ -40,19 +59,19 @@ Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <na
 - [ ] Test: seed data (3 600 EUR purchase, 2 100 EUR sale) → net 1 500 EUR → one `fx_hedge` action.
 - [ ] Test: no foreign invoices → no actions. Exposure small (shock < 500 zł) → no `fx_hedge`.
 
-### ★ 2. `rules/cashflow.ts` + `rules/liquidity.ts` — Anna ⚫ (required by the challenge)
+### [B] ★ 2. `rules/cashflow.ts` + `rules/liquidity.ts` — Anna ⚫ (required by the challenge)
 - [ ] `cashflow.ts`: shift each late payer's receivable by their average delay (from paid invoices of the same counterparty);
       overdue invoices with no history stay "not expected" (worst case).
 - [ ] `cashflow.ts`: works for 30/60/90 days (check `/api/forecast?days=90` returns 91 points).
 - [ ] Test: `forecast(30)` has 31 points, `lowest` is the minimum, a known invoice moves by its counterparty's delay.
-- [ ] Move the `cashGap` starter out of `rules/index.ts` into `liquidity.ts`.
+- [ ] Rewrite the `cashGap` starter inside `liquidity.ts`; ask A to remove the old one from `rules/index.ts` and add `liquidity`.
 - [ ] Lowest point < `safetyBufferPLN` → `NEEDS_APPROVAL` `credit_line`, amount = gap rounded **up** to 1 000 zł.
       `why[]`: date of the lowest point, the balance then, the buffer.
 - [ ] Each overdue sales invoice → `NEEDS_APPROVAL` `payment_reminder` ("Send a reminder to <name> for X zł, N days late").
 - [ ] Optional: surplus well above buffer for the whole period → `RECOMMENDED` `deposit`.
 - [ ] Test: gap of 12 300 zł → credit line 13 000 zł. No gap → no credit line. Overdue invoice → one reminder.
 
-### 3. `rules/vat.ts`, `zus.ts`, `pit.ts`, `ksef.ts` — Marek ⚪
+### [A] 3. `rules/vat.ts`, `zus.ts`, `pit.ts`, `ksef.ts` — Marek ⚪
 - [ ] `vat.ts`: output VAT (sales) − input VAT (purchases) for last month, due the 25th of this month → `NEEDS_APPROVAL` `tax_payment`.
       If a VAT obligation exists in `db.obligations`, use it as `refId` so approving marks it paid.
 - [ ] `zus.ts` and `pit.ts`: unpaid ZUS / PIT obligations due the 20th → `NEEDS_APPROVAL` `tax_payment`.
@@ -61,7 +80,7 @@ Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <na
 - [ ] Delete the `deadlines` and `ksefRejected` starters from `rules/index.ts`.
 - [ ] Tests: VAT amount for a tiny invoice set, ZUS due date = 20th, rejected invoice → 2 actions.
 
-### 4. `rules/expenses.ts` + `rules/margin.ts` — Tomasz 🟢
+### [B] 4. `rules/expenses.ts` + `rules/margin.ts` — Tomasz 🟢
 - [ ] `expenses.ts`: biggest category in the last 30 days vs the 30 days before (`db.expenses`) → `RECOMMENDED` `cost_cut`
       with the % change and amount ("Parts up 18%: 9 400 zł vs 7 950 zł").
 - [ ] `margin.ts`: repair orders with `labourBilledPLN < labourHours × labourRatePLN` → `RECOMMENDED` `pricing`
@@ -70,52 +89,53 @@ Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <na
 - [ ] Tests: one under-billed order → one pricing action with the right missing amount.
 
 ### 5. Wire-up + alerts
-- [ ] `RULES` in `rules/index.ts` = `[fx, liquidity, vat, zus, pit, ksef, expenses, margin]` (only imports left in that file).
-- [ ] `GET /api/alerts` (`routes/finance.ts`): one alert per rule area (cash gap, FX shock, tax due ≤ 5 days, KSeF rejected).
-- [ ] `POST /api/autopilot/run` with the seed gives the demo list: 🔍 KSeF re-validate, ✋ VAT, ✋ credit line,
+- [ ] [A] `RULES` in `rules/index.ts` = `[fx, liquidity, vat, zus, pit, ksef, expenses, margin]` (only imports left in that file).
+- [ ] [B] `GET /api/alerts` (`routes/finance.ts`): one alert per rule area (cash gap, FX shock, tax due ≤ 5 days, KSeF rejected).
+- [ ] [A+B] `POST /api/autopilot/run` with the seed gives the demo list: 🔍 KSeF re-validate, ✋ VAT, ✋ credit line,
       ✋ FX hedge, 💡 labour under rate. Run it twice → no duplicates.
-- [ ] Commit + push + PR to `main` (another pair's coder reviews).
+- [ ] [A+B] Commit + push + PR to `main` (another pair's coder reviews).
 
 ---
 
 ## H12–24: autopilot + approvals on the real model
-- [ ] `agents/autopilot.ts`: all rules → dedupe → 🔍 `ANALYSED` = `auto_done`, ✋ queued unless `settings.autonomy[kind] === 'auto'`, 💡 stay open.
-- [ ] Every queued ✋ card gets an LLM `explanation`; on any error the fallback is `why[]` joined (already via `chatOr`). Check it on the real model.
-- [ ] `routes/actions.ts` `simulateExecution()`: add every kind:
+- [ ] [A] `agents/autopilot.ts`: all rules → dedupe → 🔍 `ANALYSED` = `auto_done`, ✋ queued unless `settings.autonomy[kind] === 'auto'`, 💡 stay open.
+- [ ] [A] Every queued ✋ card gets an LLM `explanation`; on any error the fallback is `why[]` joined (already via `chatOr`). Check it on the real model.
+- [ ] [A] `routes/actions.ts` `simulateExecution()`: add every kind:
   - [ ] `fx_hedge` → activity "Forward contract 1 500 EUR @ 4,27 zł (simulated)" (rate from `latestRate`).
   - [ ] `credit_line` → balance + amount (simulated), activity entry.
   - [ ] `payment_reminder` → mark nothing paid, activity "Reminder e-mail to <name> (simulated)".
   - [ ] `tax_payment` / `supplier_payment` → balance − amount, obligation paid (exists, check it).
   - [ ] `deposit`, `pricing`, `cost_cut`, `ksef_fix` → a clear "simulated" activity line.
-- [ ] After approve, `GET /api/state` shows the new balance and `GET /api/activity` shows the 🧪 simulated entry.
-- [ ] Advice bubble: improve `pickCfo()` in `routes/boardroom.ts` with more PL + EN words
+- [ ] [A] After approve, `GET /api/state` shows the new balance and `GET /api/activity` shows the 🧪 simulated entry.
+- [ ] [B] Advice bubble: improve `pickCfo()` in `routes/boardroom.ts` with more PL + EN words
       (e.g. `płynność|kredyt|gotówk|cash|liquid` → anna). Test: "Czy kurs euro to problem?" → kasia.
-- [ ] New `mockKey`s? Message Pair 1 to add canned answers in `llm/mock.ts`.
-- [ ] **H18 Sync 3:** Run check → Anna proposes a credit line, Kasia proposes an FX hedge → approve → balance + activity change.
+- [ ] [A+B] New `mockKey`s? Message Pair 1 to add canned answers in `llm/mock.ts`.
+- [ ] [A+B] **H18 Sync 3:** Run check → Anna proposes a credit line, Kasia proposes an FX hedge → approve → balance + activity change.
 
 ---
 
 ## H24–36: hat conference
-- [ ] `agents/personas.ts`: each persona ≤ 15 lines, names its hat, "Use ONLY numbers present in the data", max ~70 words.
-- [ ] `agents/boardroom.ts` order = White (Marek) → Black (Anna) → Green (Tomasz) → Red (Kasia). Each turn sees earlier turns and may disagree.
-- [ ] `snapshot()` includes the FX shock, the credit-line gap and the top expense category (numbers from rules only).
-- [ ] Blue-hat chair returns `{"summary", "decisionActionIds"}`; parsed with `extractJson`; invalid ids dropped;
+- [ ] [B] `agents/personas.ts`: each persona ≤ 15 lines, names its hat, "Use ONLY numbers present in the data", max ~70 words.
+- [ ] [A] `agents/boardroom.ts` order = White (Marek) → Black (Anna) → Green (Tomasz) → Red (Kasia). Each turn sees earlier turns and may disagree.
+- [ ] [A] `snapshot()` includes the FX shock, the credit-line gap and the top expense category (numbers from rules only).
+- [ ] [A] Blue-hat chair returns `{"summary", "decisionActionIds"}`; parsed with `extractJson`; invalid ids dropped;
       rule-based fallback (all open ✋ ids) if the JSON is broken.
-- [ ] Optional: `topic` presets ("Czy przetrwamy grudzień? / Can we survive December?", "Czy zabezpieczyć EUR? / Should we hedge EUR?").
-- [ ] Time a full conference on the real model (5 calls). Target < 25 s — tell Pair 1 if slower.
-- [ ] **H30 Sync 5:** conference on the real model, decisions linked to approval cards.
+- [ ] [B] Optional: `topic` presets ("Czy przetrwamy grudzień? / Can we survive December?", "Czy zabezpieczyć EUR? / Should we hedge EUR?").
+- [ ] [B] Time a full conference on the real model (5 calls). Target < 25 s — tell Pair 1 if slower.
+- [ ] [A+B] **H30 Sync 5:** conference on the real model, decisions linked to approval cards.
 
 ---
 
 ## H36–42: polish + freeze
 - [ ] **H36 feature freeze.** Only bug fixes after this.
-- [ ] Tune prompts on the real model: Polish terms (JPK_V7M, ZUS, KSeF, UPO), no invented numbers, plain words.
-- [ ] Read 3 conference runs and 5 advice answers: any number not in `snapshot()`? Fix the prompt.
-- [ ] Money in every `title` / `why[]` uses `fmtPLN` (`12 430,00 zł`).
+- [ ] [B] Tune prompts on the real model: Polish terms (JPK_V7M, ZUS, KSeF, UPO), no invented numbers, plain words.
+- [ ] [A+B] Read 3 conference runs and 5 advice answers: any number not in `snapshot()`? Fix the prompt.
+- [ ] [A+B] Money in every `title` / `why[]` uses `fmtPLN` (`12 430,00 zł`).
 - [ ] `npm test`, `npm run typecheck`, `npm run build` green. Final PR merged.
 - [ ] **H42 code freeze.**
 
 ## Before every sync checkpoint
 - [ ] Small commits pushed, PR open, reviewed by another pair's coder, merged.
 - [ ] `git switch main && git pull && git switch pair2-agents && git merge main`.
+- [ ] Person A and B: `git merge pair2-agents` into your own branch (`pair2-a` / `pair2-b`) after every merge.
 - [ ] Changed `shared/types.ts`? Posted the change in team chat **before** merging.
