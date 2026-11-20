@@ -34,3 +34,14 @@ export function stripAddress(text: string): string {
     .trim();
   return t ? t[0].toUpperCase() + t.slice(1) : t;
 }
+
+/**
+ * Golden rule 3: nothing is done without the owner, so the model must never say it was.
+ * Live: "przypomnienia do klientów zostały wysłane", "zostały zablokowane zlecenia na 1500 EUR".
+ */
+const DONE = /\b(?:został[aoy]?|zostały|zostało)\s+(?:już\s+)?(?:wysłan|zablokowan|zapłacon|opłacon|zatwierdzon|otwart|wykonan|przelan|podpisan)\w*|\b(?:wysłał|zapłacił|zablokował|opłacił|zatwierdził|przelał|podpisał)(?:em|am|am|iśmy|yśmy)\b|\b(?:has|have) been (?:sent|paid|locked|approved|opened|signed)\b|\bI(?:'ve| have)? (?:sent|paid|locked|approved|signed)\b/i;
+export const claimsDone = (text: string) => DONE.test(text);
+
+/** False calm next to a real risk. Live: "stracisz 320,25 zł, a kurs rośnie, to nie masz nic do stracenia". */
+const CALM = /nic do stracenia|nie masz się czym (?:martwić|przejmować)|wszystko (?:musi być|jest|będzie) w porządku|nothing to lose|nothing to worry/i;
+export const falseCalm = (text: string) => CALM.test(text);

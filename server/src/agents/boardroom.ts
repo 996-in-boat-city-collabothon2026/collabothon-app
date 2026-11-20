@@ -11,7 +11,7 @@ import { fmtFx, fmtRate, fxExposures } from '../rules/fx';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
 import { findInventedNumbers } from './numberGuard';
-import { stripAddress, wholeSentences } from './text';
+import { claimsDone, falseCalm, stripAddress, wholeSentences } from './text';
 import { amountsIn, keepsAmount } from './explain';
 import { tidyReply } from './reply';
 import { cfoFacts, langOf, type CfoFacts, type Lang } from './facts';
@@ -193,9 +193,13 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
     // own conclusion: otherwise it repeated a colleague (live: Tomasz said Anna's credit line) → the rule conclusion.
     const known = [...facts.lines, facts.summary, subject].join('\n');
     const text = safe(stripAddress(tidy(raw, lang, TURN_MAX_WORDS)), known, `boardroom:${cfo}`);
-    const onTopic = text && (keepsAmount(text, facts.summary) || amountsIn(facts.summary).length === 0);
-    if (text && !onTopic) console.info(`[guard] boardroom:${cfo} off-topic (no own amount) → rule conclusion`);
-    turns.push({ cfo, text: onTopic ? text : facts.summary });
+    const problem = !text ? ''
+      : !(keepsAmount(text, facts.summary) || amountsIn(facts.summary).length === 0) ? 'off-topic (no own amount)'
+        : claimsDone(text) ? 'claims something was done'
+          : falseCalm(text) || facts.misread?.(text) ? 'known misread'
+            : '';
+    if (problem) console.info(`[guard] boardroom:${cfo} ${problem} → rule conclusion`);
+    turns.push({ cfo, text: text && !problem ? text : facts.summary });
   }
 
   const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
@@ -213,7 +217,12 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   const chair = extractJson(chairRaw, ChairSchema);
   const ids = approvals.map((a) => a.id);
   const validIds = (chair?.decisionActionIds ?? []).filter((id) => ids.includes(id));
-  const summary = safe(stripAddress(tidy(chair?.summary ?? '', lang, SUMMARY_MAX_WORDS)), [items, debate, subject].join('\n'), 'boardroom:chair');
+  let summary = safe(stripAddress(tidy(chair?.summary ?? '', lang, SUMMARY_MAX_WORDS)), [items, debate, subject].join('\n'), 'boardroom:chair');
+  // The chair only proposes (golden rule 3): "were sent / were locked" → rule summary.
+  if (summary && (claimsDone(summary) || falseCalm(summary))) {
+    console.info('[guard] boardroom:chair claims something was done → rule summary');
+    summary = '';
+  }
   return {
     turns,
     summary: summary || ruleSummary(approvals, lang),

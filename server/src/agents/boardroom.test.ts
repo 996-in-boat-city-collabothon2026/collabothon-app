@@ -9,7 +9,7 @@ import { runAutopilot } from './autopilot';
 import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, snapshot, TURN_MAX_TOKENS, TURN_MAX_WORDS } from './boardroom';
 import { cfoFacts } from './facts';
 import { explainPL } from './explain';
-import { wholeSentences } from './text';
+import { claimsDone, falseCalm, wholeSentences } from './text';
 
 const saved = { ...config.llm };
 /** Fake model: `reply(messages)` answers each call. Mode openai_compat so the real chat() path runs. */
@@ -133,6 +133,29 @@ describe('conference: number guard and fallbacks', () => {
     expect(r.turns.find((t) => t.cfo === 'marek')!.text).toBe(cfoFacts('marek', 'pl').summary);
   });
 
+  it('golden rule 3: a turn or the chair saying something WAS done → rule text', async () => {
+    await runAutopilot();
+    reply = (m) => {
+      if (isChair(m)) return '{"summary":"Decyzją zostały zablokowane zlecenia na 1500 EUR, a przypomnienia do klientów zostały wysłane.","decisionActionIds":[]}';
+      if (m[0].content.includes('Jesteś Kasia')) return 'Jeśli EUR podrożeje o 5%, stracisz 320,25 zł, a kurs rośnie, to nie masz nic do stracenia.';
+      if (m[0].content.includes('Jesteś Anna')) return 'Wysłałam przypomnienia, saldo 20.12.2026 to -20 275,00 zł.';
+      return '';
+    };
+    const r = await runBoardroom();
+    expect(r.turns.find((t) => t.cfo === 'kasia')!.text).toBe(cfoFacts('kasia', 'pl').summary);
+    expect(r.turns.find((t) => t.cfo === 'anna')!.text).toBe(cfoFacts('anna', 'pl').summary);
+    expect(r.summary).toMatch(/^Do Twojej decyzji/);
+  });
+
+  it('done-claim and false-calm checks do not fire on proposals', () => {
+    expect(claimsDone('Proponuję wysłać przypomnienia i zablokować kurs.')).toBe(false);
+    expect(claimsDone('Faktura musi zostać wysłana ponownie.')).toBe(false);
+    expect(claimsDone('Przypomnienia zostały wysłane.')).toBe(true);
+    expect(claimsDone('I have paid the VAT.')).toBe(true);
+    expect(falseCalm('Saldo spadnie, ale wszystko musi być w porządku.')).toBe(true);
+    expect(falseCalm('Stracisz 320,25 zł, jeśli EUR podrożeje.')).toBe(false);
+  });
+
   it('model down → every turn is its rule conclusion; broken chair JSON → Polish rule summary, all approvals', async () => {
     await runAutopilot();
     reply = (m) => (isChair(m) ? 'Sure! Here is the summary: {broken' : '');
@@ -153,15 +176,13 @@ describe('conference: number guard and fallbacks', () => {
 });
 
 describe('approval explanations (autopilot)', () => {
-  it('Polish rule text per card, rephrased by the model; preamble and address dropped', async () => {
-    reply = (m) => (m[1].content.includes('Linia kredytowa') ? 'Oto wyjaśnienie: Ty: Linia kredytowa 36 000,00 zł pokryje lukę do 20.12.2026.' : '');
+  it('explanations are the Polish rule text, no model call (live: rephrasing added nonsense)', async () => {
+    reply = () => 'Sedno: Oto prognoza. Wszystkie kwoty muszą być zapłacone na naszą konto bankowe.';
     await runAutopilot();
+    expect(sent).toHaveLength(0);
     const credit = db.actions.find((a) => a.kind === 'credit_line')!;
-    expect(credit.explanation).toBe('Linia kredytowa 36 000,00 zł pokryje lukę do 20.12.2026.');
-    const call = sent.find((c) => c.m[1].content.includes('Linia kredytowa'))!;
-    expect(call.m[0].content).toMatch(/po polsku/);
-    expect(call.m[1].content).toMatch(/Prognoza: 20\.12\.2026 saldo spadnie do -20\s275,00\szł, czyli 35\s275,00\szł poniżej bufora/);
-    expect(call.o).toMatchObject({ maxTokens: 120, temperature: 0.1 });
+    expect(credit.explanation).toBe(explainPL(credit));
+    expect(credit.explanation).toMatch(/^Prognoza: 20\.12\.2026 saldo spadnie do -20\s275,00\szł, czyli 35\s275,00\szł poniżej bufora/);
   });
 
   it('rule texts say the right thing for each card (seed)', async () => {
