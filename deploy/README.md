@@ -56,6 +56,21 @@ Expect `"mode":"openai_compat","ok":true`. `LLM_TIMEOUT_MS` = max per model call
 If we ever switch to a model with token auth: `oc create secret generic llm --from-literal=LLM_API_KEY=<token>`
 then `oc set env deploy/warsztat-cfo --from=secret/llm`.
 
+## 4. Test instance of another branch (before it goes to main)
+Runs next to the live app, on the same model. Example: Pair 2 wants to try `pair2-agents` on the real model.
+`-n my-first-model` on every line, so it never lands in the wrong project.
+```
+oc new-app https://github.com/996-in-boat-city-collabothon2026/collabothon-app#pair2-agents --strategy=docker --name=warsztat-cfo-test -n my-first-model
+oc set env deploy/warsztat-cfo-test -n my-first-model LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=22000
+oc create route edge --service=warsztat-cfo-test -n my-first-model
+oc logs -f bc/warsztat-cfo-test -n my-first-model
+oc get route warsztat-cfo-test -n my-first-model -o jsonpath='{.spec.host}'
+```
+URL: `https://warsztat-cfo-test-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com`. It has no webhook:
+after new pushes to the branch run `oc start-build warsztat-cfo-test --follow -n my-first-model`.
+Remove after testing (only the test app has this label, the live app stays):
+`oc delete all -l app=warsztat-cfo-test -n my-first-model`
+
 ## Troubleshooting
 Always check the project first: `oc project` must print `my-first-model`.
 `oc get pods` · `oc logs deploy/warsztat-cfo` · `oc describe pod <name>` · `oc get builds`
