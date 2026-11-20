@@ -31,7 +31,7 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
         <p className="text-3xl font-bold">🔧 WarsztatCFO</p>
         <p className="mt-2 text-slate-600">{t('login_tagline')}</p>
         <button onClick={login} disabled={busy}
-          className="mt-6 min-h-12 w-full rounded-xl bg-slate-900 py-3 text-lg font-semibold text-white disabled:opacity-60">
+          className="mt-6 min-h-12 w-full rounded-xl bg-blue-600 py-3 text-lg font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
           {busy ? t('loading') : t('login')}
         </button>
         <p className="mt-3 text-center text-sm text-slate-500">🧪 {t('login_demo_note')}</p>
