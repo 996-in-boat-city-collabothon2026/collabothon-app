@@ -27,6 +27,8 @@ const DICT: Record<string, { pl: string; en: string }> = {
   login: { pl: 'Zaloguj się', en: 'Sign in' },
   logout: { pl: 'Wyloguj', en: 'Sign out' },
   login_tagline: { pl: 'Twój AI-dyrektor finansowy dla warsztatu', en: 'Your AI finance director for the workshop' },
+  login_h1a: { pl: 'Twój zespół finansowy', en: 'Your finance team' },
+  login_h1b: { pl: 'na autopilocie', en: 'on autopilot' },
   login_demo_note: { pl: 'Konto demo', en: 'Demo account' },
   expenses_30: { pl: 'Wydatki (30 dni)', en: 'Expenses (30 days)' },
   forecast_title: { pl: 'Prognoza gotówki', en: 'Cash forecast' },
