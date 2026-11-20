@@ -9,7 +9,7 @@ import { config } from '../config';
 import { db, resetDb } from '../domain/store';
 import { settlePayment } from '../domain/settle';
 import { setModelCallForTests, type ChatMessage } from '../llm/provider';
-import { runAutopilot } from '../agents/autopilot';
+import { isCurrentCard, runAutopilot } from '../agents/autopilot';
 import { ruleSummary } from '../agents/boardroom';
 import { cfoFacts } from '../agents/facts';
 import { textProblem, looksPolish } from '../agents/safety';
@@ -22,8 +22,9 @@ const isChair = (m: ChatMessage[]) => m[0].content.includes('Reply ONLY with JSO
 const speaker = (m: ChatMessage[]): CfoId | undefined =>
   (['marek', 'anna', 'tomasz', 'kasia'] as CfoId[]).find((c) => m[0].content.includes(`You are ${c[0].toUpperCase()}${c.slice(1)}`));
 const rule = (cfo: CfoId) => cfoFacts(cfo).summary;
+// Only cards the rules still propose: after settling Krause the old forward, early payment and credit line are stale.
 const chairFallback = () =>
-  ruleSummary(db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL'));
+  ruleSummary(db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL' && isCurrentCard(a)));
 
 async function post<T>(url: string, payload: object): Promise<{ status: number; body: T }> {
   const app = Fastify();

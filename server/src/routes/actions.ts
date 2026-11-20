@@ -43,6 +43,9 @@ function simulateExecution(a: Action): string {
   return NOTE[a.kind] ?? 'Simulated';
 }
 
+/** Golden rule 3: a card that was already approved, rejected or auto-done is answered with 409 (an unknown id: 404). */
+const alreadyHandled = (a: Action) => ({ error: `This card is already ${a.status === 'auto_done' ? 'done' : a.status}.` });
+
 const routes: FastifyPluginAsync = async (app) => {
   app.post('/autopilot/run', async () => runAutopilot());
 
@@ -52,7 +55,8 @@ const routes: FastifyPluginAsync = async (app) => {
 
   app.post<{ Params: { id: string } }>('/actions/:id/approve', async (req, reply) => {
     const a = db.actions.find((x) => x.id === req.params.id);
-    if (!a || a.status !== 'open') return reply.code(404).send({ error: 'No open action with this id' });
+    if (!a) return reply.code(404).send({ error: 'No action with this id' });
+    if (a.status !== 'open') return reply.code(409).send(alreadyHandled(a));
     // Only NEEDS_APPROVAL cards are decisions. RECOMMENDED / ANALYSED cards are advice: the owner acts on them directly.
     if (a.tier !== 'NEEDS_APPROVAL') {
       return reply.code(400).send({ error: 'This card is advice only. There is nothing to approve.' });
@@ -68,7 +72,8 @@ const routes: FastifyPluginAsync = async (app) => {
 
   app.post<{ Params: { id: string } }>('/actions/:id/reject', async (req, reply) => {
     const a = db.actions.find((x) => x.id === req.params.id);
-    if (!a || a.status !== 'open') return reply.code(404).send({ error: 'No open action with this id' });
+    if (!a) return reply.code(404).send({ error: 'No action with this id' });
+    if (a.status !== 'open') return reply.code(409).send(alreadyHandled(a));
     a.status = 'rejected';
     logActivity('user', `Rejected: ${a.title}`, false, a.id);
     return a;

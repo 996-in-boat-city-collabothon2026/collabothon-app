@@ -10,6 +10,7 @@ import { tidyReply } from './reply';
 import { cfoFacts, type CfoFacts } from './facts';
 import { citesOwnFact, fixCurrencyPair, replyProblem, textProblem } from './safety';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
+import { allDrafts, isCurrentCard } from './autopilot';
 
 const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia']; // White → Black → Green → Red, the Blue chair sums up
 
@@ -44,9 +45,13 @@ function turnPrompt(cfo: CfoId, facts: CfoFacts, subject: string, turns: Boardro
 /** Open approval cards, one line each, for the chair (and its rule-based summary). */
 const itemFor = (a: Action) => `${CFOS[a.cfo].name}: ${a.title}`;
 
-/** Summary from the rules when the chair's JSON is broken or invents a number: the first 3 decisions. */
+/**
+ * Summary from the rules when the chair's JSON is broken or invents a number: the first 3 decisions.
+ * With no cards it says nothing about the money (review of PR #6: "Everything is under control" during a cash gap,
+ * before the first "Run check").
+ */
 export function ruleSummary(approvals: Action[]): string {
-  if (!approvals.length) return 'Nothing is waiting for your decision. Everything is under control.';
+  if (!approvals.length) return 'Nothing is waiting for your decision right now. Run the check for fresh proposals.';
   return `For your decision: ${approvals.slice(0, 3).map((a) => a.title).join('; ')}. All proposals are in the approval queue.`;
 }
 
@@ -73,7 +78,10 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
     turns.push({ cfo, text: problem ? facts.summary : text });
   }
 
-  const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
+  // Only cards the rules still propose: approving a stale card is refused with 409 (review of PR #6: after paying
+  // Krause early the chair still offered the old forward).
+  const drafts = allDrafts();
+  const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL' && isCurrentCard(a, drafts));
   const items = approvals.map((a) => `- [${a.id}] ${itemFor(a)}`).join('\n') || '-';
   const debate = transcriptOf(turns);
   const chairRaw = await chatOr('', [

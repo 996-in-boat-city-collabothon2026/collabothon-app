@@ -3,12 +3,13 @@
 // Stage language: English, even when the owner asks in Polish.
 import Fastify from 'fastify';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AskResult } from '@cfo/shared';
+import type { AskResult, BoardroomResult } from '@cfo/shared';
 import { config } from '../config';
 import { db, resetDb } from '../domain/store';
 import { setModelCallForTests, type ChatMessage } from '../llm/provider';
 import { claimsDone } from '../agents/text';
 import { settlePayment } from '../domain/settle';
+import { runAutopilot } from '../agents/autopilot';
 import boardroom, { ruleAnswer } from './boardroom';
 
 let modelReply = '';
@@ -262,5 +263,63 @@ describe('blocker 4: a Polish reply never reaches the English stage', () => {
     expect(r.cfo).toBe('anna');
     expect(r.text).toBe(modelReply);
     expect(r.text).not.toBe(ruleAnswer('anna'));
+  });
+});
+
+// ---------- Rebuild M1: body checks, "Owner," and only current cards in the conference ----------
+describe('boardroom routes: body checks, address, current cards', () => {
+  async function post(url: string, payload: unknown) {
+    const app = Fastify();
+    await app.register(boardroom, { prefix: '/api' });
+    return app.inject({ method: 'POST', url, payload: payload as object });
+  }
+
+  it('a wrong body is a 400, never a 500 (review of PR #6)', async () => {
+    for (const [url, payload] of [
+      ['/api/ask', { question: { a: 1 } }],
+      ['/api/ask', { cfo: 'anna' }],
+      ['/api/ask', { question: 'x'.repeat(1001) }],
+      ['/api/boardroom', { topic: { a: 1 } }],
+      ['/api/boardroom', { topic: 'x'.repeat(201) }],
+    ] as const) {
+      expect((await post(url, payload)).statusCode, `${url} ${JSON.stringify(payload).slice(0, 40)}`).toBe(400);
+    }
+  });
+
+  it('a number is read as text, and a cfo that is not ours ("toString") falls back to picking by topic', async () => {
+    modelReply = '';
+    const n = await post('/api/ask', { question: 123 });
+    expect(n.statusCode).toBe(200);
+    for (const cfo of ['toString', 'constructor', '__proto__', 'nobody']) {
+      const r = await post('/api/ask', { cfo, question: 'How much VAT do I owe?' });
+      expect(r.statusCode).toBe(200);
+      expect(r.json<AskResult>().cfo).toBe('marek');
+    }
+    expect((await post('/api/boardroom', { topic: 123 })).statusCode).toBe(200);
+  });
+
+  it('"Owner, …" at the start of an answer is dropped, as in the conference', async () => {
+    modelReply = 'Owner, VAT of 14 230,00 zł is due on November 25, 2026.';
+    expect((await post('/api/ask', { cfo: 'marek', question: 'VAT?' })).json<AskResult>().text).toBe(
+      'VAT of 14 230,00 zł is due on November 25, 2026.',
+    );
+  });
+
+  it('the conference never offers a stale card, and with no cards it says nothing about the money', async () => {
+    modelReply = ''; // every model call fails → rule texts
+    const empty = (await post('/api/boardroom', {})).json<BoardroomResult>();
+    expect(empty.decisionActionIds).toEqual([]);
+    expect(empty.summary).toBe('Nothing is waiting for your decision right now. Run the check for fresh proposals.');
+
+    await runAutopilot();
+    const supplier = db.actions.find((a) => a.kind === 'supplier_payment')!;
+    const hedge = db.actions.find((a) => a.kind === 'fx_hedge')!;
+    settlePayment(supplier.amountPLN!, supplier.refId); // paying Krause early makes the old forward stale
+    supplier.status = 'approved';
+    const r = (await post('/api/boardroom', {})).json<BoardroomResult>();
+    expect(r.decisionActionIds).not.toContain(hedge.id);
+    expect(r.decisionActionIds).not.toContain(supplier.id);
+    expect(r.summary).not.toContain('Lock the rate');
+    expect(r.decisionActionIds.length).toBeGreaterThan(0);
   });
 });

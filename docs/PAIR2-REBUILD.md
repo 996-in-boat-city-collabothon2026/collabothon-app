@@ -131,14 +131,22 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
 - [x] **M0 Branch and this document.**
   Done when: committed on `pair2-rebuild`.
 
-- [ ] **M1 Quick fixes** (`routes/actions.ts`, `agents/boardroom.ts`, `agents/autopilot.ts`, `routes/boardroom.ts`)
-  - [ ] 409 for an already handled card, in approve and reject. Update `actions.test.ts:54,183`.
-  - [ ] Conference uses only current cards (`isCurrentCard`). New `ruleSummary` text: "Nothing is waiting for your decision yet. Run the check to get proposals."
-  - [ ] Withdrawn card ids are kept apart (server-side set, cleared on reset), so an owner-rejected card does not come back.
-  - [ ] Body schema: `question` / `topic` are strings with `maxLength`, and `cfo` is checked with `Object.hasOwn(CFOS, cfo)`.
-  - [ ] `stripAddress` in `/ask`.
+- [x] **M1 Quick fixes** (`routes/actions.ts`, `agents/boardroom.ts`, `agents/autopilot.ts`, `routes/boardroom.ts`)
+  - [x] 409 for an already handled card (approved, rejected or auto-done), in approve and reject. Unknown id: 404.
+  - [x] Conference uses only current cards (`isCurrentCard`). New `ruleSummary` text with no cards: "Nothing is waiting for your decision right now. Run the check for fresh proposals."
+  - [x] Withdrawn card ids are kept in a server-side set (ids are unique, so no clear on reset). An owner-rejected card blocks the same proposal with the same numbers; new numbers make one fresh proposal.
+  - [x] Body schema: `question` (required, ≤ 1000) / `topic` (≤ 200) are strings, `cfo` is checked with `Object.hasOwn(CFOS, cfo)`.
+  - [x] `stripAddress` in `/ask`.
 
-  Done when: a test for each item, plus these curl checks: double approve → 409, reject → run → card gone, `{"topic":123}` → 400.
+  Done when: a test for each item, plus these curl checks: double approve → 409, reject → run → card gone, a non-string body → 400.
+
+  Result: **498/498 tests in 22 files** (490 on `d29bfea`; 8 new in `routes/actions.test.ts` and `routes/ask.test.ts`;
+  4 assertions changed from 404 to 409; the chair-fallback helper in `routes/safety.routes.test.ts` now counts only
+  current cards), typecheck clean, build OK. Curl on the mock server: 12 cards then 0;
+  approve VAT twice → 200 then `409 {"error":"This card is already approved."}`; reject after approve → 409; reject
+  the reminder twice → 200 then 409; next run → `[]`; after paying Krause the conference does not offer the stale
+  forward and approving it → 409; `{"topic":{"a":1}}` and `{"question":{"a":1}}` → 400. Note: Fastify reads a plain
+  number as text, so `{"topic":123}` and `{"question":123}` → 200 (no longer 500). `{"cfo":"toString"}` → 200, picked by topic.
 
 - [ ] **M2 Facts as points** (`agents/facts.ts`, `agents/explain.ts`)
   Done when: `summary` is byte-identical for the seed, the FX explanation uses only the card's currency, and all existing tests are green.

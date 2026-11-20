@@ -6,6 +6,7 @@ import { cfoFacts, type CfoFacts } from '../agents/facts';
 import { citesOwnFact, fixCurrencyPair, replyProblem } from '../agents/safety';
 import { PERSONAS } from '../agents/personas';
 import { tidyReply } from '../agents/reply';
+import { stripAddress } from '../agents/text';
 import { chatOr } from '../llm/provider';
 
 // Quick-advice bubble: pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
@@ -70,14 +71,29 @@ function askPrompt(question: string, facts: CfoFacts): string {
   ].join('\n');
 }
 
+// Body checks (review of PR #6: {"topic":123}, {"question":123} and {"cfo":"toString"} gave 500).
+// A wrong type is refused with 400 (Fastify turns a plain number into a string). Length limits keep prompts small.
+const BOARDROOM_BODY = {
+  type: 'object',
+  properties: { topic: { type: 'string', maxLength: 200 } },
+} as const;
+const ASK_BODY = {
+  type: 'object',
+  required: ['question'],
+  properties: { question: { type: 'string', maxLength: 1000 }, cfo: { type: 'string' } },
+} as const;
+
 const routes: FastifyPluginAsync = async (app) => {
-  app.post<{ Body: { topic?: string } }>('/boardroom', async (req) => runBoardroom(req.body?.topic));
+  app.post<{ Body: { topic?: string } }>('/boardroom', { schema: { body: BOARDROOM_BODY } }, async (req) =>
+    runBoardroom(req.body?.topic),
+  );
 
   // Quick advice bubble + "Ask a CFO". cfo is optional: without it the server picks one by topic.
-  app.post<{ Body: { cfo?: CfoId; question?: string } }>('/ask', async (req, reply) => {
-    const question = req.body?.question?.trim();
+  app.post<{ Body: { cfo?: string; question: string } }>('/ask', { schema: { body: ASK_BODY } }, async (req, reply) => {
+    const question = req.body.question.trim();
     if (!question) return reply.code(400).send({ error: 'question is required' });
-    const named = req.body.cfo && CFOS[req.body.cfo] ? req.body.cfo : undefined;
+    // Own keys only: "toString" or "constructor" are not CFOs.
+    const named = req.body.cfo && Object.hasOwn(CFOS, req.body.cfo) ? (req.body.cfo as CfoId) : undefined;
     const cfo = named ?? pickCfo(question);
     const facts = cfoFacts(cfo);
     const raw = await chatOr(facts.summary, [
@@ -87,7 +103,7 @@ const routes: FastifyPluginAsync = async (app) => {
 
     // Same check as every conference turn (agents/safety.ts). Numbers come ONLY from the rule facts: a number the
     // owner typed ("Czy VAT wynosi 99 999 zł?") is not true just because it is in the question.
-    const answer = fixCurrencyPair(tidyReply(raw), facts);
+    const answer = fixCurrencyPair(stripAddress(tidyReply(raw)), facts); // "Owner, …" dropped as in the conference
     const problem = replyProblem(answer, facts, (t) => citesOwnFact(t, facts));
     if (problem) console.info(`[guard] ask:${cfo} ${problem} → rule answer`);
     const result: AskResult = { cfo, text: problem ? facts.summary : answer };
