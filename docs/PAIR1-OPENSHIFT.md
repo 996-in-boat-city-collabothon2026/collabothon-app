@@ -138,10 +138,12 @@
   ```powershell
   oc describe bc/warsztat-cfo | Select-String -Context 0,2 "Webhook GitHub"
   ```
-  This prints a URL containing `<secret>`. Get the real secret:
+  This prints a URL containing `<secret>`. Get the real secret (in our BuildConfig it sits directly in the GitHub trigger's
+  `github.secret` field, not in a separate Secret object):
   ```powershell
-  $s = oc get bc warsztat-cfo -o jsonpath='{.spec.triggers[?(@.type=="GitHub")].github.secretReference.name}'; [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((oc get secret $s -o jsonpath='{.data.WebHookSecretKey}')))
+  (oc get bc warsztat-cfo -n my-first-model -o json | ConvertFrom-Json).spec.triggers | Where-Object { $_.type -eq 'GitHub' } | ForEach-Object { $_.github.secret }
   ```
+  Use the value only in GitHub's webhook form. Never paste it or the full webhook URL into logs, PR text, chat or Git.
   GitHub → repo → **Settings → Webhooks → Add webhook**: Payload URL = that URL with `<secret>` replaced,
   Content type = `application/json`, "Just the push event" → **Add webhook**. (Only a repo admin can do this.)
   ✅ Done when: GitHub shows a green tick on the webhook's "Recent Deliveries", and the next merge to `main` starts a build (`oc get builds`).
@@ -178,7 +180,7 @@
 
 - [x] **2.4 💻 Connect the app.** No token, no secret needed.
   ```powershell
-  oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=22000
+  oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=24000
   ```
   ✅ Done when: the new pod is Running.
 
@@ -268,14 +270,27 @@ Each ✍️ step: Claude edits → `npm run typecheck; npm test` → commit → 
 
 - [x] **4.3 💻 Rollback drill.** ⚠️ `oc rollout undo` does **nothing** here: the image trigger resets the image to
   `warsztat-cfo:latest` at once. Roll back by pointing `latest` at an older build instead:
+  Windows PowerShell 5.1, all in **one** PowerShell session (the return step needs `$original`):
   ```powershell
-  oc get is warsztat-cfo -o jsonpath='{range .status.tags[0].items[*]}{.created}  {.image}{"\n"}{end}'
+  $stream = oc get is warsztat-cfo -n my-first-model -o json | ConvertFrom-Json
+  $history = ($stream.status.tags | Where-Object { $_.tag -eq 'latest' }).items
+  $original = $history[0].image
+  $history | Select-Object created,image
+  $older = Read-Host 'Paste the full older sha256 digest'
+  oc tag "warsztat-cfo@$older" warsztat-cfo:latest -n my-first-model
   ```
-  (newest first). Pick the older `sha256:…` and run:
+  Save `$original` **before** the rollback: after `oc tag`, the first history entry is the older image you just picked,
+  so "the top digest" is no longer the original. Return, in the same PowerShell session:
   ```powershell
-  oc tag warsztat-cfo@sha256:<older> warsztat-cfo:latest
+  oc tag "warsztat-cfo@$original" warsztat-cfo:latest -n my-first-model
   ```
-  The deploy rolls out on its own (~30 s). Back to the newest: the same with the top digest. The next merge to `main` builds a new `latest` anyway.
+  After each `oc tag`, confirm the rollout finished and the running pod uses the chosen digest:
+  ```powershell
+  oc rollout status deploy/warsztat-cfo -n my-first-model --timeout=180s
+  (oc get pods -n my-first-model -l deployment=warsztat-cfo -o json | ConvertFrom-Json).items | ForEach-Object { "$($_.metadata.name)  $($_.status.containerStatuses[0].imageID)" }
+  ```
+  Every listed `imageID` must end with the digest you chose (`$older` after the rollback, `$original` after the return).
+  The next successful build writes `latest` again.
   ✅ Done when: we tried it once and returned.
 
 - [x] **4.4 💻 Mock emergency switch.** If the model dies during the demo:
@@ -344,5 +359,5 @@ General: `oc get pods` · `oc logs deploy/warsztat-cfo --tail=50` · `oc describ
 | H3 | 3.9 (live part) | user + Claude | PR #3 merged → webhook built `de8542c` (build 3) → live. Smoke `-RequireModel` on the route: all passed, `openai_compat`, health 71 ms, `/ask` 3.1 s. Boardroom 22.2 s / 21.0 s, but run 1 **hit the 22 s budget**: Kasia's turn aborted, chair never called (fallback text). Model ≈ 36 tok/s, so 5 × 200 tokens can take ~28 s. ⚠️ For Pair 2: `agents/boardroom.ts` turns `maxTokens` 200 → ~130 (keep chair 200). `LLM_BUDGET_MS` not set on cluster: code default 22000 applies. Phone click-through still open. |
 | H3 | 4.2–4.4 | Claude | Export → `deploy/export/app.yaml` (2 inline webhook secrets redacted). Rollback: `oc rollout undo` is a no-op (image trigger) → `oc tag` to build 2 (`07cd90…`) and back to build 3 (`af9eea…`), both healthy. Mock switch: `LLM_MODE=mock` → `mock`, back → `openai_compat`. A switch takes ~30–60 s: the old pod still answers while it terminates. |
 | H3 | 3.1 re-test | user + Claude | Fresh state: conference 14.6–18.1 s, all ok (prompts ~400–800 tokens). **Demo order** (reset → autopilot, 12 cards → conference): prompts ~1 600–2 100 tokens, 22 s budget → 2/2 runs cut (chair, then Kasia). Stopgap: `LLM_BUDGET_MS=24000` on the cluster → 22.3 / 23.8 / 24.2 s, 2/3 full, 1 chair fallback. Real fix is Pair 2's: fewer cards per turn, shorter history, turns `maxTokens` 120. Always time it in demo order. |
-| H3 | test instance | Nargiz + Claude | Pair 2 asked for a test copy of `pair2-agents` on the real model → `warsztat-cfo-test` in `my-first-model` (runbook: deploy/README §4). Build ok, health `openai_compat` ok 88 ms, `/ask` "Ile mam pieniędzy na koncie?" → Anna "Mam 38 400,00 zł na koncie." in 0.46 s (amount right; "Mam" should be "Masz"). Delete with `oc delete all -l app=warsztat-cfo-test -n my-first-model`. |
+| H3 | test instance | Nargiz + Claude | Pair 2 asked for a test copy of `pair2-agents` on the real model → `warsztat-cfo-test` in `my-first-model` (runbook: deploy/README §4). Build ok, health `openai_compat` ok 88 ms, `/ask` "Ile mam pieniędzy na koncie?" → Anna "Mam 38 400,00 zł na koncie." in 0.46 s (amount right; "Mam" should be "Masz"). Delete with `oc delete deploy,svc,route,bc,is warsztat-cfo-test -n my-first-model --ignore-not-found` (five objects; the shared base-image ImageStream stays). |
 | H3 | findings for other pairs | Nargiz + Claude | **Pair 2:** Kasia's persona asks for the 5% shock, NBP trend and a forward rate, but `snapshot()` only gives the EUR rate + net exposure → she invents rates ("forward @ 4.30"). Add those numbers to `snapshot()` or tell her never to quote a forward rate. `fmtPLN` uses non-breaking spaces (U+00A0): the 3B model rewrites `38 400,00 zł` as `38,400,00 zł` → feed the model a plain-space version, keep `fmtPLN` for the UI. **Pair 3:** `payerDelays()` in `rules/cashflow.ts` needs `paidDate` on paid sales invoices; the seed has none, so "how late this customer usually pays" is switched off. |

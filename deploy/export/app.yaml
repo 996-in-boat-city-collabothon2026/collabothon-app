@@ -1,4 +1,7 @@
-# Backup of the live app objects (oc get deploy,svc,route,bc,is warsztat-cfo -o yaml). Webhook secrets REDACTED: never commit them.
+# Reference snapshot only. Do not run `oc apply -f deploy/export/app.yaml`. To recreate the app, follow this runbook: deploy/README.md.
+# (It holds cluster-assigned fields: resourceVersion, uid, status, clusterIP, image digests, and REDACTED webhook secrets,
+#  so applying it can fail half-way or overwrite working settings.)
+# Source: oc get deploy,svc,route,bc,is warsztat-cfo -o yaml. Webhook secrets REDACTED: never commit them.
 apiVersion: v1
 items:
 - apiVersion: apps/v1
