@@ -3,8 +3,10 @@
 import type { Action } from '@cfo/shared';
 import { db } from '../domain/store';
 import { daysBetween, fmtPLN } from '../domain/money';
-import { forecast } from './cashflow';
 import { fx } from './fx';
+import { liquidity } from './liquidity';
+import { expenses } from './expenses';
+import { margin } from './margin';
 
 export type DraftAction = Omit<Action, 'id' | 'status' | 'createdAt'>;
 export type Rule = () => DraftAction[];
@@ -39,26 +41,4 @@ const ksefRejected: Rule = () =>
       refId: i.id,
     }));
 
-/** Anna: forecast dips below the safety buffer → propose a credit line. */
-const cashGap: Rule = () => {
-  const f = forecast(30);
-  if (f.lowest.balancePLN >= f.bufferPLN) return [];
-  const need = Math.ceil((f.bufferPLN - f.lowest.balancePLN) / 1000) * 1000;
-  return [
-    {
-      cfo: 'anna',
-      kind: 'credit_line',
-      tier: 'NEEDS_APPROVAL',
-      execution: 'simulated',
-      title: `Open a credit line of ${fmtPLN(need)}`,
-      why: [
-        `Balance falls to ${fmtPLN(f.lowest.balancePLN)} on ${f.lowest.date}`,
-        `Your safety buffer is ${fmtPLN(f.bufferPLN)}`,
-      ],
-      amountPLN: need,
-      dueDate: f.lowest.date,
-    },
-  ];
-};
-
-export const RULES: Rule[] = [deadlines, ksefRejected, cashGap, fx];
+export const RULES: Rule[] = [deadlines, ksefRejected, liquidity, fx, expenses, margin];
