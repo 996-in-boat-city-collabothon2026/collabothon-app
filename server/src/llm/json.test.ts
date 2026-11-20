@@ -27,6 +27,16 @@ describe('extractJson', () => {
     expect(extractJson(text, Chair)).toEqual({ summary: 'Chase invoices', decisionActionIds: ['a1', 'a2'] });
   });
 
+  it('removes a trailing comma without touching apostrophes inside strings', () => {
+    const text = `{"summary":"Kasia's figures don't match","decisionActionIds":[],}`;
+    expect(extractJson(text, Chair)).toEqual({ summary: "Kasia's figures don't match", decisionActionIds: [] });
+  });
+
+  it('keeps commas and brackets that are inside strings', () => {
+    const text = `{"summary":"Pay VAT, ZUS ], then PIT }",'decisionActionIds':['a1',],}`;
+    expect(extractJson(text, Chair)).toEqual({ summary: 'Pay VAT, ZUS ], then PIT }', decisionActionIds: ['a1'] });
+  });
+
   it('returns null for garbage or a wrong shape', () => {
     expect(extractJson('I think we should pay VAT.', Chair)).toBeNull();
     expect(extractJson('{"summary": 5}', Chair)).toBeNull();

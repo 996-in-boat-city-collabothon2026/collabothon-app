@@ -20,11 +20,36 @@ function firstObject(text: string): string | null {
   return null;
 }
 
-/** Fixes trailing commas and 'single-quoted' keys/strings. Only used when strict JSON.parse fails. */
+/**
+ * Fixes trailing commas and 'single-quoted' keys/strings. Only used when strict JSON.parse fails.
+ * Walks the text once: "double-quoted" strings are copied untouched (so apostrophes like "Kasia's" survive),
+ * 'single-quoted' strings become "double-quoted", and a comma right before } or ] outside any string is dropped.
+ */
 function repair(json: string): string {
-  return json
-    .replace(/,\s*([}\]])/g, '$1')
-    .replace(/'((?:[^'\\]|\\.)*)'/g, (_m, s: string) => JSON.stringify(s.replace(/\\'/g, "'")));
+  let out = '';
+  for (let i = 0; i < json.length; i++) {
+    const c = json[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < json.length && json[j] !== '"') j += json[j] === '\\' ? 2 : 1;
+      out += json.slice(i, j + 1);
+      i = j;
+    } else if (c === "'") {
+      let j = i + 1;
+      let s = '';
+      while (j < json.length && json[j] !== "'") {
+        if (json[j] === '\\' && json[j + 1] === "'") j++; // \' → '
+        s += json[j++];
+      }
+      out += JSON.stringify(s);
+      i = j;
+    } else if (c === ',' && /^\s*[}\]]/.test(json.slice(i + 1))) {
+      // trailing comma: skip it
+    } else {
+      out += c;
+    }
+  }
+  return out;
 }
 
 function parseLoose(candidate: string): unknown {

@@ -1,12 +1,13 @@
 # Deploy to OpenShift (Pair 1)
 
-Project = `cfo-llm` · route URL = `<https://...>` · model = `llama-32-3b-instruct` (organizers', namespace `my-first-model`)
+Project = **`my-first-model`** (the app runs in the same namespace as the model; `cfo-llm` is an unused empty project)
+Route = https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com · model = `llama-32-3b-instruct` (organizers')
 
 ## 0. Log in
 Console → your name (top right) → **Copy login command** → **Display Token** → run the `oc login --token=… --server=…` line
 in the VS Code terminal (never paste the token into chat or files).
 ```
-oc project cfo-llm
+oc project my-first-model
 ```
 
 ## 1. App (first time)
@@ -38,15 +39,17 @@ oc label namespace my-first-model opendatahub.io/dashboard=true
 
 ## 3. Connect app → model
 ```
-oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1
+oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=22000
 oc rsh deploy/warsztat-cfo curl -s localhost:8080/api/llm/health
 ```
-Expect `"mode":"openai_compat","ok":true`. Back to mock any time: `oc set env deploy/warsztat-cfo LLM_MODE=mock`.
+Expect `"mode":"openai_compat","ok":true`. `LLM_TIMEOUT_MS` = max per model call, `LLM_BUDGET_MS` = max total model time per API request
+(the conference makes 5 calls; keep it under the 25 s demo target). Check what is set: `oc set env deploy/warsztat-cfo --list`. Back to mock any time: `oc set env deploy/warsztat-cfo LLM_MODE=mock`.
 
 If we ever switch to a model with token auth: `oc create secret generic llm --from-literal=LLM_API_KEY=<token>`
 then `oc set env deploy/warsztat-cfo --from=secret/llm`.
 
 ## Troubleshooting
+Always check the project first: `oc project` must print `my-first-model`.
 `oc get pods` · `oc logs deploy/warsztat-cfo` · `oc describe pod <name>` · `oc get builds`
 - `"ok":false` with a timeout → check the model pod: `oc get pods -n my-first-model`.
 - App logs show one `[llm]` line per model call (key, latency, tokens).

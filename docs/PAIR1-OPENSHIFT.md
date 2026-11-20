@@ -82,7 +82,7 @@
   ```powershell
   oc project
   ```
-  If we must create a project ourselves: `oc new-project warsztat-cfo`. Otherwise `oc project <given-name>`.
+  Our app and the model both live in **`my-first-model`**: `oc project my-first-model`. (`cfo-llm` is an unused empty project.)
   ✅ Done when: `oc whoami` prints your user and `oc project` shows our namespace. Write it into the table.
 
 - [x] **1.2 💻 See what the cluster gives us** (it is a single-node cluster: don't waste resources).
@@ -178,7 +178,7 @@
 
 - [x] **2.4 💻 Connect the app.** No token, no secret needed.
   ```powershell
-  oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000
+  oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=22000
   ```
   ✅ Done when: the new pod is Running.
 
@@ -333,3 +333,4 @@ General: `oc get pods` · `oc logs deploy/warsztat-cfo --tail=50` · `oc describ
 | H1 | 3.1 | Claude | Boardroom on the real model: **15.8 s** (< 25 s ✅). ⚠️ For Pair 2: the model invents numbers (EUR/USD 1.13, forward @ 4.30, "3-month") and prints `38,400,00 zł`; prompts need "use ONLY these numbers". Live app still runs `main` (without our provider.ts changes) until our PR is merged + rebuilt. |
 | H1 | 1.8 | user + Claude | OCP blocks anonymous webhooks (403) → `oc policy add-role-to-group system:webhook system:unauthenticated -n my-first-model`. GitHub webhook (JSON, push events, SSL verify off) → ping 200. Build is pinned to `#main`: only merges to main rebuild. Webhook URL holds the secret: never commit/post it. |
 | H1 | 4.5 | Claude | `llama-32-3b-instruct`: minReplicas=1, maxReplicas=1, Standard mode → never scales to zero. |
+| H2 | PR #3 review | Claude | Fixed review: empty `LLM_BASE_URL` sends no request (was api.openai.com); one LLM time budget per request (`LLM_BUDGET_MS=22000`, Fastify hook) aborts hanging calls; replay only for the identical prompt; shared health probe + empty reply = not healthy; string-aware JSON repair; cut-off `<think>` → fallback. 117 tests. Hanging model e2e: 5.02 s for a 5 s budget (warm), 24.1 s with 22 s on a cold first request. Runbook → `my-first-model`. |
