@@ -6,7 +6,7 @@ type Lang = 'pl' | 'en';
 const DICT: Record<string, { pl: string; en: string }> = {
   dashboard: { pl: 'Pulpit', en: 'Dashboard' },
   approvals: { pl: 'Do akceptacji', en: 'Approvals' },
-  nav_approvals: { pl: 'Zgody', en: 'Approvals' },
+  nav_approvals: { pl: 'Do akceptacji', en: 'Approvals' },
   nav_boardroom: { pl: 'Spotkanie', en: 'Meeting' },
   boardroom: { pl: 'Spotkanie agentów', en: 'Agents meeting' },
   ksef: { pl: 'KSeF', en: 'KSeF' },

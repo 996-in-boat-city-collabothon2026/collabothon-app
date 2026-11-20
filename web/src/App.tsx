@@ -98,7 +98,7 @@ export default function App() {
           <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
             `flex min-h-14 flex-col items-center justify-center rounded-full text-center text-[13px] font-medium leading-tight ${isActive ? 'bg-accent text-white' : 'text-zinc-300'}`}>
             <Icon name={n.icon} size={22} />
-            <span className="max-w-full truncate px-0.5">{t(n.key)}</span>
+            <span className="max-w-full px-0.5 text-[12px] leading-[1.1]">{t(n.key)}</span>
           </NavLink>
         ))}
       </nav>

@@ -98,11 +98,11 @@ export function CfoAvatar({ cfo, size = 40, live = false }: { cfo: CfoId; size?:
 /** Animated "agent → action → you" strip: shows how a decision flows. Decorative, labels are readable text. */
 export function FlowStrip({ steps }: { steps: string[] }) {
   return (
-    <div className="surface glow-mint flex items-center gap-3 overflow-hidden p-5" aria-label={steps.join(' → ')}>
+    <div className="surface glow-mint flex items-center gap-2 overflow-hidden p-4 sm:gap-3 sm:p-5" aria-label={steps.join(' → ')}>
       {steps.map((s, i) => (
         <span key={s} className="contents">
-          {i > 0 && <span className="flow-line min-w-6 flex-1" aria-hidden="true" />}
-          <span className="shrink-0 rounded-full border border-black/10 bg-white px-3 py-2 text-base font-semibold">{s}</span>
+          {i > 0 && <span className="flow-line min-w-3 flex-1" aria-hidden="true" />}
+          <span className="shrink-0 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-[15px] font-semibold sm:px-3 sm:text-base">{s}</span>
         </span>
       ))}
     </div>
