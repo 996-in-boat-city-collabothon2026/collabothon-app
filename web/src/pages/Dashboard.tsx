@@ -177,7 +177,7 @@ export default function Dashboard() {
           <h2 className="text-2xl font-semibold tracking-tight">{t('hub_title')}</h2>
           <p className="mt-3 text-lg text-stone-800">{t('hub_text')}</p>
         </div>
-        <AgentHub className="mx-auto max-w-[300px]" />
+        <AgentHub className="mx-auto max-w-[440px]" />
       </section>
 
       {/* What the agents found – the 3 most important, approvals first */}

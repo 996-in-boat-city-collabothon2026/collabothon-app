@@ -122,8 +122,8 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
   const hat = HATS[hatId];
   if (imgOk) {
     return (
-      <span title={label} className="avatar-3d relative inline-flex shrink-0 overflow-hidden rounded-full bg-zinc-100"
-        style={{ width: size, height: size }}>
+      <span title={label} className="avatar-3d relative inline-flex shrink-0 overflow-hidden rounded-[28%] bg-zinc-100"
+        style={{ width: Math.round(size * 1.6), height: Math.round(size * 1.6) }}>
         <img src={avatarSrc(hatId)} alt={label} loading="lazy" decoding="async" onError={() => setImgOk(false)}
           className="h-full w-full object-cover" />
       </span>

@@ -45,7 +45,7 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center pb-16">
         <div className="text-center">
-          <div className="reveal mx-auto -mt-4 mb-1 max-w-[220px]"><AgentHub /></div>
+          <div className="reveal mx-auto -mt-4 mb-1 max-w-[320px]"><AgentHub /></div>
           <span className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-medium">
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-white"><Icon name="bolt" size={14} /></span>
             {t('login_demo_note')}

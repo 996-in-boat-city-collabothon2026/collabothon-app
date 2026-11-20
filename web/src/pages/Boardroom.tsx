@@ -127,10 +127,10 @@ export default function Boardroom() {
         </form>
 
         {/* Who is at the table */}
-        <ul className="mt-6 grid w-full grid-cols-2 gap-3 sm:grid-cols-4">
+        <ul className="mt-6 grid w-full grid-cols-2 gap-4 sm:grid-cols-4">
           {ORDER.map((c) => (
             <li key={c} className={`flex items-center gap-2 rounded-2xl p-2 text-left transition ${speaking === c ? 'bg-accent-soft' : ''} ${busy && speaking !== c ? 'opacity-60' : ''}`}>
-              <Person cfo={c} size={40} active={speaking === c} />
+              <Person cfo={c} size={56} active={speaking === c} />
               <span className="min-w-0">
                 <span className="block font-semibold leading-tight">{CFOS[c].name}</span>
                 <span className="block text-sm leading-tight text-zinc-700">{lang === 'pl' ? CFOS[c].rolePl : CFOS[c].role}</span>
@@ -146,7 +146,7 @@ export default function Boardroom() {
           <ol className="space-y-4" aria-live="polite">
             {result.turns.slice(0, shown).map((turn, i) => (
               <li key={i} className="pop-in flex items-start gap-3">
-                <Person cfo={turn.cfo} size={40} />
+                <Person cfo={turn.cfo} size={44} />
                 <div className="min-w-0 flex-1">
                   <p className="mb-1 font-semibold">
                     {CFOS[turn.cfo].name} <span className="font-normal text-zinc-700">· {lang === 'pl' ? CFOS[turn.cfo].rolePl : CFOS[turn.cfo].role}</span>
@@ -157,7 +157,7 @@ export default function Boardroom() {
             ))}
             {typing && typing !== 'chair' && phase === 'talking' && (
               <li className="pop-in flex items-center gap-3">
-                <Person cfo={typing} size={40} active />
+                <Person cfo={typing} size={44} active />
                 <span className="rounded-3xl bg-zinc-100 px-4 py-3"><TypingDots /></span>
                 <span className="text-zinc-700">{CFOS[typing].name} {t('is_typing')}</span>
               </li>
