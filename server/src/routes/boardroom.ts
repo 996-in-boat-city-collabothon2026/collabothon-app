@@ -1,11 +1,12 @@
 // Owner: Pair 2.
 import type { FastifyPluginAsync } from 'fastify';
-import { CFOS, type AskResult, type CfoId, type Tier } from '@cfo/shared';
-import { runBoardroom, snapshot } from '../agents/boardroom';
+import { CFOS, type AskResult, type CfoId } from '@cfo/shared';
+import { runBoardroom } from '../agents/boardroom';
+import { cfoFacts, langOf, type CfoFacts, type Lang } from '../agents/facts';
 import { findInventedNumbers } from '../agents/numberGuard';
 import { PERSONAS } from '../agents/personas';
+import { tidyReply } from '../agents/reply';
 import { chatOr } from '../llm/provider';
-import { RULES } from '../rules';
 
 // Quick-advice bubble: pick the CFO by keywords (PL + EN, with and without Polish letters).
 // Each CFO scores 1 point per matching word group; the highest score wins. Ties and no match → Anna.
@@ -49,17 +50,32 @@ export function pickCfo(question: string): CfoId {
   return best;
 }
 
-const TIER_ORDER: Record<Tier, number> = { NEEDS_APPROVAL: 0, RECOMMENDED: 1, ANALYSED: 2 };
-const looksPolish = (text: string) => /[ąćęłńóśźż]|\b(czy|jak|ile|kiedy|mam|jest|co)\b/i.test(text);
-
-/** Safe answer without the model: this CFO's most important current card, numbers straight from the rules. */
+/** Safe answer without the model: this CFO's conclusion in plain words, numbers straight from the rules. */
 export function ruleAnswer(cfo: CfoId, question: string): string {
-  const pl = looksPolish(question);
-  const top = RULES.flatMap((rule) => rule())
-    .filter((a) => a.cfo === cfo)
-    .sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier])[0];
-  if (!top) return pl ? `${CFOS[cfo].name}: nie widzę teraz nic pilnego w moim obszarze.` : `${CFOS[cfo].name}: nothing urgent in my area right now.`;
-  return `${CFOS[cfo].name}: ${pl ? 'najważniejsze teraz' : 'most important now'}: ${top.title}. ${top.why[0]}.`;
+  return cfoFacts(cfo, langOf(question)).summary;
+}
+
+/** The prompt for the small model: a few labelled facts, the conclusion to say, the question. */
+function askPrompt(question: string, facts: CfoFacts, lang: Lang): string {
+  return lang === 'pl'
+    ? [
+        'FAKTY (tylko tych liczb wolno Ci użyć):',
+        ...facts.lines.map((l) => `- ${l}`),
+        '',
+        `NAJWAŻNIEJSZE (powiedz to swoimi słowami, z tymi samymi liczbami): ${facts.summary}`,
+        '',
+        `PYTANIE WŁAŚCICIELA: ${question}`,
+        'Odpowiedz na pytanie w 2–3 krótkich zdaniach po polsku. Mów do właściciela na "Ty" (masz, zapłać, wyślij).',
+      ].join('\n')
+    : [
+        'FACTS (the only numbers you may use):',
+        ...facts.lines.map((l) => `- ${l}`),
+        '',
+        `KEY POINT (say it in your own words, with the same numbers): ${facts.summary}`,
+        '',
+        `OWNER ASKS: ${question}`,
+        'Answer the question in 2–3 short sentences in English. Talk to the owner as "you".',
+      ].join('\n');
 }
 
 const routes: FastifyPluginAsync = async (app) => {
@@ -71,17 +87,20 @@ const routes: FastifyPluginAsync = async (app) => {
     if (!question) return reply.code(400).send({ error: 'question is required' });
     const named = req.body.cfo && CFOS[req.body.cfo] ? req.body.cfo : undefined;
     const cfo = named ?? pickCfo(question);
-    const facts = snapshot();
-    const fallback = ruleAnswer(cfo, question);
-    const answer = await chatOr(fallback, [
+    const lang = langOf(question);
+    const facts = cfoFacts(cfo, lang);
+    const raw = await chatOr(facts.summary, [
       { role: 'system', content: PERSONAS[cfo] },
-      { role: 'user', content: `DATA:\n${facts}\n\nOWNER ASKS: ${question}` },
-    ], { maxTokens: 200, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
+      { role: 'user', content: askPrompt(question, facts, lang) },
+    ], { maxTokens: 160, temperature: 0.1, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
 
-    // Golden rule 1: a reply with a number or date that is not in the data (or the question) is never shown.
-    const invented = findInventedNumbers(answer, `${facts}\n${question}`);
-    if (invented.length > 0) console.info(`[guard] ask:${cfo} invented ${JSON.stringify(invented)} → rule answer`);
-    const result: AskResult = { cfo, text: invented.length > 0 ? fallback : answer };
+    // Clean it up in code, then golden rule 1: a number or date that is not in the facts (or the question) is never shown.
+    const answer = tidyReply(raw, lang);
+    const invented = findInventedNumbers(answer, [...facts.lines, facts.summary, question].join('\n'));
+    if (!answer || invented.length > 0) {
+      console.info(`[guard] ask:${cfo} ${answer ? `invented ${JSON.stringify(invented)}` : 'empty after tidy'} → rule answer`);
+    }
+    const result: AskResult = { cfo, text: answer && invented.length === 0 ? answer : facts.summary };
     return result;
   });
 };
