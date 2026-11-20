@@ -6,7 +6,7 @@ html {
 }
 body {
   /* Warm off-white, near-black text: calm and high contrast */
-  @apply bg-stone-100 text-stone-900 antialiased;
+  @apply bg-zinc-100 text-stone-900 antialiased;
   line-height: 1.55;
 }
 /* Clear keyboard focus everywhere */
@@ -17,4 +17,11 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* White rounded card with a very soft shadow (dashboard look) */
+.surface {
+  background: #fff;
+  border-radius: 1.75rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px -16px rgb(0 0 0 / 0.12);
 }

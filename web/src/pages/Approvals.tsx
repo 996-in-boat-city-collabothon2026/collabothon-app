@@ -30,11 +30,11 @@ export default function Approvals() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-bold">✋ {t('approvals')}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight">✋ {t('approvals')}</h1>
         {data && <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-sm text-rose-800">{queue.length} {t('waiting')}</span>}
       </div>
 
-      <div aria-live="polite" className="flex items-baseline justify-between rounded-3xl border border-stone-200 bg-white px-5 py-4">
+      <div aria-live="polite" className="flex items-baseline justify-between surface px-5 py-4">
         <span className="text-stone-600">{t('balance')}</span>
         <strong className="text-xl tabular-nums">{state.data ? fmtPLN(state.data.kpis.balancePLN) : '…'}</strong>
       </div>

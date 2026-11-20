@@ -17,7 +17,7 @@ export default function Activity() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">📜 {t('activity')}</h1>
+      <h1 className="text-4xl font-semibold tracking-tight">📜 {t('activity')}</h1>
       <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('filter_by')}>
         {FILTERS.map((f) => (
           <button key={f} role="radio" aria-checked={filter === f} onClick={() => setFilter(f)}

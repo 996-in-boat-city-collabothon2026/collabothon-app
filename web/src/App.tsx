@@ -53,35 +53,33 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen md:flex">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 border-r border-stone-200 bg-stone-50 p-4 md:block">
-        <p className="mb-6 text-xl font-extrabold tracking-tight">🔧 WarsztatCFO</p>
-        <nav className="space-y-1">
-          {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
-              `flex min-h-12 items-center gap-2 rounded-full px-4 ${isActive ? 'bg-stone-900 font-semibold text-white' : 'hover:bg-stone-200/70'}`}>
-              {n.icon} {t(n.key)}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-
+    <div className="min-h-screen">
       {/* Bottom padding: room for the mobile tab bar + the 💬 bubble, so it never covers the last buttons */}
-      <div className="min-w-0 flex-1 pb-40 md:pb-24">
-        <header className="flex items-center justify-between gap-2 border-b border-stone-200 bg-stone-100/90 px-4 py-3 backdrop-blur">
-          <span className="font-extrabold tracking-tight md:hidden">🔧 WarsztatCFO</span>
-          <LlmStatusBadge health={health} />
-          <div className="flex items-center gap-2">
-            <span className="hidden text-sm text-stone-600 sm:inline">{user.name} · demo</span>
-            <button onClick={() => setLang(lang === 'pl' ? 'en' : 'pl')} aria-label={lang === 'pl' ? 'Switch to English' : 'Przełącz na polski'}
-              className="min-h-12 rounded-full border border-stone-300 bg-white px-3 text-sm font-medium">
-              {lang === 'pl' ? 'EN' : 'PL'}
-            </button>
-            <button onClick={logout} className="min-h-12 rounded-full bg-stone-900 px-4 text-sm font-medium text-white">{t('logout')}</button>
+      <div className="pb-40 md:pb-24">
+        {/* Floating top bar: logo, menu pills (desktop), model, language, sign out */}
+        <header className="sticky top-0 z-30 px-3 pt-3">
+          <div className="surface mx-auto flex max-w-6xl items-center justify-between gap-2 py-1.5 pl-5 pr-1.5">
+            <span className="whitespace-nowrap text-lg font-extrabold tracking-tight"><span aria-hidden="true" className="sm:hidden">🔧</span><span className="sr-only sm:not-sr-only">WarsztatCFO</span></span>
+            <nav aria-label="Menu" className="hidden items-center gap-1 lg:flex">
+              {NAV.map((n) => (
+                <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
+                  `flex min-h-12 items-center whitespace-nowrap rounded-full px-4 font-medium ${isActive ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
+                  {t(n.key)}
+                </NavLink>
+              ))}
+            </nav>
+            <div className="flex items-center gap-1.5">
+              <LlmStatusBadge health={health} />
+              <button onClick={() => setLang(lang === 'pl' ? 'en' : 'pl')} aria-label={lang === 'pl' ? 'Switch to English' : 'Przełącz na polski'}
+                className="min-h-12 rounded-full px-3 text-sm font-semibold hover:bg-zinc-100">
+                {lang === 'pl' ? 'EN' : 'PL'}
+              </button>
+              <button onClick={logout} title={`${user.name} · demo`}
+                className="min-h-12 whitespace-nowrap rounded-full bg-stone-900 px-4 text-sm font-semibold text-white">{t('logout')}</button>
+            </div>
           </div>
         </header>
-        <main className="mx-auto max-w-5xl p-4">
+        <main className="mx-auto max-w-6xl px-4 pt-8">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/approvals" element={<Approvals />} />
@@ -97,7 +95,7 @@ export default function App() {
       <AskBubble />
 
       {/* Mobile bottom tabs */}
-      <nav aria-label="Menu" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-stone-200 bg-white md:hidden">
+      <nav aria-label="Menu" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-stone-200 bg-white lg:hidden">
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
             `flex min-h-14 flex-col items-center justify-center py-1 text-center text-[13px] leading-tight ${isActive ? 'font-semibold text-stone-900' : 'text-stone-600'}`}>

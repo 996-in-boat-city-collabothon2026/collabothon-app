@@ -62,7 +62,7 @@ export default function Ksef() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-2xl font-bold">{t('ksef_title')}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight">{t('ksef_title')}</h1>
         <span className="rounded-full bg-violet-100 px-2.5 py-0.5 text-sm font-medium text-violet-800">🧪 {t('ksef_sim_badge')}</span>
       </div>
       <p className="rounded-xl bg-violet-50 px-4 py-3 text-violet-900">🧪 {t('ksef_sim_notice')}</p>

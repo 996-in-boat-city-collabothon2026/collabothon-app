@@ -20,9 +20,19 @@ export function fmtMoney(n: number, currency: Currency = 'PLN'): string {
 /** ISO date → „DD.MM” (short, phone-friendly). */
 export const fmtDay = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
+/** Big page title on the left, optional pill / buttons on the right (same on every page). */
+export function PageHeader({ title, children }: { title: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">{title}</h1>
+      {children}
+    </div>
+  );
+}
+
 export function Card({ title, children, className = '' }: { title?: ReactNode; children: ReactNode; className?: string }) {
   return (
-    <section className={`rounded-3xl border border-stone-200 bg-white p-5 ${className}`}>
+    <section className={`surface p-6 ${className}`}>
       {title && <h2 className="mb-4 text-lg font-bold tracking-tight">{title}</h2>}
       {children}
     </section>
@@ -85,7 +95,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
   const [open, setOpen] = useState(false);
   const canDecide = action.tier === 'NEEDS_APPROVAL' && action.status === 'open';
   return (
-    <article className="rounded-3xl border border-stone-200 bg-white p-4">
+    <article className="rounded-3xl bg-white p-4">
       <div className="flex items-start gap-3">
         <CfoAvatar cfo={action.cfo} size={36} />
         <div className="min-w-0 flex-1">

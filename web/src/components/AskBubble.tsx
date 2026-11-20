@@ -57,7 +57,7 @@ export default function AskBubble() {
     <>
       {open && (
         <div role="dialog" aria-label={t('ask_title')}
-          className="fixed bottom-40 right-4 z-40 flex h-[min(520px,calc(100vh-13rem))] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-xl md:bottom-24">
+          className="fixed bottom-40 right-4 z-40 flex h-[min(520px,calc(100vh-13rem))] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden surface shadow-xl md:bottom-24">
           <header className="flex items-center gap-2 border-b border-stone-200 py-2 pl-4 pr-2">
             <span className="flex-1 font-semibold">💬 {t('ask_title')}</span>
             <button onClick={() => setOpen(false)} aria-label={t('close')} className="h-12 w-12 rounded-full hover:bg-stone-100">✕</button>

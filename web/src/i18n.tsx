@@ -111,6 +111,13 @@ const DICT: Record<string, { pl: string; en: string }> = {
   status_approved: { pl: 'zatwierdzone', en: 'approved' },
   status_rejected: { pl: 'odrzucone', en: 'rejected' },
   // Minimal dashboard
+  kpi_receivables: { pl: 'Należności', en: 'Receivables' },
+  kpi_overdue: { pl: 'Zaległe', en: 'Overdue' },
+  kpi_payables: { pl: 'Do zapłaty', en: 'To pay' },
+  kpi_fx: { pl: 'W walutach', en: 'In foreign currency' },
+  biggest_cost: { pl: 'Największy koszt', en: 'Biggest cost' },
+  of_expenses_30: { pl: 'wszystkich wydatków z 30 dni', en: 'of all expenses in 30 days' },
+  ask_inline: { pl: 'Zapytaj agentów…', en: 'Ask the agents…' },
   today: { pl: 'Dziś', en: 'Today' },
   you_have: { pl: 'Na koncie firmy masz', en: 'Your business account holds' },
   verdict_ok: { pl: 'Wszystko w porządku – zapas bezpieczeństwa jest zachowany.', en: 'All good – your safety buffer is kept.' },

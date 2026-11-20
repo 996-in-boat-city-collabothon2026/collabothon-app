@@ -79,7 +79,7 @@ export default function Boardroom() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">👥 {t('boardroom_title')}</h1>
+        <h1 className="text-4xl font-semibold tracking-tight">👥 {t('boardroom_title')}</h1>
         <p className="text-slate-600">{t('boardroom_intro')}</p>
       </div>
 
@@ -108,7 +108,7 @@ export default function Boardroom() {
       </Card>
 
       {/* The table */}
-      <section aria-label={t('boardroom_title')} className="rounded-3xl border border-stone-200 bg-white p-5">
+      <section aria-label={t('boardroom_title')} className="surface p-5">
         <div className="grid grid-cols-[1fr_1.3fr_1fr] items-center gap-y-3">
           <div className="col-span-3 row-start-1 flex flex-col items-center">
             <Seat active={typing === 'chair'} name={t('chair')} role={chairLabel}>
