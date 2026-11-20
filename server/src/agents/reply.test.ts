@@ -48,3 +48,12 @@ describe('tidyReply: echoed instruction words (live replies on the test instance
     expect(tidyReply('Masz na koncie 38 400,00 zł.', 'pl')).toBe('Masz na koncie 38 400,00 zł.');
   });
 });
+
+describe('tidyReply: filler from the small model (live, test instance 3)', () => {
+  it('drops "Jasne, oto co musimy zrobić." and a leading "Jasne," / "Sedno:"', () => {
+    expect(tidyReply('Jasne, oto co musimy zrobić. Wyślij przypomnienia do FlotaTrans.', 'pl')).toBe('Wyślij przypomnienia do FlotaTrans.');
+    expect(tidyReply('Oto co powinno zrobić. Popraw dane nabywcy.', 'pl')).toBe('Popraw dane nabywcy.');
+    expect(tidyReply('Jasne, teraz jest 20.11.2026, a VAT zapłać do 25.11.2026.', 'pl')).toBe('Teraz jest 20.11.2026, a VAT zapłać do 25.11.2026.');
+    expect(tidyReply('Sedno: saldo spadnie do -20 275,00 zł.', 'pl')).toBe('Saldo spadnie do -20 275,00 zł.');
+  });
+});

@@ -89,7 +89,10 @@ function anna(lang: Lang): CfoFacts {
   const misread = (reply: string) =>
     sentencesOf(reply).some((sen) => {
       const s = sen.toLowerCase();
-      return customers.some((c) => s.includes(c)) && /zapła|\bpay/.test(s) && !/przypom|remind|winn|\bowe|nie zapłacil|not paid|haven't paid/.test(s);
+      const payCustomer = customers.some((c) => s.includes(c)) && /zapła|\bpay/.test(s) && !/przypom|remind|winn|\bowe|nie zapłacil|not paid|haven't paid/.test(s);
+      // Live: "Jasne, to nie jest problem." / "przynajmniej nie jesteś w najgorszej sytuacji" with a 35 275 zł gap.
+      const falseComfort = gap > 0 && /nie jest problem|nie ma problemu|najgorszej sytuacji|wszystko (?:jest|będzie) w porządku|no problem|you(?:'re| are) fine/.test(s);
+      return payCustomer || falseComfort;
     });
   return { lines, summary, misread };
 }
@@ -243,7 +246,10 @@ function tomasz(lang: Lang): CfoFacts {
     bits.push(pl ? `Najwięcej wydajesz na ${name}: ${fmtPLN(top.amount)} w 30 dni. Zapytaj o ofertę innych dostawców.` : `You spend most on ${name}: ${fmtPLN(top.amount)} in 30 days. Ask other suppliers for a quote.`);
   }
   // Live: "You're paying your labourers 200 zł per hour…" — the rule is about prices for customers, not wages.
-  const misread = (reply: string) => labour.length > 0 && /pensj|wynagrodzen|wypłat|wage|salar|labourers|paying your (mechanics|workers)/i.test(reply);
+  // Live: "policzyłem klientom za tanio… kosztował mi 237,50 zł": the owner's money told as Tomasz's own.
+  const misread = (reply: string) =>
+    (labour.length > 0 && /pensj|wynagrodzen|wypłat|wage|salar|labourers|paying your (mechanics|workers)/i.test(reply)) ||
+    /policzyłem|kosztował(?:o)? mi\b|moim klientom|moich zleceni/i.test(reply);
   return { lines, summary: bits.join(' ') || (pl ? 'Marże i koszty są w porządku.' : 'Margins and costs are in order.'), misread };
 }
 

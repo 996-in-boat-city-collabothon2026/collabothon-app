@@ -30,11 +30,14 @@ function sentences(text: string): string[] {
 // "Właścicielu warsztatu, …", and the bare "Masz, zapłać, wyślij." (copied from an old prompt).
 const VOCATIVE = /^(?:(?:ty|właścicielu[^,:]{0,40}|właściciel warsztatu[^,:]{0,30}|masz)\s*[,:]\s*)+/i;
 const ECHO_ONLY = /^masz,\s*zapłać,\s*wyślij\.?$/i;
+// Filler the small model adds: "Jasne, oto co musimy zrobić.", "Oto co powinno zrobić.", "Sedno: …".
+const FILLER_ONLY = /^(?:jasne|oczywiście|dobrze|sure|of course)?[,!.]?\s*(?:oto|here is) (?:co|what)\b[^.]{0,40}[.:]$/i;
+const FILLER_START = /^(?:(?:jasne|oczywiście|dobrze|sure|of course|certainly|sedno)\s*[,:!.]\s*)+/i;
 
 /** Removes an echoed instruction word at the start of a sentence and capitalises what is left. */
 function dropVocative(sentence: string): string {
-  if (ECHO_ONLY.test(sentence)) return '';
-  const rest = sentence.replace(VOCATIVE, '');
+  if (ECHO_ONLY.test(sentence) || FILLER_ONLY.test(sentence)) return '';
+  const rest = sentence.replace(FILLER_START, '').replace(VOCATIVE, '');
   return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 

@@ -105,3 +105,15 @@ describe('POST /api/ask: known misreads from the live test are not shown', () =>
     expect((await ask('Czy starczy mi gotówki?')).text).toBe(modelReply);
   });
 });
+
+describe('POST /api/ask: misreads from test instance 3', () => {
+  it.each([
+    ['Czy starczy mi gotówki do końca roku?', 'To nie jest problem. Wyślij przypomnienia do FlotaTrans Sp. z o.o., którzy są Ci winni 12 300,00 zł.'],
+    ['Czy przetrwamy grudzień?', 'Przynajmniej nie jesteś w najgorszej sytuacji. Dziś masz saldo 38 400,00 zł.'],
+    ['Jak obciąć koszty?', 'Mam 3 zlecenia, które policzyłem klientom za tanio. Narzut na części kosztował mi 237,50 zł.'],
+  ])('%s', async (question, live) => {
+    modelReply = live;
+    const r = await ask(question);
+    expect(r.text).toBe(ruleAnswer(r.cfo, question));
+  });
+});
