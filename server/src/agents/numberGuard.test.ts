@@ -4,7 +4,7 @@ import { resetDb } from '../domain/store';
 import { runAutopilot } from './autopilot';
 import { snapshot } from './boardroom';
 import { cfoFacts } from './facts';
-import { findInventedNumbers, numberValues } from './numberGuard';
+import { findInventedNumbers, mentionsKeyFact, numberValues } from './numberGuard';
 
 let facts = '';
 beforeAll(async () => {
@@ -93,5 +93,31 @@ describe('findInventedNumbers: percents are checked as percents', () => {
     const tomasz = factsOf('tomasz'); // "poniżej 25%", "26% wszystkich kosztów"
     expect(findInventedNumbers('Narzut na części jest poniżej 25%, a części to 26% kosztów.', tomasz)).toEqual([]);
     expect(findInventedNumbers('Ustaw narzut 30% na części.', tomasz)).toEqual(['30%']);
+  });
+});
+
+describe('mentionsKeyFact (live replies on the test instance)', () => {
+  const factsOf = (cfo: 'kasia' | 'tomasz' | 'marek' | 'anna') => {
+    const f = cfoFacts(cfo, 'pl');
+    return [...f.lines, f.summary].join('\n');
+  };
+
+  it('a reply with a money amount or an invoice number from the facts uses the facts', () => {
+    expect(mentionsKeyFact('Jeśli EUR podrożeje o 5%, stracisz 320,25 zł.', factsOf('kasia'))).toBe(true);
+    expect(mentionsKeyFact('Masz na koncie 38 400,00 zł.', factsOf('anna'))).toBe(true);
+    expect(mentionsKeyFact('Popraw dane nabywcy na fakturze FV/2026/11/009.', factsOf('marek'))).toBe(true);
+  });
+
+  it('generic talk or only a rate does not', () => {
+    expect(mentionsKeyFact('Kurs euro nie jest problemem, bo rośnie. Dziś kurs 4,27 zł, 4 tygodnie temu 4,22 zł.', factsOf('kasia'))).toBe(false);
+    expect(mentionsKeyFact('Możesz obciąć koszty za robociznę albo za części.', factsOf('tomasz'))).toBe(false);
+  });
+});
+
+describe('numberValues: thousands groups have 3 digits', () => {
+  it('"4,27" is only 4.27, "1,500" may be 1.5 or 1500', () => {
+    expect(numberValues('4,27')).toEqual([4.27]);
+    expect(numberValues('1,500').sort()).toEqual([1.5, 1500]);
+    expect(numberValues('14 230,00')).toEqual([14230]);
   });
 });

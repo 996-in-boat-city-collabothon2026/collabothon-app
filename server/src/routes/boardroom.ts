@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { CFOS, type AskResult, type CfoId } from '@cfo/shared';
 import { runBoardroom } from '../agents/boardroom';
 import { cfoFacts, langOf, type CfoFacts, type Lang } from '../agents/facts';
-import { findInventedNumbers } from '../agents/numberGuard';
+import { findInventedNumbers, mentionsKeyFact } from '../agents/numberGuard';
 import { PERSONAS } from '../agents/personas';
 import { tidyReply } from '../agents/reply';
 import { chatOr } from '../llm/provider';
@@ -65,7 +65,7 @@ function askPrompt(question: string, facts: CfoFacts, lang: Lang): string {
         `NAJWAŻNIEJSZE (powiedz to swoimi słowami, z tymi samymi liczbami): ${facts.summary}`,
         '',
         `PYTANIE WŁAŚCICIELA: ${question}`,
-        'Odpowiedz na pytanie w 2–3 krótkich zdaniach po polsku. Mów do właściciela na "Ty" (masz, zapłać, wyślij).',
+        'Odpowiedz na pytanie w 2–3 krótkich zdaniach po polsku, w drugiej osobie, wprost do właściciela.',
       ].join('\n')
     : [
         'FACTS (the only numbers you may use):',
@@ -96,11 +96,20 @@ const routes: FastifyPluginAsync = async (app) => {
 
     // Clean it up in code, then golden rule 1: a number or date that is not in the facts (or the question) is never shown.
     const answer = tidyReply(raw, lang);
-    const invented = findInventedNumbers(answer, [...facts.lines, facts.summary, question].join('\n'));
-    if (!answer || invented.length > 0) {
-      console.info(`[guard] ask:${cfo} ${answer ? `invented ${JSON.stringify(invented)}` : 'empty after tidy'} → rule answer`);
-    }
-    const result: AskResult = { cfo, text: answer && invented.length === 0 ? answer : facts.summary };
+    // It must also use the facts (an amount or an invoice number), else it is generic talk or a misread.
+    const factText = [...facts.lines, facts.summary, question].join('\n');
+    const invented = findInventedNumbers(answer, factText);
+    const problem = !answer
+      ? 'empty after tidy'
+      : invented.length > 0
+        ? `invented ${JSON.stringify(invented)}`
+        : !mentionsKeyFact(answer, factText)
+          ? 'no key fact'
+          : facts.misread?.(answer)
+            ? 'known misread'
+            : '';
+    if (problem) console.info(`[guard] ask:${cfo} ${problem} → rule answer`);
+    const result: AskResult = { cfo, text: problem ? facts.summary : answer };
     return result;
   });
 };

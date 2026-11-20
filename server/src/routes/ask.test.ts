@@ -83,8 +83,25 @@ describe('POST /api/ask', () => {
 
 describe('ruleAnswer', () => {
   it('is a plain sentence in the language of the question', () => {
-    expect(ruleAnswer('anna', 'Czy starczy mi gotówki?')).toContain('Najpierw wyślij przypomnienia do: FlotaTrans');
-    expect(ruleAnswer('anna', 'Will I run out of cash?')).toContain('First send reminders to FlotaTrans');
-    expect(sp(ruleAnswer('tomasz', 'Is my labour rate too low?'))).toContain('you billed labour too cheaply: 1700,00 zł missing');
+    expect(ruleAnswer('anna', 'Czy starczy mi gotówki?')).toContain('wyślij przypomnienia do klientów, którzy Ci nie zapłacili: FlotaTrans');
+    expect(ruleAnswer('anna', 'Will I run out of cash?')).toContain('First send reminders to the customers who have not paid you: FlotaTrans');
+    expect(sp(ruleAnswer('tomasz', 'Is my labour rate too low?'))).toContain('you billed customers too little for labour: 1700,00 zł missing');
+  });
+});
+
+describe('POST /api/ask: known misreads from the live test are not shown', () => {
+  it.each([
+    ['Czy starczy mi gotówki do końca roku?', 'Musisz zapłacić FlotaTrans Sp. z o.o. 12 300,00 zł i Kurier Express Kraków 7 380,00 zł.'],
+    ['Czy kurs euro to problem?', 'Kurs euro nie jest problemem, bo rośnie. Jeśli podrożeje o 5%, stracisz 320,25 zł.'],
+    ['Is my labour rate too low?', "You're paying your labourers 200,00 zł per hour, which is below the market rate."],
+  ])('%s', async (question, live) => {
+    modelReply = live;
+    const r = await ask(question);
+    expect(r.text).toBe(ruleAnswer(r.cfo, question));
+  });
+
+  it('the right direction is still fine', async () => {
+    modelReply = 'Wyślij przypomnienie do FlotaTrans Sp. z o.o., która nie zapłaciła Ci 12 300,00 zł.';
+    expect((await ask('Czy starczy mi gotówki?')).text).toBe(modelReply);
   });
 });
