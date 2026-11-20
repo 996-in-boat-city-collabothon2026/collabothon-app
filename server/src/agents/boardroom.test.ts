@@ -333,3 +333,26 @@ describe('approval explanations (autopilot)', () => {
     expect(looksPolish(tax.title)).toBe(false);
   });
 });
+
+describe('review of 8d96df5: completed actions vs proposals, negation and hypotheticals', () => {
+  it.each([
+    'VAT of 14,230 zł got paid.', 'The reminder went out.', 'The payment is complete.', 'The VAT payment went through.',
+    'The reminder has been dispatched.', 'We took care of VAT.', 'The forward contract is in place.', 'VAT is already paid.',
+  ])('claim: %s', (t) => expect(claimsDone(t)).toBe(true));
+  it.each([
+    'VAT of 14,230 zł has not been paid.', 'We can send reminders about VAT of 14,230 zł.', 'Once VAT is paid, the deadline is met.',
+    'If the reminder is sent today, FlotaTrans may pay.', 'VAT should be paid by November 25, 2026.', "I've taken a look at your costs.",
+    'The EUR rate is out of your control.',
+  ])('not a claim: %s', (t) => expect(claimsDone(t)).toBe(false));
+});
+
+describe('review of 8d96df5: language', () => {
+  it.each(['VAT to 14 230 zł. Zaplac go.', 'VAT is 14 230,00 zł, zaplac do 25 listopada.', 'VAT 14 230 zł.', 'Pay VAT 14 230 zł, prosze.', 'Podatek VAT wynosi 14 230 zł.'])(
+    'not English: %s',
+    (t) => expect(looksPolish(t)).toBe(true),
+  );
+  it.each([
+    'Kurier Express Kraków owes you 7 380,00 zł.', 'Remind FlotaTrans Sp. z o.o. about invoice FV/2026/10/031.',
+    'Pay VAT for October (JPK_V7M) by November 25, 2026.', 'Bill the full hours for the VW Passat 2015.',
+  ])('English: %s', (t) => expect(looksPolish(t)).toBe(false));
+});

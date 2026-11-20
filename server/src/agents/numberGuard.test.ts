@@ -141,3 +141,29 @@ describe('review of fc04703: money amounts of any size, percent direction', () =
     expect(findInventedNumbers('If EUR rises 4%, you lose 320,25 zł.', facts)).toEqual(['4%']);
   });
 });
+
+describe('review of 8d96df5: money forms, currency and FX direction words', () => {
+  const facts = 'VAT: 14 230,00 zł\nEUR to pay (net): 1500 EUR\nLoss if EUR rises 5%: 320,25 zł';
+  it('unreadable money forms are invented; supported forms pass', () => {
+    expect(findInventedNumbers('Add a fee of fifteen thousand euro.', facts)).toContain('fifteen thousand euro');
+    expect(findInventedNumbers('Add a fee of 17,-.', facts)).toContain('17,-');
+    expect(findInventedNumbers('Add a fee of 15k zł.', facts)).toContain('15k');
+    expect(findInventedNumbers('VAT is 14,230 zł, also 14.230,00 PLN, and you owe 1500 EUR.', facts)).toEqual([]);
+    expect(findInventedNumbers('You have one EUR invoice to pay.', facts)).toEqual([]);
+  });
+  it('a known amount in another currency is invented', () => {
+    expect(findInventedNumbers('VAT is 14 230 EUR.', facts)).toEqual(['14 230']);
+    expect(findInventedNumbers('You owe 1500 zł.', facts)).toEqual(['1500']);
+  });
+  it('direction words, the złoty as subject, and the percent\'s own clause', () => {
+    expect(findInventedNumbers('A 5% appreciation costs you 320,25 zł.', facts)).toEqual([]);
+    expect(findInventedNumbers('A 5% depreciation costs you 320,25 zł.', facts)).toEqual(['5%']);
+    expect(findInventedNumbers('If the euro strengthens 5%, you lose 320,25 zł.', facts)).toEqual([]);
+    expect(findInventedNumbers('If the euro weakens 5%, you lose 320,25 zł.', facts)).toEqual(['5%']);
+    expect(findInventedNumbers('If the złoty weakens 5%, you lose 320,25 zł.', facts)).toEqual([]);
+    expect(findInventedNumbers('If the złoty strengthens 5%, you lose 320,25 zł.', facts)).toEqual(['5%']);
+    expect(findInventedNumbers('EUR is rising, so a 5% depreciation costs you 320,25 zł.', facts)).toEqual(['5%']);
+    expect(findInventedNumbers('If EUR rises 5%, you lose 320,25 zł, and if it weakens 5%, you lose 320,25 zł.', facts)).toEqual(['5%']);
+    expect(findInventedNumbers('There is a 5% risk on 1500 EUR.', facts)).toEqual([]);
+  });
+});

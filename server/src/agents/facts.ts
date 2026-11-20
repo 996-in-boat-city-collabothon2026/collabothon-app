@@ -244,7 +244,7 @@ function tomasz(lang: Lang): CfoFacts {
       pl
         ? `Klientom policzyłeś robociznę poniżej Twojej stawki ${rate} za godzinę (to Twoje ceny, nie pensje mechaników): ${labour.length} zlecenia, brakuje razem ${fmtPLN(sumMissing(labour))}`
         : `You billed customers for labour below your ${rate} hourly rate (your prices, not your mechanics' pay): ${labour.length} orders, ${fmtPLN(sumMissing(labour))} missing in total`,
-      ...labour.map(({ o, missing }) => (pl ? `- ${o.car}: brakuje ${fmtPLN(missing)}` : `- ${o.car}: ${fmtPLN(missing)} missing`)),
+      ...labour.map(({ o, missing }) => (pl ? `- ${o.car}: brakuje ${fmtPLN(missing)}` : `- ${o.car}: ${fmtPLN(missing)} is missing`)),
     );
   }
   if (markup.length) {
