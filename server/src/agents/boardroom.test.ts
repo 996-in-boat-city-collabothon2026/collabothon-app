@@ -8,8 +8,9 @@ import { db, resetDb } from '../domain/store';
 import { runAutopilot } from './autopilot';
 import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, snapshot, TURN_MAX_TOKENS, TURN_MAX_WORDS } from './boardroom';
 import { cfoFacts } from './facts';
-import { explainPL } from './explain';
+import { explain, explainPL } from './explain';
 import { claimsDone, falseCalm, wholeSentences } from './text';
+import { looksPolish } from './safety';
 
 const saved = { ...config.llm };
 /** Fake model: `reply(messages)` answers each call. Mode openai_compat so the real chat() path runs. */
@@ -145,6 +146,34 @@ describe('conference: the same safeguards as /api/ask', () => {
     expect(r.summary).toMatch(/^For your decision: /);
   });
 
+  it('correct Marek and Anna replies are shown, not replaced (on stage both fell back to the rules)', async () => {
+    await runAutopilot();
+    const said = {
+      // "14,230 zł" without decimals, a year on its own, the KSeF reason in English
+      marek: "Your VAT of 14,230 zł for 2026 is due on November 25, 2026 and is still unpaid. Invoice FV/2026/11/009 was rejected because the buyer's NIP must have 10 digits.",
+      // repeats Marek's VAT number, says the loss in words, "hasn't paid you"
+      anna: "On top of the 14 230,00 zł VAT, a negative balance of 20 275,00 zł is coming on December 20, 2026. FlotaTrans Sp. z o.o. hasn't paid you yet, so send reminders first.",
+      tomasz: 'Bill the full hours at 200,00 zł: on 2 orders you are 1700,00 zł short.',
+      kasia: 'If EUR rises 5%, you lose 320,25 zł. I suggest a forward contract for 1500 EUR.',
+    } satisfies Record<CfoId, string>;
+    reply = (m) => (isChair(m) ? '' : said[ORDER.find((c) => persona(m, c))!]);
+    const r = await runBoardroom();
+    expect(r.turns.map((t) => t.text)).toEqual(ORDER.map((c) => said[c]));
+  });
+
+  it('the earlier turns make a number known, but a turn still needs its own amount', async () => {
+    await runAutopilot();
+    reply = (m) => (persona(m, 'anna') ? 'Marek said VAT is 14 230,00 zł.' : '');
+    const r = await runBoardroom();
+    expect(r.turns[1].text).toBe(en('anna'));
+  });
+
+  it('Marek\'s English facts carry the KSeF reason in English', () => {
+    const lines = cfoFacts('marek', 'en').lines.join('\n');
+    expect(lines).toContain("Reason: the buyer's tax number (NIP) is wrong, it must have 10 digits");
+    expect(looksPolish(lines)).toBe(false);
+  });
+
   it('done-claim and false-calm checks do not fire on proposals', () => {
     expect(claimsDone('I suggest sending reminders and locking the rate.')).toBe(false);
     expect(claimsDone('The invoice must be sent again.')).toBe(false);
@@ -174,35 +203,46 @@ describe('conference: the same safeguards as /api/ask', () => {
 });
 
 describe('approval explanations (autopilot)', () => {
-  it('explanations are the Polish rule text, no model call (live: rephrasing added nonsense)', async () => {
+  it('explanations are the English rule text, no model call (live: rephrasing added nonsense)', async () => {
     reply = () => 'Sedno: Oto prognoza. Wszystkie kwoty muszą być zapłacone na naszą konto bankowe.';
     await runAutopilot();
     expect(sent).toHaveLength(0);
     const credit = db.actions.find((a) => a.kind === 'credit_line')!;
-    expect(credit.explanation).toBe(explainPL(credit));
-    expect(credit.explanation).toMatch(/^Prognoza: 20\.12\.2026 saldo spadnie do -20\s275,00\szł, czyli 35\s275,00\szł poniżej bufora/);
+    expect(credit.explanation).toBe(explain(credit, 'en'));
+    expect(credit.explanation).toMatch(/^Forecast: on December 20, 2026 the balance drops to -20\s275,00\szł, 35\s275,00\szł below your 15\s000,00\szł buffer/);
   });
 
-  it('rule texts say the right thing for each card (seed)', async () => {
+  it('every open approval card is explained in English (stage language), none in Polish', async () => {
+    await runAutopilot();
+    const open = db.actions.filter((x) => x.tier === 'NEEDS_APPROVAL' && x.status === 'open');
+    expect(open.length).toBeGreaterThan(0);
+    for (const a of open) {
+      expect(a.explanation).toBe(explain(a, 'en'));
+      expect(looksPolish(a.explanation!)).toBe(false);
+    }
+  });
+
+  it('English rule texts say the right thing for each card (seed)', async () => {
+    await runAutopilot();
+    const card = (kind: string) => db.actions.find((a) => a.kind === kind)!;
+    expect(explain(card('payment_reminder'), 'en')).toMatch(/^FlotaTrans .* is 15 days late paying you 12\s300,00\szł .* an email to the customer/);
+    expect(explain(card('tax_payment'), 'en')).toMatch(/^VAT for October \(JPK_V7M\): 14\s230,00\szł is due by November 25, 2026/);
+    expect(explain(card('supplier_payment'), 'en')).toMatch(/The EUR risk goes up from 320,25\szł to 448,35\szł/);
+    expect(explain(card('fx_hedge'), 'en')).toMatch(/you lose 320,25\szł/);
+  });
+
+  it('Polish rule texts are kept for a Polish UI', async () => {
     await runAutopilot();
     const card = (kind: string) => db.actions.find((a) => a.kind === kind)!;
     expect(explainPL(card('payment_reminder'))).toMatch(/^Klient FlotaTrans .* spóźnia się 15 dni z zapłatą 12\s300,00\szł .* e-mail do klienta/);
     expect(explainPL(card('tax_payment'))).toMatch(/^VAT za październik .*: 14\s230,00\szł trzeba zapłacić do 25\.11\.2026/);
     expect(explainPL(card('supplier_payment'))).toMatch(/Ryzyko EUR wzrośnie z 320,25\szł do 448,35\szł/);
-    expect(explainPL(card('fx_hedge'))).toMatch(/stracisz 320,25\szł/);
   });
 
-  it('invented rate, or the key amount missing → the Polish rule text', async () => {
-    reply = (m) => (m[1].content.includes('EUR') ? 'Kurs forward to 4,30 zł na 3 miesiące.' : 'Zapłać szybko.');
+  it('the VAT card title is all English', async () => {
     await runAutopilot();
-    for (const a of db.actions.filter((x) => x.tier === 'NEEDS_APPROVAL' && x.status === 'open')) {
-      expect(a.explanation).toBe(explainPL(a));
-    }
-  });
-
-  it('empty model reply → the Polish rule text', async () => {
-    await runAutopilot();
-    const credit = db.actions.find((a) => a.kind === 'credit_line')!;
-    expect(credit.explanation).toBe(explainPL(credit));
+    const tax = db.actions.find((a) => a.kind === 'tax_payment')!;
+    expect(tax.title.replace(/\u00a0/g, ' ')).toBe('Pay VAT for October (JPK_V7M): 14 230,00 zł');
+    expect(looksPolish(tax.title)).toBe(false);
   });
 });

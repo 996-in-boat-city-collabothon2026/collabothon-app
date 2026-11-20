@@ -30,6 +30,9 @@ const dateKey = (month: number, day: number) => `${month}-${day}`;
 const fullKey = (year: number, month: number, day: number) => `${year}-${month}-${day}`;
 /** A minus sign (or the word) right before a number: "-20 275,00 zł", "−20 275", "minus 20 275". */
 const NEGATIVE_BEFORE = /(?:[-−]\s?|minus\s+)$/i;
+/** A negative told in words: "a negative balance of 20 275,00 zł", "20 275,00 zł below zero / in the red". */
+const NEGATIVE_WORDS_BEFORE = /\b(?:negative|ujemn\w*)(?:\s+(?:balance|saldo))?(?:\s+(?:of|wynosi|do))?\s+$/i;
+const NEGATIVE_WORDS_AFTER = /^\s*(?:zł|PLN)?\s*(?:below zero|in the red|in minus|pod kreską|na minusie)/i;
 
 /** All dates in a text: "month-day" keys, plus "year-month-day" keys when the year is written. */
 interface Dates { md: Set<string>; full: Set<string>; mdNoYear: Set<string> }
@@ -74,17 +77,27 @@ function scan(text: string): {
     addDate(dates, Number(m[2]), Number(m[3]), Number(m[1]));
     years.push(Number(m[1]));
   }
-  for (const m of text.matchAll(DAY_MONTH)) addDate(dates, MONTHS[m[2].toLowerCase()], Number(m[1]), m[3] ? Number(m[3]) : undefined);
-  for (const m of text.matchAll(MONTH_DAY)) addDate(dates, MONTHS[m[1].toLowerCase()], Number(m[2]), m[3] ? Number(m[3]) : undefined);
+  for (const m of text.matchAll(DAY_MONTH)) {
+    addDate(dates, MONTHS[m[2].toLowerCase()], Number(m[1]), m[3] ? Number(m[3]) : undefined);
+    if (m[3]) years.push(Number(m[3])); // "November 25, 2026" in the facts → "in 2026" in a reply is known
+  }
+  for (const m of text.matchAll(MONTH_DAY)) {
+    addDate(dates, MONTHS[m[1].toLowerCase()], Number(m[2]), m[3] ? Number(m[3]) : undefined);
+    if (m[3]) years.push(Number(m[3]));
+  }
   // Dates are checked as dates, so take them out before reading plain numbers (keeps "2026" or "20" from leaking in).
   // Percents are checked as percents, too.
   const rest = text.replace(ISO_DATE, ' ').replace(DAY_MONTH, ' ').replace(MONTH_DAY, ' ').replace(PERCENT, ' ');
 
-  const tokens = [...rest.matchAll(NUMBER)].map((m) => ({
-    raw: m[0].trim(),
-    values: numberValues(m[0].trim()),
-    neg: NEGATIVE_BEFORE.test(rest.slice(Math.max(0, m.index! - 7), m.index)),
-  }));
+  const tokens = [...rest.matchAll(NUMBER)].map((m) => {
+    const before = rest.slice(Math.max(0, m.index! - 30), m.index);
+    const after = rest.slice(m.index! + m[0].length, m.index! + m[0].length + 25);
+    return {
+      raw: m[0].trim(),
+      values: numberValues(m[0].trim()),
+      neg: NEGATIVE_BEFORE.test(before.slice(-7)) || NEGATIVE_WORDS_BEFORE.test(before) || NEGATIVE_WORDS_AFTER.test(after),
+    };
+  });
   const numbers = [...years.map((value) => ({ value, neg: false })), ...tokens.flatMap((t) => t.values.map((value) => ({ value, neg: t.neg })))];
   return { dates, numbers, percents, tokens };
 }

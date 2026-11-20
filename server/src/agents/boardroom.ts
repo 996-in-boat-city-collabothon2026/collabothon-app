@@ -10,11 +10,10 @@ import { PERIOD_DAYS, totalsBetween } from '../rules/expenses';
 import { fmtFx, fmtRate, fxExposures, hasTrend } from '../rules/fx';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
-import { findInventedNumbers } from './numberGuard';
+import { findInventedNumbers, mentionsKeyFact } from './numberGuard';
 import { claimsDone, falseCalm, stripAddress, wholeSentences } from './text';
-import { amountsIn, keepsAmount } from './explain';
 import { tidyReply } from './reply';
-import { cfoFacts, type CfoFacts, type Lang } from './facts';
+import { cfoFacts, STAGE_LANG, type CfoFacts, type Lang } from './facts';
 import { looksPolish, replyProblem } from './safety';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
 
@@ -180,8 +179,7 @@ export function ruleSummary(approvals: Action[], lang: Lang): string {
 
 const ChairSchema = z.object({ summary: z.string(), decisionActionIds: z.array(z.string()) });
 
-/** Stage language: every agent and the chair speak English, whatever language the owner or the topic uses. */
-export const STAGE_LANG: Lang = 'en';
+export { STAGE_LANG }; // defined in facts.ts, re-exported for the routes
 
 export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   const subject = topic?.trim() || 'Monthly review';
@@ -196,9 +194,11 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
     ], { maxTokens: TURN_MAX_TOKENS, temperature: 0.1, mockKey: `boardroom:${cfo}` });
     // Same check as /api/ask (agents/safety.ts): only this CFO's own rule numbers, English, at least one amount
     // from its own conclusion (live: Tomasz repeated Anna), nothing "done", no false calm → else the rule conclusion.
+    // "Its own amount" is compared as a number, so "14,230 zł" or "14 230 zł" count as "14 230,00 zł".
     const text = stripAddress(tidy(raw, lang, TURN_MAX_WORDS));
-    const ownAmount = (t: string) => keepsAmount(t, facts.summary) || amountsIn(facts.summary).length === 0;
-    const problem = replyProblem(text, facts, lang, ownAmount);
+    const hasKeyFact = mentionsKeyFact(facts.summary, facts.summary);
+    const ownAmount = (t: string) => !hasKeyFact || mentionsKeyFact(t, facts.summary);
+    const problem = replyProblem(text, facts, lang, ownAmount, transcriptOf(turns));
     if (problem && problem !== 'empty') console.info(`[guard] boardroom:${cfo} ${problem} → rule conclusion`);
     turns.push({ cfo, text: problem ? facts.summary : text });
   }

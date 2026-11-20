@@ -14,6 +14,8 @@ import { topCost } from '../rules/expenses';
 import { labourGaps, lowMarkups, sumMissing } from '../rules/margin';
 
 export type Lang = 'pl' | 'en';
+/** Stage language: every agent, the chair and the card explanations speak English, whatever the owner writes. */
+export const STAGE_LANG: Lang = 'en';
 export interface CfoFacts {
   lines: string[]; // "label: value" facts for the prompt
   summary: string; // 1–2 plain sentences: what the owner should know and do
@@ -96,7 +98,9 @@ function anna(lang: Lang): CfoFacts {
   const misread = (reply: string) =>
     sentencesOf(reply).some((sen) => {
       const s = sen.toLowerCase();
-      const payCustomer = customers.some((c) => s.includes(c)) && /zapła|\bpay/.test(s) && !/przypom|remind|winn|\bowe|nie zapłacil|not paid|haven't paid/.test(s);
+      // "hasn't paid you", "is late", "overdue" all say the right direction (they were rejected before).
+      const payCustomer = customers.some((c) => s.includes(c)) && /zapła|\bpay/.test(s) &&
+        !/przypom|remind|winn|\bowe|nie zapłacil|spóźni|zaległ|not paid|n't paid|not yet paid|unpaid|overdue|\blate\b|collect|pay you\b|paid you\b/.test(s);
       // Live: "Jasne, to nie jest problem." / "przynajmniej nie jesteś w najgorszej sytuacji" with a 35 275 zł gap.
       const falseComfort = gap > 0 && /nie jest problem|nie ma problemu|najgorszej sytuacji|wszystko (?:jest|będzie) w porządku|no problem|you(?:'re| are) fine/.test(s);
       return payCustomer || falseComfort;
@@ -174,6 +178,18 @@ function kasia(lang: Lang): CfoFacts {
   return { lines: [...lines, ...noRate], summary: parts.join(' '), misread };
 }
 
+/**
+ * KSeF gives its rejection reason in Polish ("Nieprawidłowy NIP nabywcy (Podmiot2): wymagane 10 cyfr"). In English
+ * facts the model copied or half-translated it, and the Polish words failed the English check: the whole turn dropped.
+ */
+function reasonEn(reason?: string): string {
+  if (!reason) return 'none given';
+  const nip = /NIP nabywcy.*?(\d+) cyfr/i.exec(reason);
+  if (nip) return `the buyer's tax number (NIP) is wrong, it must have ${nip[1]} digits`;
+  if (/NIP/i.test(reason)) return "the buyer's tax number (NIP) is wrong";
+  return 'the invoice data is wrong';
+}
+
 function marek(lang: Lang): CfoFacts {
   const pl = lang === 'pl';
   const taxes = taxesDue(30).obligations;
@@ -187,7 +203,7 @@ function marek(lang: Lang): CfoFacts {
     ...rejected.map((i) =>
       pl
         ? `Faktura ${i.number} dla ${noDemo(i.counterparty.name)} odrzucona przez KSeF (system e-faktur). Powód: ${i.ksef.rejectionReason ?? 'brak'}`
-        : `Invoice ${i.number} for ${noDemo(i.counterparty.name)} was rejected by KSeF (e-invoice system). Reason: ${i.ksef.rejectionReason ?? 'none given'}`,
+        : `Invoice ${i.number} for ${noDemo(i.counterparty.name)} was rejected by KSeF (e-invoice system). Reason: ${reasonEn(i.ksef.rejectionReason)}`,
     ),
   ];
   if (lines.length === 0) lines.push(pl ? 'Brak podatków do zapłaty w ciągu 30 dni i brak problemów z KSeF' : 'No taxes due in 30 days and no KSeF problems');

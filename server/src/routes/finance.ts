@@ -7,7 +7,7 @@ import { convertible, fxExposurePLN, invoiceGrossPLN } from '../domain/fx';
 import { forecast } from '../rules/cashflow';
 import { totalsBetween } from '../rules/expenses';
 import { FX_SHOCK_THRESHOLD_PLN, fxExposures } from '../rules/fx';
-import { taxesDue } from '../rules/taxDue';
+import { taxesDue, taxLabelEn } from '../rules/taxDue';
 
 function kpis(): Kpis {
   const unpaidSales = db.invoices.filter((i) => i.direction === 'sales' && !i.paid && convertible(i));
@@ -19,7 +19,8 @@ function kpis(): Kpis {
     receivablesPLN: round2(unpaidSales.reduce((s, i) => s + invoiceGrossPLN(i), 0)),
     overdueReceivablesPLN: round2(overdue.reduce((s, i) => s + invoiceGrossPLN(i), 0)),
     payablesPLN: round2(openObligations.reduce((s, o) => s + o.amountPLN, 0)),
-    nextDeadline: next && { label: next.label, date: next.dueDate, amountPLN: next.amountPLN },
+    // Tax labels in English (the seed label is Polish: "VAT za październik"); other labels are names from the seed.
+    nextDeadline: next && { label: ['VAT', 'ZUS', 'PIT'].includes(next.kind) ? taxLabelEn(next) : next.label, date: next.dueDate, amountPLN: next.amountPLN },
     fxExposurePLN: fxExposurePLN(),
   };
 }

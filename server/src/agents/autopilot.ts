@@ -2,7 +2,8 @@
 import type { Action, ActionKind, AutopilotResult } from '@cfo/shared';
 import { db, logActivity, newId, nowIso } from '../domain/store';
 import { RULES, type DraftAction } from '../rules';
-import { explainPL } from './explain';
+import { explain } from './explain';
+import { STAGE_LANG } from './facts';
 
 const isDuplicate = (a: Pick<Action, 'kind' | 'refId' | 'title'>) =>
   db.actions.some((x) => x.kind === a.kind && (a.refId ? x.refId === a.refId : x.title === a.title) && x.status !== 'rejected');
@@ -68,9 +69,9 @@ export async function runAutopilot(): Promise<AutopilotResult> {
   // Publish before awaiting explanations so a concurrent run sees these actions.
   db.actions.unshift(...created);
 
-  // Plain-language explanation for queued items: Polish text from the rules (explainPL), no model call.
+  // Plain-language explanation for queued items: rule text in the stage language (English), no model call.
   // Live, every model rephrasing added nonsense ("Sedno: Oto…", "zbyt wysokie saldo", "na naszą konto bankowe").
-  for (const a of created) if (a.tier === 'NEEDS_APPROVAL' && a.status === 'open') a.explanation = explainPL(a);
+  for (const a of created) if (a.tier === 'NEEDS_APPROVAL' && a.status === 'open') a.explanation = explain(a, STAGE_LANG);
 
   logActivity('system', `Watchdog run: ${created.length} new item(s)`, false);
   return { log, actions: created };

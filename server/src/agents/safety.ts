@@ -14,11 +14,13 @@ export const factText = (facts: CfoFacts) => [...facts.lines, facts.summary].joi
 /**
  * Why this reply must not be shown ('' = it is fine).
  * `onTopic` = the caller's "does it use this agent's own facts" test.
+ * `alsoKnown` = other rule text already shown (the conference: earlier, checked turns). Live, Anna repeated
+ * Marek's "VAT 14 230,00 zł", a true rule number that is not in her own facts, and her whole turn was dropped.
  */
-export function replyProblem(text: string, facts: CfoFacts, lang: Lang, onTopic: (text: string) => boolean): string {
+export function replyProblem(text: string, facts: CfoFacts, lang: Lang, onTopic: (text: string) => boolean, alsoKnown = ''): string {
   if (!text) return 'empty';
   if (lang === 'en' && looksPolish(text)) return 'not in English';
-  const invented = findInventedNumbers(text, factText(facts));
+  const invented = findInventedNumbers(text, [factText(facts), alsoKnown].join('\n'));
   if (invented.length) return `invented ${JSON.stringify(invented)}`;
   if (!onTopic(text)) return 'no key fact of its own';
   if (claimsDone(text)) return 'claims something was done'; // golden rule 3
