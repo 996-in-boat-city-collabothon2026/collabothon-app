@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "deny": [
+      "Edit(./shared/**)", "Edit(./web/**)",
+      "Edit(./server/src/domain/**)", "Edit(./server/src/rules/**)", "Edit(./server/src/agents/**)",
+      "Edit(./server/src/ksef/**)", "Edit(./server/src/seed/**)",
+      "Edit(./server/src/routes/finance.ts)", "Edit(./server/src/routes/actions.ts)", "Edit(./server/src/routes/boardroom.ts)",
+      "Edit(./server/src/routes/ksef.ts)", "Edit(./server/src/routes/demo.ts)", "Edit(./server/src/routes/settings.ts)"
+    ]
+  }
+}

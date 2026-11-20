@@ -1,0 +1,17 @@
+{
+  "shop": {
+    "name": "Auto-Serwis Nowak (demo)",
+    "nip": "6762345678",
+    "city": "Kraków",
+    "employees": 3,
+    "labourRatePLN": 200,
+    "partsMarkupTarget": 0.25,
+    "safetyBufferPLN": 15000,
+    "today": "2026-11-20"
+  },
+  "bank": {
+    "name": "Firmowe konto główne",
+    "iban": "PL00 0000 0000 0000 0000 0000 0000",
+    "balancePLN": 38400
+  }
+}

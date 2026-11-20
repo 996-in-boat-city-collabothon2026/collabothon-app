@@ -1,0 +1,7 @@
+[
+  { "id": "ro-101", "date": "2026-11-03", "car": "Skoda Octavia 2017", "customer": "FlotaTrans (demo)", "partsCostPLN": 1200, "partsPricePLN": 1500, "labourHours": 5, "labourBilledPLN": 1000 },
+  { "id": "ro-102", "date": "2026-11-06", "car": "VW Passat 2015", "customer": "Klient indywidualny", "partsCostPLN": 2900, "partsPricePLN": 3600, "labourHours": 14, "labourBilledPLN": 2000 },
+  { "id": "ro-103", "date": "2026-11-10", "car": "Toyota Corolla 2019", "customer": "Taxi Wawel (demo)", "partsCostPLN": 800, "partsPricePLN": 1000, "labourHours": 10, "labourBilledPLN": 2000 },
+  { "id": "ro-104", "date": "2026-11-12", "car": "Ford Transit 2018", "customer": "JK Budownictwo (demo)", "partsCostPLN": 2000, "partsPricePLN": 2400, "labourHours": 11, "labourBilledPLN": 1600 },
+  { "id": "ro-105", "date": "2026-11-17", "car": "Opel Astra 2016", "customer": "Klient indywidualny", "partsCostPLN": 650, "partsPricePLN": 700, "labourHours": 6, "labourBilledPLN": 900 }
+]

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "warsztat-cfo",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--import", "tsx", "server/src/index.ts"],
+      "port": 8080
+    }
+  ]
+}
