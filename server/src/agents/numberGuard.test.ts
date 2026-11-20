@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { resetDb } from '../domain/store';
 import { runAutopilot } from './autopilot';
 import { snapshot } from './boardroom';
+import { cfoFacts } from './facts';
 import { findInventedNumbers, numberValues } from './numberGuard';
 
 let facts = '';
@@ -61,5 +62,36 @@ describe('findInventedNumbers (live replies)', () => {
 
   it('catches an invented ISO date', () => {
     expect(findInventedNumbers('The balance drops on 2026-12-24.', facts)).toEqual(['2026-12-24']);
+  });
+});
+
+describe('findInventedNumbers: percents are checked as percents', () => {
+  const factsOf = (cfo: 'kasia' | 'tomasz') => {
+    const f = cfoFacts(cfo, 'pl');
+    return [...f.lines, f.summary].join('\n');
+  };
+
+  it('catches an invented percent even when the bare number is in the facts (live reply)', () => {
+    // Kasia's facts say "4 tygodnie temu" and "5%"; the rate went 4,22 → 4,27 zł, not up 4%
+    expect(findInventedNumbers('Kurs euro w ciągu ostatnich czterech tygodni wzrósł o 4%.', factsOf('kasia'))).toEqual(['4%']);
+    expect(findInventedNumbers('EUR wzrosło o 4,5%.', factsOf('kasia'))).toEqual(['4,5%']);
+  });
+
+  it('a percent from the facts passes, in any format the small model uses', () => {
+    const kasia = factsOf('kasia');
+    expect(findInventedNumbers('Jeśli euro podrożeje o 5%, stracisz 320,25 zł.', kasia)).toEqual([]);
+    expect(findInventedNumbers('Przy 5 % wzrostu stracisz 320,25 zł.', kasia)).toEqual([]);
+    expect(findInventedNumbers('5-procentowy wzrost kursu to strata 320,25 zł.', kasia)).toEqual([]);
+    expect(findInventedNumbers('Wzrost o 5 procent kosztuje 320,25 zł.', kasia)).toEqual([]);
+  });
+
+  it('small counts and days stay free', () => {
+    expect(findInventedNumbers('Za 4 tygodnie, 3 zlecenia, za 5 dni.', factsOf('kasia'))).toEqual([]);
+  });
+
+  it("Tomasz: a percent from his facts passes, a made-up one is caught", () => {
+    const tomasz = factsOf('tomasz'); // "poniżej 25%", "26% wszystkich kosztów"
+    expect(findInventedNumbers('Narzut na części jest poniżej 25%, a części to 26% kosztów.', tomasz)).toEqual([]);
+    expect(findInventedNumbers('Ustaw narzut 30% na części.', tomasz)).toEqual(['30%']);
   });
 });

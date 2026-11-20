@@ -2,7 +2,7 @@
 // findInventedNumbers(reply, facts) lists every number or date in the reply that does not appear in the facts.
 // A non-empty list → the caller throws the reply away and shows a rule-based fallback instead.
 
-/** Small whole numbers (days, counts, months, percents like 5%) are too common to check. */
+/** Small whole numbers (days, counts, months) are too common to check. Percents are always checked, see PERCENT. */
 const MAX_FREE_INTEGER = 31;
 const TOLERANCE = 0.006; // 320,25 vs 320.25 → same number
 
@@ -19,6 +19,10 @@ const ISO_DATE = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
 const DAY_MONTH = new RegExp(`\\b(\\d{1,2})(?:\\.|st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTH_RE})\\b`, 'gi');
 const MONTH_DAY = new RegExp(`\\b(${MONTH_RE})\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, 'gi');
 // A number: "14 230,00" (space groups must have exactly 3 digits), "12,300.00", "4,27", "1500".
+// A percent: "5%", "5 %", "4,5%", "5 procent", "5-procentowy", "5 proc.", "5 percent". Checked AS A PERCENT:
+// "4%" is invented even when the facts say "4 tygodnie", and it is never a free small number.
+const PERCENT = /(\d+(?:[.,]\d+)?)\s*(?:%|-?\s*procent\w*|proc\.|percent\b)/gi;
+const percentValue = (raw: string) => Number(raw.replace(',', '.'));
 const NUMBER = /\d{1,3}(?:[ \u00a0]\d{3})+(?:[.,]\d+)*|\d+(?:[.,]\d+)*/g;
 
 const dateKey = (month: number, day: number) => `${month}-${day}`;
@@ -41,8 +45,14 @@ export function numberValues(raw: string): number[] {
 }
 
 /** Dates as "month-day" keys, and every number value, found in a text. */
-function scan(text: string): { dates: Set<string>; numbers: number[]; tokens: { raw: string; values: number[] }[] } {
+function scan(text: string): {
+  dates: Set<string>;
+  numbers: number[];
+  percents: { raw: string; value: number }[];
+  tokens: { raw: string; values: number[] }[];
+} {
   const dates = new Set<string>();
+  const percents = [...text.matchAll(PERCENT)].map((m) => ({ raw: m[0].trim(), value: percentValue(m[1]) }));
   let rest = text;
 
   const years: number[] = [];
@@ -53,10 +63,11 @@ function scan(text: string): { dates: Set<string>; numbers: number[]; tokens: { 
   for (const m of text.matchAll(DAY_MONTH)) dates.add(dateKey(MONTHS[m[2].toLowerCase()], Number(m[1])));
   for (const m of text.matchAll(MONTH_DAY)) dates.add(dateKey(MONTHS[m[1].toLowerCase()], Number(m[2])));
   // Dates are checked as dates, so take them out before reading plain numbers (keeps "2026" or "20" from leaking in).
-  rest = rest.replace(ISO_DATE, ' ').replace(DAY_MONTH, ' ').replace(MONTH_DAY, ' ');
+  // Percents are checked as percents, too.
+  rest = rest.replace(ISO_DATE, ' ').replace(DAY_MONTH, ' ').replace(MONTH_DAY, ' ').replace(PERCENT, ' ');
 
   const tokens = [...rest.matchAll(NUMBER)].map((m) => ({ raw: m[0].trim(), values: numberValues(m[0].trim()) }));
-  return { dates, numbers: [...years, ...tokens.flatMap((t) => t.values)], tokens };
+  return { dates, numbers: [...years, ...tokens.flatMap((t) => t.values)], percents, tokens };
 }
 
 /** "25.11" or "25.11.2026" written in a reply may be a date (25 November) as well as a number. */
@@ -90,6 +101,10 @@ export function findInventedNumbers(reply: string, facts: string): string[] {
   }
   for (const m of reply.matchAll(MONTH_DAY)) {
     if (!known.dates.has(dateKey(MONTHS[m[1].toLowerCase()], Number(m[2])))) invented.push(m[0]);
+  }
+
+  for (const p of out.percents) {
+    if (!known.percents.some((k) => Math.abs(k.value - p.value) < TOLERANCE)) invented.push(p.raw);
   }
 
   for (const t of out.tokens) {
