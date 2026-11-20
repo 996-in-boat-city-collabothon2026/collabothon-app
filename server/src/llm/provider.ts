@@ -77,21 +77,24 @@ export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Pro
   return cleanReply(await modelCall(messages, opts));
 }
 
-// Last successful reply per mockKey. If the model times out mid-demo, we show its previous answer instead of an error.
+// Last successful conference turn per speaker. If the model times out mid-demo, the conference replays that speaker's
+// previous turn instead of "no comment". Only for `boardroom:*` keys: `explain` (one key for every card) and
+// `ask:`/`advice:` (one key per agent, any question) would show an answer to a different card or question.
 const lastGood = new Map<string, string>();
+const remembers = (key?: string): key is string => !!key && key.startsWith('boardroom:');
 
-/** Like chat(), but never throws. On failure: the last good answer for this mockKey, else `fallback`. */
+/** Like chat(), but never throws. On failure: the last good conference turn (boardroom keys only), else `fallback`. */
 export async function chatOr(fallback: string, messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
   try {
     const text = await chat(messages, opts);
     if (text) {
-      if (opts.mockKey) lastGood.set(opts.mockKey, text);
+      if (remembers(opts.mockKey)) lastGood.set(opts.mockKey, text);
       return text;
     }
   } catch (err) {
     console.warn('[llm] falling back:', (err as Error).message);
   }
-  return (opts.mockKey && lastGood.get(opts.mockKey)) || fallback;
+  return (remembers(opts.mockKey) && lastGood.get(opts.mockKey)) || fallback;
 }
 
 // Health is cached for 30 s so every page load does not spend a GPU call.

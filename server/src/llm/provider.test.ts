@@ -45,6 +45,18 @@ describe('chatOr', () => {
     answer = async () => '<think>only thinking</think>';
     expect(await chatOr('fallback', q)).toBe('fallback');
   });
+
+  it('never replays an old answer for card explanations or the advice bubble', async () => {
+    answer = async () => 'Explanation of card A';
+    await chatOr('why of A', q, { mockKey: 'explain' });
+    answer = async () => 'Kasia on the euro';
+    await chatOr('sorry', q, { mockKey: 'advice:Kasia' });
+    answer = async () => {
+      throw new Error('timeout');
+    };
+    expect(await chatOr('why of B', q, { mockKey: 'explain' })).toBe('why of B');
+    expect(await chatOr('sorry', q, { mockKey: 'advice:Kasia' })).toBe('sorry');
+  });
 });
 
 describe('llmHealth', () => {
