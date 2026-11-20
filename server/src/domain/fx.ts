@@ -12,6 +12,12 @@ export function latestRate(currency: Currency = 'PLN'): number {
   return last.midPLN;
 }
 
+/** True when the seed has at least one NBP rate for this currency (PLN always). Without it nothing can be converted. */
+export const hasRate = (currency: Currency = 'PLN') => currency === 'PLN' || db.fxRates.some((r) => r.currency === currency);
+
+/** Invoices we can convert to złoty. A foreign invoice with no NBP rate is left out of PLN totals instead of crashing. */
+export const convertible = (inv: Invoice) => hasRate(inv.currency);
+
 export const toPLN = (amount: number, currency: Currency = 'PLN') => round2(amount * latestRate(currency));
 
 /** Invoice gross converted to złoty at today's rate (PLN invoices unchanged). */
@@ -19,6 +25,6 @@ export const invoiceGrossPLN = (inv: Invoice) => toPLN(invoiceGross(inv), inv.cu
 
 /** Unpaid foreign purchases minus unpaid foreign sales, in PLN. Positive = we owe foreign currency. */
 export function fxExposurePLN(): number {
-  const foreign = db.invoices.filter((i) => !i.paid && i.currency && i.currency !== 'PLN');
+  const foreign = db.invoices.filter((i) => !i.paid && i.currency && i.currency !== 'PLN' && convertible(i));
   return round2(foreign.reduce((s, i) => s + (i.direction === 'purchase' ? 1 : -1) * invoiceGrossPLN(i), 0));
 }

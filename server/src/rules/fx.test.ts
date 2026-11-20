@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db, resetDb } from '../domain/store';
 import { toPLN } from '../domain/fx';
-import { exposureAfterPaying, fx, fxExposures } from './fx';
+import { exposureAfterPaying, fx, fxExposures, hasTrend, missingFxRates } from './fx';
 
 describe('fx rule (Kasia)', () => {
   beforeEach(() => resetDb());
@@ -11,7 +11,7 @@ describe('fx rule (Kasia)', () => {
     const eur = fxExposures().find((e) => e.currency === 'EUR');
     expect(eur?.net).toBe(1500); // 3 600 EUR to Krause − 2 100 EUR from Weber
     expect(eur?.shockPLN).toBe(320.25); // 1 500 × 4,27 × 5%
-    expect(eur?.trend).toEqual({ from: 4.22, to: 4.27, weeksUp: 4 });
+    expect(eur?.trend).toEqual({ from: 4.22, to: 4.27, weeksUp: 4, points: 5 });
 
     const actions = fx();
     const hedges = actions.filter((a) => a.kind === 'fx_hedge');
@@ -19,7 +19,8 @@ describe('fx rule (Kasia)', () => {
     expect(hedges[0].tier).toBe('NEEDS_APPROVAL');
     expect(hedges[0].amountPLN).toBe(toPLN(1500, 'EUR'));
     expect(hedges[0].title).toContain('EUR');
-    expect(actions.filter((a) => a.tier === 'RECOMMENDED')).toHaveLength(2);
+    expect(actions.filter((a) => a.tier === 'RECOMMENDED').map((a) => a.kind)).toEqual(['info']); // natural hedge
+    expect(actions.find((a) => a.kind === 'supplier_payment')!.tier).toBe('NEEDS_APPROVAL'); // pay early moves money
   });
 
   it('no foreign invoices: no actions', () => {
@@ -45,9 +46,9 @@ describe('"Pay supplier early" shows the risk before and after paying (Kasia)', 
     expect(exposureAfterPaying(eur, krause)).toEqual({ net: -2100, shockPLN: 448.35 });
   });
 
-  it('the card keeps its tier, says the risk goes up, and names the right direction', () => {
+  it('the card needs approval, says the risk goes up, and names the right direction', () => {
     const card = fx().find((a) => a.kind === 'supplier_payment')!;
-    expect(card.tier).toBe('RECOMMENDED');
+    expect(card.tier).toBe('NEEDS_APPROVAL');
     expect(card.refId).toBe('inv-p-002');
     expect(card.title).toMatch(/320,25\szł → 448,35\szł/);
     const why = card.why.join('\n');
@@ -68,5 +69,32 @@ describe('"Pay supplier early" shows the risk before and after paying (Kasia)', 
     const before = JSON.stringify([db.bank, db.invoices, db.obligations]);
     fx();
     expect(JSON.stringify([db.bank, db.invoices, db.obligations])).toBe(before);
+  });
+});
+
+// ---------- Incomplete FX data (review of PR #6, point 4) ----------
+describe('fx rule with incomplete NBP rates', () => {
+  beforeEach(() => resetDb());
+  const noEur = () => { db.fxRates = db.fxRates.filter((r) => r.currency !== 'EUR'); };
+
+  it('no EUR rate: no crash, no FX card, EUR listed as missing; forecast and other rules still work', async () => {
+    noEur();
+    expect(() => fx()).not.toThrow();
+    expect(fx()).toEqual([]);
+    expect(missingFxRates()).toEqual(['EUR']);
+    const { allDrafts } = await import('../agents/autopilot');
+    const drafts = allDrafts();
+    expect(drafts.some((d) => d.cfo === 'anna' && d.kind === 'credit_line')).toBe(true);
+    expect(drafts.some((d) => d.cfo === 'marek')).toBe(true);
+    expect(drafts.some((d) => d.cfo === 'kasia')).toBe(false);
+  });
+
+  it('one EUR rate: the rate is quoted, the 4-week trend is left out', () => {
+    db.fxRates = [...db.fxRates.filter((r) => r.currency !== 'EUR'), { currency: 'EUR', date: '2026-11-19', midPLN: 4.27 }];
+    const e = fxExposures()[0];
+    expect(hasTrend(e)).toBe(false);
+    const hedge = fx().find((a) => a.kind === 'fx_hedge')!;
+    expect(hedge.why.join(' ')).toMatch(/at NBP 4,27 zł/);
+    expect(hedge.why.join(' ')).not.toMatch(/weeks|went from/);
   });
 });

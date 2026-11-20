@@ -10,15 +10,36 @@ const recentOrders = (): RepairOrder[] => {
   return db.repairOrders.filter((o) => o.date >= from && o.date <= to);
 };
 
+/** Recent orders where labour was billed below hours × shop rate, with the missing money per order. */
+export function labourGaps(): { o: RepairOrder; missing: number }[] {
+  const rate = db.shop.labourRatePLN;
+  return recentOrders()
+    .map((o) => ({ o, missing: round2(o.labourHours * rate - o.labourBilledPLN) }))
+    .filter((x) => x.missing > 0);
+}
+
+/** Recent orders with a parts markup below the target, with the missing money per order. */
+export function lowMarkups(): { o: RepairOrder; markup: number; missing: number }[] {
+  const target = db.shop.partsMarkupTarget;
+  return recentOrders()
+    .filter((o) => o.partsCostPLN > 0)
+    .map((o) => ({
+      o,
+      markup: (o.partsPricePLN - o.partsCostPLN) / o.partsCostPLN,
+      missing: round2(o.partsCostPLN * (1 + target) - o.partsPricePLN),
+    }))
+    .filter((x) => x.markup < target);
+}
+
+export const sumMissing = (list: { missing: number }[]) => round2(list.reduce((s, x) => s + x.missing, 0));
+
 /** Labour billed below hours × shop rate → one pricing tip with the missing money and the cars. */
 export function labourUnderRate(): DraftAction[] {
   const rate = db.shop.labourRatePLN;
-  const under = recentOrders()
-    .map((o) => ({ o, missing: round2(o.labourHours * rate - o.labourBilledPLN) }))
-    .filter((x) => x.missing > 0);
+  const under = labourGaps();
   if (under.length === 0) return [];
 
-  const missing = round2(under.reduce((s, x) => s + x.missing, 0));
+  const missing = sumMissing(under);
   return [
     {
       cfo: 'tomasz',
@@ -41,13 +62,10 @@ export function labourUnderRate(): DraftAction[] {
 /** Parts sold with a markup below the target → one pricing tip. */
 export function partsMarkup(): DraftAction[] {
   const target = db.shop.partsMarkupTarget;
-  const low = recentOrders()
-    .filter((o) => o.partsCostPLN > 0)
-    .map((o) => ({ o, markup: (o.partsPricePLN - o.partsCostPLN) / o.partsCostPLN }))
-    .filter((x) => x.markup < target);
+  const low = lowMarkups();
   if (low.length === 0) return [];
 
-  const missing = round2(low.reduce((s, { o }) => s + o.partsCostPLN * (1 + target) - o.partsPricePLN, 0));
+  const missing = sumMissing(low);
   const pct = (n: number) => `${Math.round(n * 100)}%`;
   return [
     {
