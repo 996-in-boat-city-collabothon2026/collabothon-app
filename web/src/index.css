@@ -159,3 +159,9 @@ button, a { transition-property: color, background-color, border-color; transiti
   .agent-card:hover { transform: none; }
   .radar::before, .radar::after { display: none; }
 }
+
+/* 3D agent pictures: gentle idle bob, small tilt on hover */
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.avatar-3d img { animation: bob 3.2s ease-in-out infinite; transition: transform 200ms ease; }
+.avatar-3d:hover img { transform: rotate(-6deg) scale(1.06); animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .avatar-3d img { animation: none; } }

@@ -6,7 +6,7 @@ import { CFOS, type Action, type BoardroomResult, type CfoId } from '@cfo/shared
 import { TypingDots } from '../components/AskBubble';
 import { api } from '../api/client';
 import Icon from '../components/Icon';
-import { PageHeader, fmtDay, fmtPLN, useToast } from '../components/ui';
+import { CfoAvatar, PageHeader, fmtDay, fmtPLN, useToast } from '../components/ui';
 import { useT } from '../i18n';
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -17,11 +17,9 @@ type Phase = 'idle' | 'thinking' | 'talking' | 'done' | 'error';
 
 /** Neutral round avatar with initials; the speaker gets an accent ring. */
 function Person({ cfo, size = 44, active = false }: { cfo: CfoId; size?: number; active?: boolean }) {
-  const c = CFOS[cfo];
   return (
-    <span className={`relative inline-flex shrink-0 items-center justify-center rounded-full bg-zinc-200 font-bold text-ink transition ${active ? 'ring-4 ring-accent' : ''}`}
-      style={{ width: size, height: size, fontSize: size * 0.38 }} aria-hidden="true">
-      {c.name.slice(0, 2).toUpperCase()}
+    <span className={`relative inline-flex shrink-0 rounded-full ${active ? 'ring-4 ring-accent' : ''}`}>
+      <CfoAvatar cfo={cfo} size={size} />
       {active && <span className="live-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-accent" />}
     </span>
   );

@@ -110,11 +110,25 @@ export function FlowStrip({ steps }: { steps: string[] }) {
 }
 
 /** Any avatar with a hat – also used for the Blue-hat chair, who is not a CFO. */
+/** 3D cartoon avatar per hat colour (web/public/avatars/<hat>-hat.png). The Blue-hat chair uses the yellow-hat picture. */
+export const avatarSrc = (hat: Hat) => `/avatars/${hat === 'blue' ? 'yellow' : hat}-hat.png`;
+
+/** Any avatar with a hat – also used for the Blue-hat chair, who is not a CFO.
+ *  Shows the 3D picture when it exists; falls back to a coloured circle with a drawn hat. */
 export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
   letter: string; color: string; hat: Hat; label: string; size?: number;
 }) {
+  const [imgOk, setImgOk] = useState(true);
   const hat = HATS[hatId];
-  const c = { color, name: letter };
+  if (imgOk) {
+    return (
+      <span title={label} className="avatar-3d relative inline-flex shrink-0 overflow-hidden rounded-full bg-zinc-100"
+        style={{ width: size, height: size }}>
+        <img src={avatarSrc(hatId)} alt={label} loading="lazy" decoding="async" onError={() => setImgOk(false)}
+          className="h-full w-full object-cover" />
+      </span>
+    );
+  }
   return (
     <span role="img" aria-label={label} title={label} className="relative inline-flex shrink-0"
       style={{ width: size, height: size, marginTop: size * 0.3 }}>
@@ -125,8 +139,8 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
         <rect x="2" y="16" width="36" height="6" rx="3" fill={hat.color} stroke="#0f172a" strokeOpacity="0.35" />
       </svg>
       <span className="inline-flex h-full w-full items-center justify-center rounded-full font-bold text-white"
-        style={{ background: c.color, fontSize: size * 0.42 }}>
-        {c.name[0]}
+        style={{ background: color, fontSize: size * 0.42 }}>
+        {letter}
       </span>
     </span>
   );

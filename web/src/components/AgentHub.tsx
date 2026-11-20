@@ -3,6 +3,7 @@
 // Animations stop when the user prefers reduced motion (see index.css).
 import { CFOS, HATS, type CfoId } from '@cfo/shared';
 import { useT } from '../i18n';
+import { avatarSrc } from './ui';
 
 const AGENTS: CfoId[] = ['anna', 'tomasz', 'kasia', 'marek'];
 const SOURCES = ['KSeF', 'Bank', 'NBP'];
@@ -62,6 +63,8 @@ export default function AgentHub({ className = '' }: { className?: string }) {
           <g key={a}>
             <circle cx={x} cy={y} r="24" fill={c.color} stroke={HATS[c.hat].color === '#f8fafc' ? '#d4d4d8' : HATS[c.hat].color} strokeWidth="4" />
             <text x={x} y={y + 7} textAnchor="middle" fontSize="20" fontWeight="700" fill="#fff">{c.name[0]}</text>
+            <clipPath id={`clip-${a}`}><circle cx={x} cy={y} r="22" /></clipPath>
+            <image href={avatarSrc(c.hat)} x={x - 22} y={y - 22} width="44" height="44" clipPath={`url(#clip-${a})`} preserveAspectRatio="xMidYMid slice" />
             <text x={right ? x - 32 : x + 32} y={y + 6} textAnchor={right ? 'end' : 'start'} fontSize="17" fontWeight="600" fill="#1d1d1f">{c.name}</text>
           </g>
         );
