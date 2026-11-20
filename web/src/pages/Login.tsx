@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import type { User } from '@cfo/shared';
 import { api } from '../api/client';
 import { useT } from '../i18n';
+import DotBlob from '../components/DotBlob';
 
 export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const { t, lang, setLang } = useT();
@@ -38,9 +39,15 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
         <span className="inline-flex items-center gap-2 rounded-full bg-stone-200/70 px-3 py-1 text-sm font-medium">
           <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden="true" /> {t('login_demo_note')}
         </span>
-        <h1 className="mt-6 text-5xl font-extrabold leading-[0.95] tracking-tight">WarsztatCFO</h1>
-        <p className="mt-4 text-lg text-stone-600">{t('login_tagline')}</p>
-        <form onSubmit={login} noValidate className="mt-10 space-y-4">
+        {/* Hero: big title over a slowly turning dotted blob. A soft halo keeps the text crisp over the dots. */}
+        <div className="relative mt-2 flex h-72 flex-col items-center justify-center text-center">
+          <DotBlob className="absolute inset-0 h-full w-full" />
+          <h1 className="relative text-5xl font-extrabold leading-[0.95] tracking-tight [text-shadow:0_0_14px_#f5f5f4,0_0_4px_#f5f5f4]">
+            WarsztatCFO
+          </h1>
+          <p className="relative mt-3 rounded-full bg-stone-100/80 px-3 text-lg text-stone-700">{t('login_tagline')}</p>
+        </div>
+        <form onSubmit={login} noValidate className="mt-6 space-y-4">
           <label className="block space-y-1 text-sm font-semibold">
             <span>{t('login_user')}</span>
             <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username"
