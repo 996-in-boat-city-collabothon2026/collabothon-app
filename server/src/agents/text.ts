@@ -29,7 +29,7 @@ export function wholeSentences(text: string, maxWords: number): string {
  */
 export function stripAddress(text: string): string {
   const t = text
-    .replace(/^(?:\s*(?:Ty|Właściciel(?:u)?(?: warsztatu(?: samochodowego)?)?)\s*[:,]\s*)+/i, '')
+    .replace(/^(?:\s*(?:Ty|Właściciel(?:u)?(?: warsztatu(?: samochodowego)?)?|(?:Dear )?owner)\s*[:,]\s*)+/i, '')
     .replace(/^Ty\s+(?=\p{Ll})/u, '')
     .trim();
   return t ? t[0].toUpperCase() + t.slice(1) : t;
@@ -44,6 +44,13 @@ const DONE = /\b(?:został[aoy]?|zostały|zostało)\s+(?:już\s+)?(?:wysłan|zab
 // Only the owner decides (golden rule 3): the meeting proposes, it never decides or assigns.
 const DECIDED = /\b(?:it was|it has been|it's been|we(?:'ve| have)?|they) (?:been )?decided\b|\bdecisions? (?:was|were|has been|have been) (?:made|taken)\b|\bactions? (?:was|were|has been|have been) assigned\b|\bzdecydowan|\bpostanowion/i;
 export const claimsDone = (text: string) => DONE.test(text) || DECIDED.test(text);
+
+/**
+ * The advisor tells the owner's money as its own. Live (Kasia): "I have 1500 EUR to pay, and if the rate rises 5%,
+ * I'd lose 320,25 zł". The money and the loss are the owner's ("you"), never the advisor's.
+ */
+const MY_MONEY = /\bI(?:'d|'ll| would| will| could| might)? lose\b|\bI (?:have|owe) [^.]{0,30}\bto pay\b|\bI(?:'ll| will) (?:have to )?pay\b|\bmy (?:money|balance|invoices?|payments?|loss)\b/i;
+export const myMoney = (text: string) => MY_MONEY.test(text);
 
 /** False calm next to a real risk. Live: "stracisz 320,25 zł, a kurs rośnie, to nie masz nic do stracenia". */
 const CALM = /nic do stracenia|nie masz się czym (?:martwić|przejmować)|wszystko (?:musi być|jest|będzie) w porządku|nothing to lose|nothing to worry/i;

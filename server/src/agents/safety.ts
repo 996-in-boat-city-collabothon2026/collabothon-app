@@ -2,7 +2,7 @@
 // A reply is shown only when it passes all of it; otherwise the caller shows the agent's rule conclusion.
 import type { CfoFacts, Lang } from './facts';
 import { findInventedNumbers } from './numberGuard';
-import { claimsDone, falseCalm } from './text';
+import { claimsDone, falseCalm, myMoney } from './text';
 
 /** Polish letters (not "ł": it is in "zł") or common Polish words. Names like "Kraków" do not trigger it. */
 const POLISH = /[ąćęńśźż]|\b(?:jest|się|że|masz|musisz|ponieważ|oraz|który|która|które|jeśli|zapłać|proponuję|złotych|faktura|faktury)\b/i;
@@ -37,6 +37,6 @@ export function replyProblem(text: string, facts: CfoFacts, lang: Lang, onTopic:
   if (invented.length) return `invented ${JSON.stringify(invented)}`;
   if (!onTopic(text)) return 'no key fact of its own';
   if (claimsDone(text)) return 'claims something was done'; // golden rule 3
-  if (falseCalm(text) || facts.misread?.(text)) return 'known misread';
+  if (falseCalm(text) || myMoney(text) || facts.misread?.(text)) return 'known misread';
   return '';
 }

@@ -9,7 +9,7 @@ import { runAutopilot } from './autopilot';
 import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, snapshot, TURN_MAX_TOKENS, TURN_MAX_WORDS } from './boardroom';
 import { cfoFacts } from './facts';
 import { explain, explainPL } from './explain';
-import { claimsDone, falseCalm, wholeSentences } from './text';
+import { claimsDone, falseCalm, myMoney, wholeSentences } from './text';
 import { fixCurrencyPair, looksPolish } from './safety';
 
 const saved = { ...config.llm };
@@ -210,6 +210,24 @@ describe('conference: the same safeguards as /api/ask', () => {
     expect(r.turns[3].text).toBe('The EUR rate is going up. I suggest a forward contract for 1500 EUR, or you lose 320,25 zł if EUR rises 5%.');
     const kasiaPrompt = sent.find((c) => persona(c.m, 'kasia'))!.m[0].content;
     expect(kasiaPrompt).not.toContain('EUR/USD');
+  });
+
+  it('Kasia telling the owner\'s money as her own (live) → rule conclusion; "you lose" is fine', async () => {
+    await runAutopilot();
+    reply = (m) =>
+      persona(m, 'kasia')
+        ? "Owner, I have 1500 EUR to pay, and if the rate rises 5%, I'd lose 320,25 zł. I recommend locking the rate with a forward contract for 1500 EUR."
+        : '';
+    expect((await runBoardroom()).turns[3].text).toBe(en('kasia'));
+    expect(myMoney("I'll lose 320,25 zł.")).toBe(true);
+    expect(myMoney('You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł.')).toBe(false);
+    expect(myMoney('I suggest you pay VAT by November 25, 2026.')).toBe(false);
+  });
+
+  it('"Owner," at the start is dropped, the turn is kept', async () => {
+    await runAutopilot();
+    reply = (m) => (persona(m, 'kasia') ? 'Owner, you have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł.' : '');
+    expect((await runBoardroom()).turns[3].text).toBe('You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł.');
   });
 
   it('a currency pair the facts really have stays', () => {
