@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from './config';
 import health from './routes/health';
+import auth from './routes/auth';
 import finance from './routes/finance';
 import actions from './routes/actions';
 import boardroom from './routes/boardroom';
@@ -15,7 +16,7 @@ import demo from './routes/demo';
 
 const app = Fastify({ logger: { level: 'info' } });
 
-for (const plugin of [health, finance, actions, boardroom, ksef, settings, demo]) {
+for (const plugin of [health, auth, finance, actions, boardroom, ksef, settings, demo]) {
   await app.register(plugin, { prefix: '/api' });
 }
 

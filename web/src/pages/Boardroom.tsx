@@ -77,7 +77,7 @@ export default function Boardroom() {
           <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="e.g. Can I afford a new lift?"
             className="flex-1 rounded-lg border p-2" />
           <button className="rounded-lg bg-slate-900 px-4 py-2 text-white"
-            onClick={async () => setAnswer((await api.ask(askCfo, question)).text)} disabled={!question}>Ask</button>
+            onClick={async () => setAnswer((await api.ask(question, askCfo)).text)} disabled={!question}>Ask</button>
         </div>
         {answer && <p className="mt-3 rounded-xl bg-slate-100 p-3">{answer}</p>}
       </Card>

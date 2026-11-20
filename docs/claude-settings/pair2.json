@@ -4,7 +4,7 @@
       "Edit(./web/**)", "Edit(./deploy/**)", "Edit(./scripts/**)", "Edit(./Dockerfile)",
       "Edit(./server/src/index.ts)", "Edit(./server/src/config.ts)", "Edit(./server/src/llm/**)",
       "Edit(./server/src/ksef/**)", "Edit(./server/src/seed/**)",
-      "Edit(./server/src/routes/health.ts)", "Edit(./server/src/routes/ksef.ts)",
+      "Edit(./server/src/routes/health.ts)", "Edit(./server/src/routes/auth.ts)", "Edit(./server/src/routes/ksef.ts)",
       "Edit(./server/src/routes/demo.ts)", "Edit(./server/src/routes/settings.ts)"
     ]
   }

@@ -6,7 +6,8 @@ import { fmtPLN } from '../domain/money';
 import { forecast } from '../rules/cashflow';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
-import { PERSONAS } from './personas';
+import { fxExposurePLN, latestRate } from '../domain/fx';
+import { CHAIR_PERSONA, PERSONAS } from './personas';
 
 const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];
 
@@ -18,6 +19,7 @@ export function snapshot(): string {
     `Shop: ${db.shop.name}, ${db.shop.employees} mechanics, labour rate ${db.shop.labourRatePLN} PLN/h.`,
     `Bank balance: ${fmtPLN(db.bank.balancePLN)}. Safety buffer: ${fmtPLN(db.shop.safetyBufferPLN)}.`,
     `30-day forecast lowest point: ${fmtPLN(f.lowest.balancePLN)} on ${f.lowest.date}.`,
+    `FX: 1 EUR = ${latestRate('EUR')} zł (NBP). Net foreign-currency exposure: ${fmtPLN(fxExposurePLN())}.`,
     'Open items:',
     ...open.map((a) => `- [${a.id}] (${CFOS[a.cfo].name}, ${a.tier}) ${a.title}: ${a.why.join('; ')}`),
   ].join('\n');
@@ -40,7 +42,7 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
 
   const openApprovals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL').map((a) => a.id);
   const chairRaw = await chatOr('', [
-    { role: 'system', content: 'You chair a CFO meeting. Reply ONLY with JSON: {"summary": string (max 50 words), "decisionActionIds": string[] (ids from DATA that the owner should approve)}' },
+    { role: 'system', content: CHAIR_PERSONA + ' Reply ONLY with JSON: {"summary": string (max 50 words), "decisionActionIds": string[] (ids from DATA that the owner should approve)}' },
     { role: 'user', content: `DATA:\n${facts}\n\nDEBATE:\n${turns.map((t) => `${CFOS[t.cfo].name}: ${t.text}`).join('\n')}` },
   ], { maxTokens: 200, mockKey: 'boardroom:chair' });
 

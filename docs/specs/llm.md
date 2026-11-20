@@ -6,6 +6,7 @@
 - `server/src/llm/provider.ts`: `chat()`, `chatOr(fallback, …)` (never throws), `llmHealth()`.
 - `server/src/llm/mock.ts`: canned answers keyed by `mockKey` (e.g. `boardroom:anna`, `explain`, `ask:<Name>`).
 - `server/src/llm/json.ts`: `extractJson(text, zodSchema)` returns `null` when the model's JSON is bad.
+- `server/src/routes/auth.ts`: DEMO login (`/api/auth/me`, `demo-login`, `logout`). Real Google OAuth only after H36, same endpoints.
 - `server/src/config.ts`: env vars. `Dockerfile`. `deploy/README.md`. `scripts/smoke.*`.
 
 ## Env

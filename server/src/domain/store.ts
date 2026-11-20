@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
-  Action, ActivityEntry, BankAccount, CfoId, Invoice, Obligation, RepairOrder, Settings, Shop,
+  Action, ActivityEntry, BankAccount, CfoId, Expense, FxRate, Invoice, Obligation, RepairOrder, Settings, Shop,
 } from '@cfo/shared';
 
 const seedDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../seed');
@@ -17,6 +17,8 @@ export interface Db {
   invoices: Invoice[];
   repairOrders: RepairOrder[];
   obligations: Obligation[];
+  expenses: Expense[]; // money already spent (pie chart)
+  fxRates: FxRate[];
   actions: Action[];
   activity: ActivityEntry[];
   settings: Settings;
@@ -30,6 +32,7 @@ const DEFAULT_SETTINGS: Settings = {
     tax_payment: 'ask',
     supplier_payment: 'ask',
     credit_line: 'ask',
+    fx_hedge: 'ask',
   },
 };
 
@@ -41,6 +44,8 @@ function loadSeed(): Db {
     invoices: readSeed<Invoice[]>('invoices.json'),
     repairOrders: readSeed<RepairOrder[]>('repair-orders.json'),
     obligations: readSeed<Obligation[]>('obligations.json'),
+    expenses: readSeed<Expense[]>('expenses.json'),
+    fxRates: readSeed<FxRate[]>('fx-rates.json'),
     actions: [],
     activity: [],
     settings: structuredClone(DEFAULT_SETTINGS),

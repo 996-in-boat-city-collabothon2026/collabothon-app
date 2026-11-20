@@ -10,7 +10,7 @@ const CANNED: Record<string, string> = {
   'boardroom:tomasz':
     'Labour on three recent jobs was billed under our hourly rate. Fixing that alone covers a good part of the gap. Parts markup is fine.',
   'boardroom:kasia':
-    'No big investments this month. Once the receivables come in, we can revisit the second diagnostic station.',
+    'My gut says the złoty is getting weaker: EUR went up every week this month. We owe Autoteile Krause 3 600 EUR in December. I would lock the rate with a small forward contract, but only after we sort out the cash gap.',
   'boardroom:chair':
     '{"summary":"Pay VAT on time, chase the overdue fleet invoices, fix labour pricing. Keep the credit line as a backup only.","decisionActionIds":[]}',
   explain: 'This needs your OK because it moves money. The numbers come from your invoices and bank balance.',
@@ -18,6 +18,7 @@ const CANNED: Record<string, string> = {
 
 export function mockReply(key: string | undefined, messages: ChatMessage[]): string {
   if (key && CANNED[key]) return CANNED[key];
+  if (key?.startsWith('advice:')) return `(mock) ${key.slice(7)} here. Quick tip: start with the "Waiting for your OK" list, the most urgent item is at the top.`;
   if (key?.startsWith('ask:')) return `(mock) ${key.slice(4)} here. Good question, I would look at the numbers on the dashboard first.`;
   const last = messages[messages.length - 1]?.content ?? '';
   return `(mock answer) ${last.slice(0, 120)}`;

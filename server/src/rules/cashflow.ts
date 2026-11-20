@@ -2,7 +2,8 @@
 // TODO(Pair 2): shift late payers by their average delay, add expected new sales, PL weekends.
 import type { Forecast, ForecastPoint } from '@cfo/shared';
 import { db } from '../domain/store';
-import { addDays, daysBetween, invoiceGross, round2 } from '../domain/money';
+import { addDays, daysBetween, round2 } from '../domain/money';
+import { invoiceGrossPLN } from '../domain/fx';
 
 export function forecast(days: number): Forecast {
   const today = db.shop.today;
@@ -14,7 +15,7 @@ export function forecast(days: number): Forecast {
   for (let d = 0; d <= days; d++) {
     const date = addDays(today, d);
     // Overdue invoices are NOT assumed to arrive (worst case). Pair 2: make this smarter.
-    for (const inv of inflows) if (inv.dueDate === date) balance += invoiceGross(inv);
+    for (const inv of inflows) if (inv.dueDate === date) balance += invoiceGrossPLN(inv);
     for (const ob of outflows) {
       const due = daysBetween(today, ob.dueDate) < 0 ? today : ob.dueDate; // overdue = pay today
       if (due === date) balance -= ob.amountPLN;

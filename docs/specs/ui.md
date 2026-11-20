@@ -3,6 +3,12 @@
 Audience: a busy car repair shop owner, any age, often on a phone. Judges score **UI/UX (12 pts)** and whether the UI
 clearly separates **🔍 analysed / 💡 recommended / ✋ needs approval / 🧪 simulated vs ✅ permitted**.
 
+## Screens (v2)
+1. **Login** `/login`: "Sign in with Google" → `api.demoLogin()` (label it demo). No user → redirect here.
+2. **Dashboard**: balance · **expenses pie** (`api.expenses()`) · forecast 30/60/90 · "Agents found…" cards · **Invoices** button.
+3. **💬 Advice bubble** on every page: floating button → mini chat → `api.ask(question)` → show `CfoAvatar` of `result.cfo`.
+4. Invoices (KSeF, show currency) · Approvals · **Hat conference** (avatars wear `HATS[CFOS[c].hat]`) · Activity · Settings.
+
 ## Files
 - `web/src/api/client.ts`: the only place with API URLs + the `useApi()` hook.
 - `web/src/components/ui.tsx`: Card, TierBadge, ExecutionBadge, CfoAvatar, ActionCard, LlmStatusBadge, Status, fmtPLN.
@@ -16,5 +22,6 @@ clearly separates **🔍 analysed / 💡 recommended / ✋ needs approval / 🧪
 - Every approval-type card has a "Why?" with the numbers. Approve/Reject gives instant feedback (toast) and the balance updates.
 
 ## Next tasks
+0. Login page + guard, dashboard pie chart, advice bubble (see docs/PLAN.md §3).
 1. Toasts. 2. Boardroom typing animation + "Approve decision" buttons. 3. Forecast 30/60/90 toggle.
 4. Translate remaining strings. 5. Visual polish (spacing, icons, colours per CFO). 6. Accessibility labels.

@@ -14,8 +14,8 @@ export function buildFa3Xml(inv: Invoice, shop: Shop): string {
   const byRate = new Map<VatRate, { net: number; vat: number }>();
   for (const l of inv.lines) {
     const t = byRate.get(l.vatRate) ?? { net: 0, vat: 0 };
-    t.net += l.qty * l.unitNetPLN;
-    t.vat += (l.qty * l.unitNetPLN * l.vatRate) / 100;
+    t.net += l.qty * l.unitNet;
+    t.vat += (l.qty * l.unitNet * l.vatRate) / 100;
     byRate.set(l.vatRate, t);
   }
   const totals = [...byRate].map(([rate, t]) => {
@@ -26,8 +26,8 @@ export function buildFa3Xml(inv: Invoice, shop: Shop): string {
       <NrWierszaFa>${i + 1}</NrWierszaFa>
       <P_7>${esc(l.name)}</P_7>
       <P_8B>${l.qty}</P_8B>
-      <P_9A>${l.unitNetPLN.toFixed(2)}</P_9A>
-      <P_11>${round2(l.qty * l.unitNetPLN).toFixed(2)}</P_11>
+      <P_9A>${l.unitNet.toFixed(2)}</P_9A>
+      <P_11>${round2(l.qty * l.unitNet).toFixed(2)}</P_11>
       <P_12>${l.vatRate}</P_12>
     </FaWiersz>`);
 
@@ -37,7 +37,7 @@ export function buildFa3Xml(inv: Invoice, shop: Shop): string {
   <Podmiot1><DaneIdentyfikacyjne><NIP>${shop.nip}</NIP><Nazwa>${esc(shop.name)}</Nazwa></DaneIdentyfikacyjne></Podmiot1>
   <Podmiot2><DaneIdentyfikacyjne><NIP>${inv.counterparty.nip}</NIP><Nazwa>${esc(inv.counterparty.name)}</Nazwa></DaneIdentyfikacyjne></Podmiot2>
   <Fa>
-    <KodWaluty>PLN</KodWaluty>
+    <KodWaluty>${inv.currency ?? 'PLN'}</KodWaluty>
     <P_1>${inv.issueDate}</P_1>
     <P_2>${esc(inv.number)}</P_2>
 ${totals.join('\n')}

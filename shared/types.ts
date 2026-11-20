@@ -1,15 +1,34 @@
 // API contract between server/ and web/. Owner: Pair 2.
 // Changing a field? Tell the team first — both sides compile against this file.
 
-// ---------- CFOs ----------
+// ---------- CFOs + thinking hats (de Bono's "Six Thinking Hats") ----------
 export type CfoId = 'marek' | 'anna' | 'tomasz' | 'kasia';
+export type Hat = 'white' | 'red' | 'black' | 'yellow' | 'green' | 'blue';
 
-export const CFOS: Record<CfoId, { name: string; role: string; rolePl: string; color: string }> = {
-  marek: { name: 'Marek', role: 'Tax & KSeF', rolePl: 'Podatki i KSeF', color: '#2563eb' },
-  anna: { name: 'Anna', role: 'Cash-flow & Liquidity', rolePl: 'Płynność finansowa', color: '#059669' },
-  tomasz: { name: 'Tomasz', role: 'Margin & Costs', rolePl: 'Marże i koszty', color: '#d97706' },
-  kasia: { name: 'Kasia', role: 'Growth & Investment', rolePl: 'Rozwój i inwestycje', color: '#7c3aed' },
+export const HATS: Record<Hat, { label: string; labelPl: string; meaning: string; color: string }> = {
+  white: { label: 'White hat', labelPl: 'Biały kapelusz', meaning: 'Facts and rules only', color: '#f8fafc' },
+  red: { label: 'Red hat', labelPl: 'Czerwony kapelusz', meaning: 'Gut feeling and market mood', color: '#dc2626' },
+  black: { label: 'Black hat', labelPl: 'Czarny kapelusz', meaning: 'Risks and caution', color: '#0f172a' },
+  yellow: { label: 'Yellow hat', labelPl: 'Żółty kapelusz', meaning: 'Benefits and opportunities', color: '#facc15' },
+  green: { label: 'Green hat', labelPl: 'Zielony kapelusz', meaning: 'Creative fixes and new ideas', color: '#16a34a' },
+  blue: { label: 'Blue hat', labelPl: 'Niebieski kapelusz', meaning: 'Chairs the meeting, sums up the plan', color: '#2563eb' },
 };
+
+/** Each CFO always wears the same hat. The Blue hat is the meeting chair (not a CFO). */
+export const CFOS: Record<CfoId, { name: string; role: string; rolePl: string; color: string; hat: Hat }> = {
+  marek: { name: 'Marek', role: 'Tax & KSeF', rolePl: 'Podatki i KSeF', color: '#2563eb', hat: 'white' },
+  anna: { name: 'Anna', role: 'Liquidity & Cash-flow', rolePl: 'Płynność finansowa', color: '#059669', hat: 'black' },
+  tomasz: { name: 'Tomasz', role: 'Costs & Margins', rolePl: 'Koszty i marże', color: '#d97706', hat: 'green' },
+  kasia: { name: 'Kasia', role: 'FX & Currency risk', rolePl: 'Ryzyko walutowe', color: '#7c3aed', hat: 'red' },
+};
+
+// ---------- Login (demo now, real Google OAuth later if time) ----------
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  provider: 'demo' | 'google';
+}
 
 // ---------- Business data (seed JSON has exactly these shapes) ----------
 export interface Shop {
@@ -30,13 +49,21 @@ export interface BankAccount {
 }
 
 export type VatRate = 23 | 8 | 5 | 0;
+export type Currency = 'PLN' | 'EUR' | 'USD';
+
+/** NBP table A mid rate: 1 unit of currency = midPLN złoty. Seed: fx-rates.json (oldest first). */
+export interface FxRate {
+  currency: Exclude<Currency, 'PLN'>;
+  date: string;
+  midPLN: number;
+}
 export type KsefStatus = 'draft' | 'processing' | 'accepted' | 'rejected';
 
 export interface InvoiceLine {
   name: string;
   kind: 'part' | 'labour' | 'other';
   qty: number;
-  unitNetPLN: number;
+  unitNet: number; // in the invoice's currency
   vatRate: VatRate;
 }
 
@@ -53,6 +80,7 @@ export interface Invoice {
   issueDate: string;
   dueDate: string;
   counterparty: { name: string; nip: string };
+  currency?: Currency; // missing = PLN. Foreign invoices are what the FX agent (Kasia) watches.
   lines: InvoiceLine[];
   paid: boolean;
   ksef: { status: KsefStatus; ksefNumber?: string; upo?: Upo; rejectionReason?: string };
@@ -78,6 +106,18 @@ export interface Obligation {
   amountPLN: number;
   dueDate: string;
   paid: boolean;
+  invoiceId?: string; // purchase invoice behind this payment (foreign: amountPLN = estimate at today's rate)
+}
+
+// ---------- Expenses (dashboard pie chart, Tomasz) ----------
+export type ExpenseCategory = 'parts' | 'payroll' | 'rent' | 'taxes' | 'leasing' | 'utilities' | 'other';
+
+export interface Expense {
+  id: string;
+  date: string;
+  category: ExpenseCategory;
+  label: string;
+  amountPLN: number;
 }
 
 // ---------- Agent output ----------
@@ -94,7 +134,7 @@ export type ActionKind =
   | 'pricing'
   | 'cost_cut'
   | 'deposit'
-  | 'capex'
+  | 'fx_hedge'
   | 'info';
 
 export interface Action {
@@ -136,6 +176,7 @@ export interface Kpis {
   overdueReceivablesPLN: number;
   payablesPLN: number;
   nextDeadline?: { label: string; date: string; amountPLN: number };
+  fxExposurePLN: number; // unpaid foreign payables − receivables, valued at today's rate
 }
 
 export interface AppState {
@@ -163,6 +204,18 @@ export interface AutopilotResult {
 
 export interface BoardroomTurn {
   cfo: CfoId;
+  text: string;
+}
+
+export interface ExpenseBreakdown {
+  from: string;
+  to: string;
+  totalPLN: number;
+  byCategory: { category: ExpenseCategory; amountPLN: number; share: number }[]; // biggest first, share 0..1
+}
+
+export interface AskResult {
+  cfo: CfoId; // who answered (picked by topic when the question did not name a CFO)
   text: string;
 }
 

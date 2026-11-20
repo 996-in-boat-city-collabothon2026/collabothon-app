@@ -1,56 +1,9 @@
 [
-  {
-    "id": "inv-s-001", "number": "FV/2026/10/031", "direction": "sales",
-    "issueDate": "2026-10-22", "dueDate": "2026-11-05",
-    "counterparty": { "name": "FlotaTrans Sp. z o.o. (demo)", "nip": "5211234567" },
-    "lines": [
-      { "name": "Klocki i tarcze hamulcowe – 4 auta", "kind": "part", "qty": 4, "unitNetPLN": 1500, "vatRate": 23 },
-      { "name": "Robocizna – wymiana hamulców", "kind": "labour", "qty": 20, "unitNetPLN": 200, "vatRate": 23 }
-    ],
-    "paid": false,
-    "ksef": { "status": "accepted", "ksefNumber": "6762345678-20261022-0A1B2C3D4E5F-01", "upo": { "ksefNumber": "6762345678-20261022-0A1B2C3D4E5F-01", "referenceNumber": "20261022-SE-1A2B3C4D5E-01", "receivedAt": "2026-10-22T10:14:00Z" } }
-  },
-  {
-    "id": "inv-s-002", "number": "FV/2026/10/034", "direction": "sales",
-    "issueDate": "2026-10-28", "dueDate": "2026-11-11",
-    "counterparty": { "name": "Kurier Express Kraków (demo)", "nip": "6781234560" },
-    "lines": [
-      { "name": "Rozrząd – komplet", "kind": "part", "qty": 1, "unitNetPLN": 3600, "vatRate": 23 },
-      { "name": "Robocizna – wymiana rozrządu", "kind": "labour", "qty": 12, "unitNetPLN": 200, "vatRate": 23 }
-    ],
-    "paid": false,
-    "ksef": { "status": "accepted", "ksefNumber": "6762345678-20261028-1B2C3D4E5F6A-02", "upo": { "ksefNumber": "6762345678-20261028-1B2C3D4E5F6A-02", "referenceNumber": "20261028-SE-2B3C4D5E6F-02", "receivedAt": "2026-10-28T15:40:00Z" } }
-  },
-  {
-    "id": "inv-s-003", "number": "FV/2026/11/009", "direction": "sales",
-    "issueDate": "2026-11-12", "dueDate": "2026-11-26",
-    "counterparty": { "name": "Jan Kowalski – JK Budownictwo (demo)", "nip": "94412345" },
-    "lines": [
-      { "name": "Sprzęgło – zestaw", "kind": "part", "qty": 1, "unitNetPLN": 2400, "vatRate": 23 },
-      { "name": "Robocizna – wymiana sprzęgła", "kind": "labour", "qty": 8, "unitNetPLN": 200, "vatRate": 23 }
-    ],
-    "paid": false,
-    "ksef": { "status": "rejected", "rejectionReason": "Nieprawidłowy NIP nabywcy (Podmiot2): wymagane 10 cyfr" }
-  },
-  {
-    "id": "inv-s-004", "number": "FV/2026/11/012", "direction": "sales",
-    "issueDate": "2026-11-19", "dueDate": "2026-12-03",
-    "counterparty": { "name": "Taxi Wawel (demo)", "nip": "6792345671" },
-    "lines": [
-      { "name": "Olej + filtry", "kind": "part", "qty": 1, "unitNetPLN": 1000, "vatRate": 23 },
-      { "name": "Robocizna – serwis olejowy", "kind": "labour", "qty": 10, "unitNetPLN": 200, "vatRate": 23 }
-    ],
-    "paid": false,
-    "ksef": { "status": "draft" }
-  },
-  {
-    "id": "inv-p-001", "number": "FZ/1187", "direction": "purchase",
-    "issueDate": "2026-11-13", "dueDate": "2026-11-27",
-    "counterparty": { "name": "Hurtownia Części Moto (demo)", "nip": "5272345679" },
-    "lines": [
-      { "name": "Części – dostawa listopad", "kind": "part", "qty": 1, "unitNetPLN": 7967.48, "vatRate": 23 }
-    ],
-    "paid": false,
-    "ksef": { "status": "accepted", "ksefNumber": "5272345679-20261113-3D4E5F6A7B8C-07" }
-  }
+  {"id":"inv-s-001","number":"FV/2026/10/031","direction":"sales","issueDate":"2026-10-22","dueDate":"2026-11-05","counterparty":{"name":"FlotaTrans Sp. z o.o. (demo)","nip":"5211234567"},"lines":[{"name":"Klocki i tarcze hamulcowe – 4 auta","kind":"part","qty":4,"unitNet":1500,"vatRate":23},{"name":"Robocizna – wymiana hamulców","kind":"labour","qty":20,"unitNet":200,"vatRate":23}],"paid":false,"ksef":{"status":"accepted","ksefNumber":"6762345678-20261022-0A1B2C3D4E5F-01","upo":{"ksefNumber":"6762345678-20261022-0A1B2C3D4E5F-01","referenceNumber":"20261022-SE-1A2B3C4D5E-01","receivedAt":"2026-10-22T10:14:00Z"}}},
+  {"id":"inv-s-002","number":"FV/2026/10/034","direction":"sales","issueDate":"2026-10-28","dueDate":"2026-11-11","counterparty":{"name":"Kurier Express Kraków (demo)","nip":"6781234560"},"lines":[{"name":"Rozrząd – komplet","kind":"part","qty":1,"unitNet":3600,"vatRate":23},{"name":"Robocizna – wymiana rozrządu","kind":"labour","qty":12,"unitNet":200,"vatRate":23}],"paid":false,"ksef":{"status":"accepted","ksefNumber":"6762345678-20261028-1B2C3D4E5F6A-02","upo":{"ksefNumber":"6762345678-20261028-1B2C3D4E5F6A-02","referenceNumber":"20261028-SE-2B3C4D5E6F-02","receivedAt":"2026-10-28T15:40:00Z"}}},
+  {"id":"inv-s-003","number":"FV/2026/11/009","direction":"sales","issueDate":"2026-11-12","dueDate":"2026-11-26","counterparty":{"name":"Jan Kowalski – JK Budownictwo (demo)","nip":"94412345"},"lines":[{"name":"Sprzęgło – zestaw","kind":"part","qty":1,"unitNet":2400,"vatRate":23},{"name":"Robocizna – wymiana sprzęgła","kind":"labour","qty":8,"unitNet":200,"vatRate":23}],"paid":false,"ksef":{"status":"rejected","rejectionReason":"Nieprawidłowy NIP nabywcy (Podmiot2): wymagane 10 cyfr"}},
+  {"id":"inv-s-004","number":"FV/2026/11/012","direction":"sales","issueDate":"2026-11-19","dueDate":"2026-12-03","counterparty":{"name":"Taxi Wawel (demo)","nip":"6792345671"},"lines":[{"name":"Olej + filtry","kind":"part","qty":1,"unitNet":1000,"vatRate":23},{"name":"Robocizna – serwis olejowy","kind":"labour","qty":10,"unitNet":200,"vatRate":23}],"paid":false,"ksef":{"status":"draft"}},
+  {"id":"inv-s-005","number":"FV/2026/11/006","direction":"sales","issueDate":"2026-11-07","dueDate":"2026-12-05","counterparty":{"name":"Spedition Weber GmbH (demo)","nip":"DE298765432"},"currency":"EUR","lines":[{"name":"Naprawa zawieszenia – ciągnik siodłowy (części)","kind":"part","qty":1,"unitNet":1300,"vatRate":0},{"name":"Robocizna – zawieszenie (odwrotne obciążenie)","kind":"labour","qty":16,"unitNet":50,"vatRate":0}],"paid":false,"ksef":{"status":"accepted","ksefNumber":"6762345678-20261107-2C3D4E5F6A7B-03","upo":{"ksefNumber":"6762345678-20261107-2C3D4E5F6A7B-03","referenceNumber":"20261107-SE-3C4D5E6F7A-03","receivedAt":"2026-11-07T09:02:00Z"}}},
+  {"id":"inv-p-001","number":"FZ/1187","direction":"purchase","issueDate":"2026-11-13","dueDate":"2026-11-27","counterparty":{"name":"Hurtownia Części Moto (demo)","nip":"5272345679"},"lines":[{"name":"Części – dostawa listopad","kind":"part","qty":1,"unitNet":7967.48,"vatRate":23}],"paid":false,"ksef":{"status":"accepted","ksefNumber":"5272345679-20261113-3D4E5F6A7B8C-07"}},
+  {"id":"inv-p-002","number":"AK-2026-4471","direction":"purchase","issueDate":"2026-11-16","dueDate":"2026-12-15","counterparty":{"name":"Autoteile Krause GmbH (demo)","nip":"DE812345678"},"currency":"EUR","lines":[{"name":"Tester diagnostyczny + części (WNT)","kind":"part","qty":1,"unitNet":3600,"vatRate":0}],"paid":false,"ksef":{"status":"accepted"}}
 ]

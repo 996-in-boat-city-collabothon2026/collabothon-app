@@ -1,6 +1,7 @@
 # WarsztatCFO: rules for Claude (keep this file under 60 lines)
 
-AI CFO for Polish car repair shops: an autonomous finance watchdog, a human-approval queue, and a boardroom of 4 CFOs.
+AI CFO for Polish car repair shops: demo login → simple dashboard (balance, expenses pie, forecast, advice bubble),
+an autonomous watchdog of 4 agents, a human-approval queue, and a "hat conference" where the agents debate.
 Hackathon (48h). Must run on Red Hat OpenShift and call a model served by OpenShift AI (vLLM).
 
 ## Stack
@@ -25,7 +26,7 @@ Hackathon (48h). Must run on Red Hat OpenShift and call a model served by OpenSh
 
 ## Folder ownership (edit ONLY your pair's files)
 - Pair 1 (`pair1-openshift`): Dockerfile, root + server package.json, server/src/index.ts, server/src/config.ts,
-  server/src/llm/**, server/src/routes/health.ts, deploy/**, scripts/**
+  server/src/llm/**, server/src/routes/{health,auth}.ts, deploy/**, scripts/**
 - Pair 2 (`pair2-agents`): shared/types.ts, server/src/domain/**, server/src/rules/**, server/src/agents/**,
   server/src/routes/{finance,actions,boardroom}.ts
 - Pair 3 (`pair3-ui`): web/**, server/src/ksef/**, server/src/routes/{ksef,demo,settings}.ts, server/src/seed/**
@@ -38,4 +39,8 @@ docs/specs/llm.md (P1) · docs/specs/agents.md (P2) · docs/specs/ksef.md + docs
 - ZUS and PIT advance by the 20th of the next month.
 - KSeF: national e-invoice system. FA(3) = invoice XML schema. After acceptance you get a KSeF number + UPO (official receipt).
   Ours is a **simulated** KSeF gateway. Label it "simulated" in the UI.
-- CFOs: Marek = Tax & KSeF · Anna = Cash-flow & liquidity (credit line) · Tomasz = Margin & costs · Kasia = Growth & investments.
+- Agents (id · job · fixed thinking hat): anna = **Liquidity** (forecast, credit line) ⚫ black · kasia = **FX hedging**
+  (EUR/USD invoices, NBP rates, forward contract) 🔴 red · marek = Tax & KSeF ⚪ white · tomasz = Costs & margins, expenses
+  pie 🟢 green. The 🔵 blue hat chairs the conference. Names/hats/colours: `CFOS` + `HATS` in shared/types.ts.
+- FX: foreign invoices have `currency`; convert with `server/src/domain/fx.ts` (`toPLN`, `invoiceGrossPLN`), never by hand.
+- Login is a DEMO (`/api/auth/demo-login`). Real Google OAuth only if time after H36.

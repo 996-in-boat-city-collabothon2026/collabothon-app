@@ -1,8 +1,8 @@
 // The ONLY file that knows API URLs. Pages call these functions, never fetch() directly.
 import { useCallback, useEffect, useState } from 'react';
 import type {
-  Action, ActivityEntry, Alert, AppState, AutopilotResult, BoardroomResult, CfoId, Forecast, Invoice,
-  LlmHealth, Settings, Upo,
+  Action, ActivityEntry, Alert, AppState, AskResult, AutopilotResult, BoardroomResult, CfoId, ExpenseBreakdown,
+  Forecast, Invoice, LlmHealth, Settings, Upo, User,
 } from '@cfo/shared';
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -19,8 +19,12 @@ const post = <T>(path: string, body?: unknown) =>
 
 export const api = {
   llmHealth: () => call<LlmHealth>('/llm/health'),
+  me: () => call<{ user: User | null }>('/auth/me'),
+  demoLogin: () => post<{ user: User }>('/auth/demo-login'),
+  logout: () => post<{ user: null }>('/auth/logout'),
   state: () => call<AppState>('/state'),
   forecast: (days: 30 | 60 | 90 = 30) => call<Forecast>(`/forecast?days=${days}`),
+  expenses: (days = 30) => call<ExpenseBreakdown>(`/expenses?days=${days}`),
   alerts: () => call<Alert[]>('/alerts'),
   runAutopilot: () => post<AutopilotResult>('/autopilot/run'),
   actions: (status?: Action['status']) => call<Action[]>(`/actions${status ? `?status=${status}` : ''}`),
@@ -28,7 +32,8 @@ export const api = {
   reject: (id: string) => post<Action>(`/actions/${id}/reject`),
   activity: () => call<ActivityEntry[]>('/activity'),
   boardroom: (topic?: string) => post<BoardroomResult>('/boardroom', { topic }),
-  ask: (cfo: CfoId, question: string) => post<{ text: string }>('/ask', { cfo, question }),
+  /** Quick advice: leave cfo out and the server picks the right CFO by topic. */
+  ask: (question: string, cfo?: CfoId) => post<AskResult>('/ask', { question, cfo }),
   invoices: () => call<Invoice[]>('/ksef/invoices'),
   sendInvoice: (id: string, fix?: Pick<Invoice, 'counterparty'>) => post<Invoice>(`/ksef/invoices/${id}/send`, fix ?? {}),
   invoiceXml: (id: string) => call<string>(`/ksef/invoices/${id}/xml`),

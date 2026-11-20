@@ -5,7 +5,7 @@ import type { Invoice } from '@cfo/shared';
 
 describe('money helpers', () => {
   it('computes gross with 23% VAT', () => {
-    const inv = { lines: [{ name: 'x', kind: 'part', qty: 2, unitNetPLN: 100, vatRate: 23 }] } as Invoice;
+    const inv = { lines: [{ name: 'x', kind: 'part', qty: 2, unitNet: 100, vatRate: 23 }] } as Invoice;
     expect(invoiceGross(inv)).toBe(246);
   });
 

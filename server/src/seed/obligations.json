@@ -1,9 +1,10 @@
 [
-  { "id": "ob-vat-10", "kind": "VAT", "label": "VAT za październik (JPK_V7M)", "amountPLN": 14230, "dueDate": "2026-11-25", "paid": false },
-  { "id": "ob-sup-1", "kind": "SUPPLIER", "label": "Hurtownia części – faktura FZ/1187", "amountPLN": 9800, "dueDate": "2026-11-27", "paid": false },
-  { "id": "ob-rent-11", "kind": "RENT", "label": "Czynsz za warsztat – grudzień", "amountPLN": 6500, "dueDate": "2026-11-28", "paid": false },
-  { "id": "ob-pay-11", "kind": "PAYROLL", "label": "Wynagrodzenia – listopad (3 mechaników)", "amountPLN": 21000, "dueDate": "2026-11-30", "paid": false },
-  { "id": "ob-lease-12", "kind": "LEASING", "label": "Leasing podnośnika – rata", "amountPLN": 1450, "dueDate": "2026-12-10", "paid": false },
-  { "id": "ob-zus-11", "kind": "ZUS", "label": "ZUS za listopad", "amountPLN": 5800, "dueDate": "2026-12-20", "paid": false },
-  { "id": "ob-pit-11", "kind": "PIT", "label": "Zaliczka PIT za listopad", "amountPLN": 2100, "dueDate": "2026-12-20", "paid": false }
+  {"id":"ob-vat-10","kind":"VAT","label":"VAT za październik (JPK_V7M)","amountPLN":14230,"dueDate":"2026-11-25","paid":false},
+  {"id":"ob-sup-1","kind":"SUPPLIER","label":"Hurtownia części – faktura FZ/1187","amountPLN":9800,"dueDate":"2026-11-27","paid":false,"invoiceId":"inv-p-001"},
+  {"id":"ob-rent-11","kind":"RENT","label":"Czynsz za warsztat – grudzień","amountPLN":6500,"dueDate":"2026-11-28","paid":false},
+  {"id":"ob-pay-11","kind":"PAYROLL","label":"Wynagrodzenia – listopad (3 mechaników)","amountPLN":21000,"dueDate":"2026-11-30","paid":false},
+  {"id":"ob-lease-12","kind":"LEASING","label":"Leasing podnośnika – rata","amountPLN":1450,"dueDate":"2026-12-10","paid":false},
+  {"id":"ob-sup-eur","kind":"SUPPLIER","label":"Autoteile Krause GmbH – 3 600 EUR (AK-2026-4471)","amountPLN":15372,"dueDate":"2026-12-15","paid":false,"invoiceId":"inv-p-002"},
+  {"id":"ob-zus-11","kind":"ZUS","label":"ZUS za listopad","amountPLN":5800,"dueDate":"2026-12-20","paid":false},
+  {"id":"ob-pit-11","kind":"PIT","label":"Zaliczka PIT za listopad","amountPLN":2100,"dueDate":"2026-12-20","paid":false}
 ]

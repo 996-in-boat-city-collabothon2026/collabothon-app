@@ -1,0 +1,12 @@
+[
+  { "currency": "EUR", "date": "2026-10-23", "midPLN": 4.22 },
+  { "currency": "EUR", "date": "2026-10-30", "midPLN": 4.23 },
+  { "currency": "EUR", "date": "2026-11-06", "midPLN": 4.24 },
+  { "currency": "EUR", "date": "2026-11-13", "midPLN": 4.26 },
+  { "currency": "EUR", "date": "2026-11-19", "midPLN": 4.27 },
+  { "currency": "USD", "date": "2026-10-23", "midPLN": 3.9 },
+  { "currency": "USD", "date": "2026-10-30", "midPLN": 3.92 },
+  { "currency": "USD", "date": "2026-11-06", "midPLN": 3.95 },
+  { "currency": "USD", "date": "2026-11-13", "midPLN": 3.97 },
+  { "currency": "USD", "date": "2026-11-19", "midPLN": 3.99 }
+]
