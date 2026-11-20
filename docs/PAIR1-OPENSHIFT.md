@@ -258,20 +258,27 @@ Each ✍️ step: Claude edits → `npm run typecheck; npm test` → commit → 
   (no secrets), the order (model → app → secret → env → route → probes → webhook), and the troubleshooting section.
   ✅ Done when: the other Pair 1 member follows it on a fresh terminal without asking anything.
 
-- [ ] **4.2 💻 Export what runs, as a backup.**
+- [x] **4.2 💻 Export what runs, as a backup.**
   ```powershell
   New-Item -ItemType Directory -Force deploy/export; oc get deploy,svc,route,bc,is warsztat-cfo -o yaml > deploy/export/app.yaml
   ```
-  Remove any `LLM_API_KEY` value before committing (it should be a `secretKeyRef`, check!).
+  ⚠️ The BuildConfig has the **webhook secrets inline** (`triggers: … secret: …`): replace them with `REDACTED` before committing.
+  Remove any `LLM_API_KEY` value too (it should be a `secretKeyRef`, check!).
   ✅ Done when: the file is committed and contains no token.
 
-- [ ] **4.3 💻 Rollback drill.** Know how to go back if a merge breaks the live app:
+- [x] **4.3 💻 Rollback drill.** ⚠️ `oc rollout undo` does **nothing** here: the image trigger resets the image to
+  `warsztat-cfo:latest` at once. Roll back by pointing `latest` at an older build instead:
   ```powershell
-  oc rollout undo deploy/warsztat-cfo
+  oc get is warsztat-cfo -o jsonpath='{range .status.tags[0].items[*]}{.created}  {.image}{"\n"}{end}'
   ```
-  ✅ Done when: we tried it once and then `oc rollout undo` again to return.
+  (newest first). Pick the older `sha256:…` and run:
+  ```powershell
+  oc tag warsztat-cfo@sha256:<older> warsztat-cfo:latest
+  ```
+  The deploy rolls out on its own (~30 s). Back to the newest: the same with the top digest. The next merge to `main` builds a new `latest` anyway.
+  ✅ Done when: we tried it once and returned.
 
-- [ ] **4.4 💻 Mock emergency switch.** If the model dies during the demo:
+- [x] **4.4 💻 Mock emergency switch.** If the model dies during the demo:
   ```powershell
   oc set env deploy/warsztat-cfo LLM_MODE=mock
   ```
@@ -335,3 +342,4 @@ General: `oc get pods` · `oc logs deploy/warsztat-cfo --tail=50` · `oc describ
 | H1 | 4.5 | Claude | `llama-32-3b-instruct`: minReplicas=1, maxReplicas=1, Standard mode → never scales to zero. |
 | H2 | PR #3 review | Claude | Fixed review: empty `LLM_BASE_URL` sends no request (was api.openai.com); one LLM time budget per request (`LLM_BUDGET_MS=22000`, Fastify hook) aborts hanging calls; replay only for the identical prompt; shared health probe + empty reply = not healthy; string-aware JSON repair; cut-off `<think>` → fallback. 117 tests. Hanging model e2e: 5.02 s for a 5 s budget (warm), 24.1 s with 22 s on a cold first request. Runbook → `my-first-model`. |
 | H3 | 3.9 (live part) | user + Claude | PR #3 merged → webhook built `de8542c` (build 3) → live. Smoke `-RequireModel` on the route: all passed, `openai_compat`, health 71 ms, `/ask` 3.1 s. Boardroom 22.2 s / 21.0 s, but run 1 **hit the 22 s budget**: Kasia's turn aborted, chair never called (fallback text). Model ≈ 36 tok/s, so 5 × 200 tokens can take ~28 s. ⚠️ For Pair 2: `agents/boardroom.ts` turns `maxTokens` 200 → ~130 (keep chair 200). `LLM_BUDGET_MS` not set on cluster: code default 22000 applies. Phone click-through still open. |
+| H3 | 4.2–4.4 | Claude | Export → `deploy/export/app.yaml` (2 inline webhook secrets redacted). Rollback: `oc rollout undo` is a no-op (image trigger) → `oc tag` to build 2 (`07cd90…`) and back to build 3 (`af9eea…`), both healthy. Mock switch: `LLM_MODE=mock` → `mock`, back → `openai_compat`. A switch takes ~30–60 s: the old pod still answers while it terminates. |

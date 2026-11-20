@@ -21,6 +21,14 @@ oc set resources deploy/warsztat-cfo --requests=cpu=200m,memory=256Mi --limits=c
 ```
 Rebuild after a merge to main (if the webhook isn't set up): `oc start-build warsztat-cfo --follow`
 
+Roll back a bad build (`oc rollout undo` does NOT work: the image trigger resets it). List builds' images, newest first,
+then point `latest` at an older one; the deploy follows in ~30 s:
+```
+oc get is warsztat-cfo -o jsonpath='{range .status.tags[0].items[*]}{.created}  {.image}{"\n"}{end}'
+oc tag warsztat-cfo@sha256:<older> warsztat-cfo:latest
+```
+Backup of the live objects: `deploy/export/app.yaml` (webhook secrets redacted).
+
 ## 2. Model: use the organizers' one (no deploy needed)
 The organizers pre-deployed **Llama 3.2 3B Instruct** on vLLM in namespace `my-first-model`.
 They confirmed that connecting our app to it meets the "model on OpenShift AI" criterion.
