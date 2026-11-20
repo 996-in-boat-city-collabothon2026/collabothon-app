@@ -13,4 +13,4 @@ import { margin } from './margin';
 export type DraftAction = Omit<Action, 'id' | 'status' | 'createdAt'>;
 export type Rule = () => DraftAction[];
 
-export const RULES: Rule[] = [vat, zus, pit, ksef, liquidity, fx, expenses, margin];
+export const RULES: Rule[] = [fx, liquidity, vat, zus, pit, ksef, expenses, margin];
