@@ -33,3 +33,9 @@ button:active:not(:disabled) { transform: scale(0.98); }
   border-radius: 22px;
   box-shadow: 0 2px 12px rgb(0 0 0 / 0.05);
 }
+
+/* Faint dotted grid background (calm, techy) */
+.dot-grid {
+  background-image: radial-gradient(rgb(0 0 0 / 0.09) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
