@@ -3,8 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Action } from '@cfo/shared';
 import { db, logActivity } from '../domain/store';
 import { fmtPLN } from '../domain/money';
-import { runAutopilot } from '../agents/autopilot';
-import { isCurrentFxCard } from '../rules/fx';
+import { isCurrentCard, runAutopilot } from '../agents/autopilot';
 
 /** What "doing it" means in the simulation. Pair 2: extend per action kind. */
 function simulateExecution(a: Action): string {
@@ -32,9 +31,9 @@ const routes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>('/actions/:id/approve', async (req, reply) => {
     const a = db.actions.find((x) => x.id === req.params.id);
     if (!a || a.status !== 'open') return reply.code(404).send({ error: 'No open action with this id' });
-    // An FX forward is only valid for the exposure it was made for. Check before anything moves.
-    if (a.kind === 'fx_hedge' && !isCurrentFxCard(a)) {
-      return reply.code(409).send({ error: 'This FX forward is out of date. Run the check again for a fresh proposal.' });
+    // Check the current proposal before changing status or simulating execution.
+    if (!isCurrentCard(a)) {
+      return reply.code(409).send({ error: 'This proposal is out of date. Run the check again for a fresh proposal.' });
     }
     a.status = 'approved';
     logActivity('user', `Approved: ${a.title}. ${simulateExecution(a)}`, true, a.id);

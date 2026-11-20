@@ -113,3 +113,47 @@ describe('stale FX forwards (Kasia)', () => {
     expect(openKasia().map((a) => a.id).sort()).toEqual(openIds);
   });
 });
+
+// ---------- Stale cards from any agent (Anna, Tomasz) ----------
+describe('stale cards are withdrawn for every agent', () => {
+  beforeEach(() => resetDb());
+
+  it('queues each proposal once when checks overlap', async () => {
+    const app = await makeApp();
+    const [first, second] = await Promise.all([run(app), run(app)]);
+    expect(first.length + second.length).toBeGreaterThan(0);
+    expect(Math.min(first.length, second.length)).toBe(0);
+  });
+
+  it('data changes → old credit line and margin cards withdrawn, one fresh card each, no duplicates', async () => {
+    const app = await makeApp();
+    await run(app);
+    const oldCredit = db.actions.find((a) => a.kind === 'credit_line')!;
+    expect(oldCredit.amountPLN).toBe(36000);
+
+    // Same change as Person B's repro: no rent, two fewer repair orders.
+    db.obligations = db.obligations.filter((o) => o.kind !== 'RENT');
+    db.repairOrders = db.repairOrders.slice(2);
+    expect((await approve(app, oldCredit.id)).statusCode).toBe(409);
+    expect(oldCredit.status).toBe('open');
+    await run(app);
+
+    const open = (kind: string) => db.actions.filter((a) => a.kind === kind && a.status === 'open');
+    expect(open('credit_line').map((a) => a.amountPLN)).toEqual([29000]);
+    expect(db.actions.find((a) => a.id === oldCredit.id)!.status).toBe('rejected');
+    expect(open('pricing').filter((a) => a.title.startsWith('Labour billed under your rate'))).toHaveLength(1);
+    expect(open('pricing').filter((a) => a.title.startsWith('Parts markup'))).toHaveLength(1);
+
+    // A third run with no data change creates nothing and withdraws nothing.
+    const openIds = () => db.actions.filter((a) => a.status === 'open').map((a) => a.id).sort();
+    const before = openIds();
+    expect(await run(app)).toHaveLength(0);
+    expect(openIds()).toEqual(before);
+
+    // Approved cards are never withdrawn, even when the next run sees different numbers.
+    const vat = open('tax_payment')[0];
+    expect((await approve(app, vat.id)).statusCode).toBe(200);
+    await run(app);
+    expect(db.actions.find((a) => a.id === vat.id)!.status).toBe('approved');
+  });
+});

@@ -121,11 +121,3 @@ function actionsFor(e: FxExposure): DraftAction[] {
 }
 
 export const fx: Rule = () => fxExposures().flatMap(actionsFor);
-
-const fingerprint = (a: DraftAction) => JSON.stringify([a.kind, a.title, a.refId ?? null, a.amountPLN ?? null, a.why]);
-
-/** True when the FX rule would propose exactly this card today (same direction, amounts and reasons). */
-export function isCurrentFxCard(card: DraftAction): boolean {
-  const key = fingerprint(card);
-  return fx().some((draft) => fingerprint(draft) === key);
-}
