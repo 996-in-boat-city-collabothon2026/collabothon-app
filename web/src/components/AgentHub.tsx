@@ -67,9 +67,9 @@ export default function AgentHub({ className = '' }: { className?: string }) {
             <clipPath id={`clip-${a}`}><circle cx={x} cy={y} r="30" /></clipPath>
             <clipPath id={`top-${a}`}><rect x={x - 50} y={y - 80} width="100" height="80" /></clipPath>
             <g className="avatar-hat">
-              <image href={`${avatarSrc(c.hat).replace('-hat.png', '')}-full.png`} x={x - 36} y={y - 46} width="72" height="72" clipPath={`url(#clip-${a})`} />
+              <image href={`${avatarSrc(c.hat).replace('-hat.png', '')}-full.png`} x={x - 40} y={y - 46} width="80" height="80" clipPath={`url(#clip-${a})`} />
               <circle cx={x} cy={y} r="30" fill="none" stroke={HATS[c.hat].color === '#f8fafc' ? '#a1a1aa' : HATS[c.hat].color} strokeWidth="3" />
-              <image href={`${avatarSrc(c.hat).replace('-hat.png', '')}-cut.png`} x={x - 36} y={y - 46} width="72" height="72" clipPath={`url(#top-${a})`} />
+              <image href={`${avatarSrc(c.hat).replace('-hat.png', '')}-cut.png`} x={x - 40} y={y - 46} width="80" height="80" clipPath={`url(#top-${a})`} />
             </g>
             <text x={x} y={y + 54} textAnchor="middle" fontSize="22" fontWeight="700" fill="#1d1d1f">{c.name}</text>
             <text x={x} y={y + 76} textAnchor="middle" fontSize="18" fill="#3f3f46">{lang === 'pl' ? c.rolePl : c.role}</text>

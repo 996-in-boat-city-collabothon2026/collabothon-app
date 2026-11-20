@@ -127,7 +127,7 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
     const S = Math.round(size * 1.6);
     const ring = hat.color === '#f8fafc' ? '#a1a1aa' : hat.color;
     const base = avatarSrc(hatId).replace('-hat.png', '');
-    const img = { width: S * 1.18, height: S * 1.18, left: -S * 0.09, top: -S * 0.26 } as const;
+    const img = { width: S * 1.32, height: S * 1.32, left: -S * 0.16, top: -S * 0.26 } as const;
     const ringW = Math.max(2, S / 28);
     // the cut-out covers everything outside the inner edge of the ring, so the hat sits IN FRONT of the ring
     const outside = `radial-gradient(circle ${S / 2}px at 50% ${S * 0.26 + S / 2}px, transparent ${S / 2 - ringW - 1}px, #000 ${S / 2 - ringW}px)`;
