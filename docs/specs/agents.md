@@ -21,7 +21,7 @@
 | File | CFO | Logic | Output |
 |---|---|---|---|
 | **liquidity.ts** ★ | **Anna** ⚫ | lowest forecast point < buffer → credit line (gap rounded up to 1 000); overdue sales → reminder | NEEDS_APPROVAL credit_line / payment_reminder |
-| **fx.ts** ★ | **Kasia** 🔴 | per currency: unpaid payables − receivables; ±5% shock in zł; 4-week NBP trend; shock > 500 zł → hedge | NEEDS_APPROVAL fx_hedge; RECOMMENDED pay early / natural hedge |
+| **fx.ts** ★ | **Kasia** 🔴 | per currency: unpaid payables − receivables; ±5% shock in zł; 4-week NBP trend; shock > 300 zł → hedge (team decision: 500 would show no hedge card on the seed, 320 zł) | NEEDS_APPROVAL fx_hedge; RECOMMENDED pay early / natural hedge |
 | vat.ts | Marek | output VAT − input VAT for last month; due the 25th | NEEDS_APPROVAL tax_payment |
 | zus.ts / pit.ts | Marek | due the 20th | NEEDS_APPROVAL tax_payment |
 | ksef.ts | Marek | rejected / missing UPO | ANALYSED ksef_revalidate + RECOMMENDED ksef_fix |
