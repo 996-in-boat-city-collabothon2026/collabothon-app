@@ -4,14 +4,16 @@ import { db, logActivity, newId, nowIso } from '../domain/store';
 import { RULES, type DraftAction } from '../rules';
 import { chatOr } from '../llm/provider';
 import { findInventedNumbers } from './numberGuard';
-import { dropPreamble, wholeSentences } from './text';
+import { wholeSentences } from './text';
+import { tidyReply } from './reply';
+import { cfoFacts } from './facts';
 
 const EXPLAIN_MAX_WORDS = 45;
 /** Polish, no preamble, amounts copied exactly from POWODY (the rules' why[]). */
 export const EXPLAIN_PROMPT = [
   'Wyjaśnij właścicielowi warsztatu samochodowego, po polsku, w 2 krótkich zdaniach, dlaczego ta sprawa czeka na zgodę.',
   'Zacznij od razu od sedna: bez wstępu, bez "Oto", bez powitania.',
-  'Kwoty i daty przepisz dokładnie tak, jak są w POWODACH (np. "36 000,00 zł"). Nie licz, nie zaokrąglaj, nie dodawaj innych liczb.',
+  'Kwoty i daty przepisz dokładnie tak, jak są w POWODACH lub FAKTACH (np. "36 000,00 zł"). Nie licz, nie zaokrąglaj, nie dodawaj innych liczb.',
   'Saldo z prognozy to przyszłość, a nie saldo dziś. Wszystko jest symulowane: nie pisz, że coś już zapłacono lub wysłano.',
 ].join(' ');
 
@@ -64,13 +66,20 @@ export async function runAutopilot(): Promise<AutopilotResult> {
     created
       .filter((a) => a.tier === 'NEEDS_APPROVAL' && a.status === 'open')
       .map(async (a) => {
+        const facts = cfoFacts(a.cfo, 'pl'); // Polish, labelled ("to przyszłość, nie dziś"), numbers from rules
         const text = await chatOr('', [
           { role: 'system', content: EXPLAIN_PROMPT },
-          { role: 'user', content: `SPRAWA: ${a.title}\nPOWODY:\n${a.why.map((w) => `- ${w}`).join('\n')}` },
-        ], { maxTokens: 160, mockKey: 'explain' });
-        const clean = wholeSentences(dropPreamble(text), EXPLAIN_MAX_WORDS);
-        // Golden rule 1: any number or date not in the card itself → use the rules' own reasons instead.
-        const invented = findInventedNumbers(clean, `${a.title}\n${a.why.join('\n')}`);
+          {
+            role: 'user',
+            content: [
+              `SPRAWA: ${a.title}`, 'POWODY:', ...a.why.map((w) => `- ${w}`),
+              'FAKTY:', ...facts.lines.map((l) => `- ${l}`),
+            ].join('\n'),
+          },
+        ], { maxTokens: 120, temperature: 0.1, mockKey: 'explain' });
+        const clean = wholeSentences(tidyReply(text, 'pl'), EXPLAIN_MAX_WORDS);
+        // Golden rule 1: any number or date not in the card or the facts → use the rules' own reasons instead.
+        const invented = findInventedNumbers(clean, [a.title, ...a.why, ...facts.lines].join('\n'));
         if (invented.length) console.info(`[guard] explain:${a.kind} invented ${JSON.stringify(invented)} → why[]`);
         a.explanation = (!invented.length && clean) || a.why.join('. ');
       }),

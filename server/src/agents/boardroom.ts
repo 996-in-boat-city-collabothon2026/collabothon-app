@@ -12,15 +12,18 @@ import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
 import { findInventedNumbers } from './numberGuard';
 import { wholeSentences } from './text';
+import { tidyReply } from './reply';
+import { cfoFacts, langOf, type CfoFacts, type Lang } from './facts';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
 
 const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia']; // White → Black → Green → Red, the Blue chair sums up
 
 /** Word limit per turn. Prompt asks for less; the server cuts at a whole sentence so nothing ends mid-word. */
-export const TURN_MAX_WORDS = 60;
-export const SUMMARY_MAX_WORDS = 50;
-// ~3 tokens per Polish word on Llama 3.2 + headroom, so the limit is the word count, not max_tokens.
-const TURN_MAX_TOKENS = 260;
+export const TURN_MAX_WORDS = 50;
+export const SUMMARY_MAX_WORDS = 45;
+// Live: ~36 tokens/s and a 22 s budget for 5 calls. 4×120 + 200 tokens leaves room; tidy() ends on a whole sentence.
+export const TURN_MAX_TOKENS = 120;
+export const CHAIR_MAX_TOKENS = 200;
 
 const CATEGORY_PL: Record<ExpenseCategory, string> = {
   parts: 'części', payroll: 'wynagrodzenia', rent: 'czynsz', taxes: 'podatki',
@@ -122,62 +125,90 @@ export function snapshot(): string {
   return lines.join('\n');
 }
 
-/** Rule-based line when the model fails (or, later, invents a number): the CFO's own open cards, max 2. */
-export function fallbackTurn(cfo: CfoId): string {
-  const mine = db.actions.filter((a) => a.status === 'open' && a.cfo === cfo).slice(0, 2);
-  if (!mine.length) return `${CFOS[cfo].name}: w moim obszarze nie ma nic pilnego.`;
-  return mine.map((a) => `${itemPL(a).replace(`${CFOS[cfo].name}: `, '')}.`).map((s) => s[0].toUpperCase() + s.slice(1)).join(' ');
-}
-
-/** Golden rule 1: text with a number or date that is not in `known` is dropped (→ '' → rule-based fallback). */
+/** Golden rule 1: text with a number or date that is not in `known` is dropped (→ '' → rule-based text). */
 function safe(text: string, known: string, key: string): string {
+  if (!text) return '';
   const invented = findInventedNumbers(text, known);
   if (!invented.length) return text;
-  console.info(`[guard] ${key} invented ${JSON.stringify(invented)} → rule-based line`);
+  console.info(`[guard] ${key} invented ${JSON.stringify(invented)} → rule-based text`);
   return '';
 }
 
+/** Model reply → at most 3 clean, whole sentences (B's tidyReply) and never more than `maxWords`. */
+const tidy = (raw: string, lang: Lang, maxWords: number) => wholeSentences(tidyReply(raw, lang), maxWords);
+
 const transcriptOf = (turns: BoardroomTurn[]) => turns.map((t) => `${CFOS[t.cfo].name}: ${t.text}`).join('\n');
+
+/** One CFO's turn prompt: only this CFO's facts (B's cfoFacts), the topic, and what the others said. */
+function turnPrompt(facts: CfoFacts, subject: string, turns: BoardroomTurn[], lang: Lang): string {
+  const so = transcriptOf(turns);
+  return lang === 'pl'
+    ? [
+        'FAKTY (tylko tych liczb wolno Ci użyć):', ...facts.lines.map((l) => `- ${l}`), '',
+        `NAJWAŻNIEJSZE (powiedz to swoimi słowami, z tymi samymi liczbami): ${facts.summary}`, '',
+        `TEMAT NARADY: ${subject}`,
+        `CO POWIEDZIELI INNI:\n${so || '(nikt jeszcze nie mówił)'}`, '',
+        'Twoja kolej: 2 krótkie zdania po polsku, do właściciela na "Ty". Nie powtarzaj innych. Niczego nie licz.',
+      ].join('\n')
+    : [
+        'FACTS (the only numbers you may use):', ...facts.lines.map((l) => `- ${l}`), '',
+        `KEY POINT (say it in your own words, with the same numbers): ${facts.summary}`, '',
+        `MEETING TOPIC: ${subject}`,
+        `WHAT THE OTHERS SAID:\n${so || '(nobody has spoken yet)'}`, '',
+        'Your turn: 2 short sentences in English, talk to the owner as "you". Do not repeat the others. Do not calculate.',
+      ].join('\n');
+}
+
+/** Open approval cards, one line each, for the chair (and its rule-based summary). */
+const itemFor = (a: Action, lang: Lang) => (lang === 'pl' ? itemPL(a) : `${CFOS[a.cfo].name}: ${a.title}`);
+
+/** Summary from the rules when the chair's JSON is broken or invents a number: the first 3 decisions. */
+export function ruleSummary(approvals: Action[], lang: Lang): string {
+  if (!approvals.length) return lang === 'pl' ? 'Nic nie czeka na Twoją decyzję. Wszystko jest pod kontrolą.' : 'Nothing is waiting for your decision. Everything is under control.';
+  const top = approvals.slice(0, 3).map((a) => (lang === 'pl' ? `${labelPL(a)}${a.amountPLN !== undefined ? ` ${fmtPLN(a.amountPLN)}` : ''}` : a.title));
+  return lang === 'pl'
+    ? `Do Twojej decyzji: ${top.join('; ')}. Wszystkie propozycje są w kolejce do zatwierdzenia.`
+    : `For your decision: ${top.join('; ')}. All proposals are in the approval queue.`;
+}
 
 const ChairSchema = z.object({ summary: z.string(), decisionActionIds: z.array(z.string()) });
 
 export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
-  const facts = snapshot();
-  const subject = topic ?? 'Przegląd miesiąca';
-  const known = `${facts}\n${subject}`; // the only numbers the model may repeat
+  const subject = topic?.trim() || 'Przegląd miesiąca';
+  const lang: Lang = langOf(subject);
   const turns: BoardroomTurn[] = [];
 
   for (const cfo of ORDER) {
+    const facts = cfoFacts(cfo, lang);
     const raw = await chatOr('', [
       { role: 'system', content: PERSONAS[cfo] },
-      {
-        role: 'user',
-        content:
-          `DATA:\n${facts}\n\nTEMAT: ${subject}\n\nDOTYCHCZAS:\n${transcriptOf(turns) || '(nikt jeszcze nie mówił)'}\n\n` +
-          `Twoja kolej. Odpowiedz po polsku, najwyżej 3 krótkie zdania (do 50 słów). ` +
-          `Kwoty i daty przepisz dokładnie z DATA, niczego nie licz i nie dodawaj.`,
-      },
-    ], { maxTokens: TURN_MAX_TOKENS, mockKey: `boardroom:${cfo}` });
-    const text = wholeSentences(raw, TURN_MAX_WORDS);
-    turns.push({ cfo, text: safe(text, known, `boardroom:${cfo}`) || fallbackTurn(cfo) });
+      { role: 'user', content: turnPrompt(facts, subject, turns, lang) },
+    ], { maxTokens: TURN_MAX_TOKENS, temperature: 0.1, mockKey: `boardroom:${cfo}` });
+    // Allowed numbers: this CFO's facts, the topic and the (already checked) earlier turns.
+    const known = [...facts.lines, facts.summary, subject, transcriptOf(turns)].join('\n');
+    const text = safe(tidy(raw, lang, TURN_MAX_WORDS), known, `boardroom:${cfo}`);
+    turns.push({ cfo, text: text || facts.summary });
   }
 
-  const openApprovals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL').map((a) => a.id);
+  const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
+  const items = approvals.map((a) => `- [${a.id}] ${itemFor(a, lang)}`).join('\n') || '-';
+  const debate = transcriptOf(turns);
   const chairRaw = await chatOr('', [
     {
       role: 'system',
       content: CHAIR_PERSONA +
-        ` Reply ONLY with JSON: {"summary": string (po polsku, max ${SUMMARY_MAX_WORDS} words), "decisionActionIds": string[] (ids from DATA that the owner should approve)}`,
+        ` Reply ONLY with JSON: {"summary": string (${lang === 'pl' ? 'po polsku' : 'in English'}, max 2 sentences), "decisionActionIds": string[] (ids from the list)}`,
     },
-    { role: 'user', content: `DATA:\n${facts}\n\nDYSKUSJA:\n${transcriptOf(turns)}` },
-  ], { maxTokens: 260, mockKey: 'boardroom:chair' });
+    { role: 'user', content: `${lang === 'pl' ? 'SPRAWY DO ZATWIERDZENIA' : 'ITEMS TO APPROVE'}:\n${items}\n\n${lang === 'pl' ? 'DYSKUSJA' : 'DEBATE'}:\n${debate}` },
+  ], { maxTokens: CHAIR_MAX_TOKENS, temperature: 0.1, mockKey: 'boardroom:chair' });
 
   const chair = extractJson(chairRaw, ChairSchema);
-  const validIds = (chair?.decisionActionIds ?? []).filter((id) => openApprovals.includes(id));
-  const summary = safe(wholeSentences(chair?.summary ?? '', SUMMARY_MAX_WORDS), known, 'boardroom:chair');
+  const ids = approvals.map((a) => a.id);
+  const validIds = (chair?.decisionActionIds ?? []).filter((id) => ids.includes(id));
+  const summary = safe(tidy(chair?.summary ?? '', lang, SUMMARY_MAX_WORDS), [items, debate, subject].join('\n'), 'boardroom:chair');
   return {
     turns,
-    summary: summary || 'Rada przejrzała otwarte sprawy. Sprawdź kolejkę spraw do zatwierdzenia.',
-    decisionActionIds: validIds.length ? validIds : openApprovals,
+    summary: summary || ruleSummary(approvals, lang),
+    decisionActionIds: validIds.length ? validIds : ids,
   };
 }

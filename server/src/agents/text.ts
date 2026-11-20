@@ -1,10 +1,5 @@
 // Owner: Pair 2 (Person A). Small, tested clean-ups for model text before it reaches the UI.
 
-/** Openers small models add ("Here's a reminder…:", "Oto wyjaśnienie:", "Sure!"). Only a short first line/phrase is cut. */
-const PREAMBLE = /^\s*(here'?s|here is|sure|of course|okay|ok|oto|jasne|oczywiście|wyjaśnienie)\b[^.!?:\n]{0,60}[:!.\n]\s*/i;
-
-export const dropPreamble = (text: string) => text.replace(PREAMBLE, '').trim();
-
 const words = (s: string) => s.split(/\s+/).filter(Boolean);
 
 /**
@@ -14,10 +9,12 @@ const words = (s: string) => s.split(/\s+/).filter(Boolean);
  */
 export function wholeSentences(text: string, maxWords: number): string {
   const t = text.replace(/\s+/g, ' ').trim();
-  const sentences = t.match(/[^.!?…]+[.!?…]+["”)]?/g) ?? [];
+  // A sentence ends with . ! ? … followed by a space, so "20.12.2026", "4,27" and "Sp. z o.o." stay whole enough.
+  const parts = t.split(/(?<=[.!?…]["”)]?)\s+/).filter(Boolean);
+  const done = parts.filter((p, i) => i < parts.length - 1 || /[.!?…]["”)]?$/.test(p)); // drop a cut-off last one
   let out = '';
-  for (const s of sentences) {
-    const next = (out + ' ' + s.trim()).trim();
+  for (const s of done) {
+    const next = out ? `${out} ${s}` : s;
     if (words(next).length > maxWords) break;
     out = next;
   }
