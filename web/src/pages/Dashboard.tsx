@@ -3,8 +3,8 @@
 // Readable for every age. The UI computes nothing: every number comes from the API.
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Bar, BarChart, Cell, Line, LineChart, Pie, PieChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import type { Action, AskResult, ExpenseCategory, Tier } from '@cfo/shared';
+import { Area, AreaChart, Cell, Line, LineChart, Pie, PieChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import type { Action, AskResult, ExpenseCategory, Forecast, Tier } from '@cfo/shared';
 import { api, useApi } from '../api/client';
 import { TypingDots } from '../components/AskBubble';
 import { ActionCard, CfoAvatar, PageHeader, Status, fmtDay, fmtPLN, useToast } from '../components/ui';
@@ -111,30 +111,17 @@ export default function Dashboard() {
           <Status loading={forecast.loading && !f} error={forecast.error} />
           {f && (
             <>
-              <div className="mt-6 h-60" role="img" aria-label={`${t('forecast_title')}: ${t('lowest')} ${fmtPLN(f.lowest.balancePLN)} ${fmtDay(f.lowest.date)}`}>
-                <ResponsiveContainer>
-                  <BarChart data={f.points} margin={{ top: 8, right: 0, left: 0, bottom: 0 }} barCategoryGap="18%">
-                    <defs>
-                      <pattern id="hatch" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
-                        <rect width="6" height="6" fill="#dbeafe" />
-                        <line x1="0" y1="0" x2="0" y2="6" stroke="#60a5fa" strokeWidth="2.5" />
-                      </pattern>
-                    </defs>
-                    <XAxis dataKey="date" tickFormatter={fmtDay} fontSize={13} minTickGap={28} tickLine={false} axisLine={false} stroke="#57534e" />
-                    <YAxis width={46} fontSize={13} tickFormatter={(v: number) => `${Math.round(v / 1000)}k`} tickLine={false} axisLine={false} stroke="#57534e" />
-                    <Tooltip cursor={{ fill: '#f4f4f5' }} formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
-                      contentStyle={{ borderRadius: 16, border: 'none', boxShadow: '0 8px 24px rgb(0 0 0 / 0.12)', fontSize: 15 }} />
-                    <ReferenceLine y={0} stroke="#d6d3d1" />
-                    <ReferenceLine y={f.bufferPLN} stroke="#be123c" strokeDasharray="5 5" />
-                    <Bar dataKey="balancePLN" radius={[6, 6, 6, 6]} isAnimationActive={false}>
-                      {f.points.map((p) => (
-                        <Cell key={p.date} fill={p.date === f.lowest.date ? '#1d4ed8' : p.balancePLN < 0 ? '#fda4af' : 'url(#hatch)'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="mt-2 text-sm text-rose-700">┄ {t('buffer')}: {fmtPLN(f.bufferPLN)}</p>
+              {verdict && (
+                <p className={`mt-6 text-xl font-semibold leading-snug ${verdict.tone === 'ok' ? 'text-emerald-800' : verdict.tone === 'warn' ? 'text-amber-800' : 'text-rose-700'}`}>
+                  {verdict.tone === 'ok' ? '✓' : '⚠'} {verdict.text}
+                </p>
+              )}
+              <CashChart f={f} />
+              <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-base">
+                <li className="flex items-center gap-2"><span className="h-1 w-6 rounded bg-[#0071e3]" aria-hidden="true" /> {t('balance')}</li>
+                <li className="flex items-center gap-2 text-rose-700"><span className="w-6 border-t-2 border-dashed border-rose-600" aria-hidden="true" /> {t('buffer')}: {fmtPLN(f.bufferPLN)}</li>
+                <li className="flex items-center gap-2 font-semibold text-rose-700"><span className="h-3.5 w-3.5 rounded-full bg-rose-600" aria-hidden="true" /> {t('lowest_point')}: {fmtPLN(f.lowest.balancePLN)} · {fmtDay(f.lowest.date)}</li>
+              </ul>
             </>
           )}
           <AskInline />
@@ -282,6 +269,46 @@ export default function Dashboard() {
 }
 
 // ---------- small pieces ----------
+/** Big, simple cash line: blue above zero, red below, dashed safety buffer, the lowest day labelled. */
+function CashChart({ f }: { f: Forecast }) {
+  const { t } = useT();
+  const values = f.points.map((p) => p.balancePLN);
+  const max = Math.max(...values, 0);
+  const min = Math.min(...values, 0);
+  const zeroAt = max === min ? 1 : max / (max - min); // where 0 sits in the gradient (0 = top, 1 = bottom)
+  const weekly = f.points.filter((_, i) => i % 7 === 0).map((p) => p.date);
+  const tys = (v: number) => `${Math.round(v / 1000)} tys.`;
+  return (
+    <div className="mt-4 h-72" role="img"
+      aria-label={`${t('forecast_title')}: ${t('lowest_point')} ${fmtPLN(f.lowest.balancePLN)}, ${fmtDay(f.lowest.date)}`}>
+      <ResponsiveContainer>
+        <AreaChart data={f.points} margin={{ top: 12, right: 12, left: 4, bottom: 0 }}>
+          <defs>
+            <linearGradient id="cashFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset={0} stopColor="#0071e3" stopOpacity={0.22} />
+              <stop offset={zeroAt} stopColor="#0071e3" stopOpacity={0.04} />
+              <stop offset={zeroAt} stopColor="#e11d48" stopOpacity={0.12} />
+              <stop offset={1} stopColor="#e11d48" stopOpacity={0.3} />
+            </linearGradient>
+            <linearGradient id="cashLine" x1="0" y1="0" x2="0" y2="1">
+              <stop offset={zeroAt} stopColor="#0071e3" />
+              <stop offset={zeroAt} stopColor="#e11d48" />
+            </linearGradient>
+          </defs>
+          <XAxis dataKey="date" ticks={weekly} tickFormatter={fmtDay} fontSize={15} tickLine={false} axisLine={false} stroke="#3f3f46" dy={6} />
+          <YAxis width={64} fontSize={15} tickFormatter={tys} tickLine={false} axisLine={false} stroke="#3f3f46" tickCount={5} />
+          <Tooltip formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
+            contentStyle={{ borderRadius: 16, border: '1px solid rgb(0 0 0 / 0.1)', fontSize: 16 }} />
+          <ReferenceLine y={0} stroke="#3f3f46" strokeWidth={1.5} />
+          <ReferenceLine y={f.bufferPLN} stroke="#e11d48" strokeDasharray="6 6" strokeWidth={1.5} />
+          <Area type="stepAfter" dataKey="balancePLN" stroke="url(#cashLine)" strokeWidth={3} fill="url(#cashFill)" isAnimationActive={false} />
+          <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={7} fill="#e11d48" stroke="#fff" strokeWidth={3} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function Kpi({ label, value, bad }: { label: string; value: string; bad?: boolean }) {
   return (
     <div className="min-w-0">

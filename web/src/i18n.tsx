@@ -29,6 +29,7 @@ const DICT: Record<string, { pl: string; en: string }> = {
   login_tagline: { pl: 'Twój AI-dyrektor finansowy dla warsztatu', en: 'Your AI finance director for the workshop' },
   login_h1a: { pl: 'Twój zespół finansowy', en: 'Your finance team' },
   login_h1b: { pl: 'na autopilocie', en: 'on autopilot' },
+  lowest_point: { pl: 'Najniżej', en: 'Lowest' },
   agents_on_watch: { pl: '4 agentów pilnuje Twoich pieniędzy', en: '4 agents watch your money' },
   login_agents: { pl: 'Twoi agenci', en: 'Your agents' },
   login_demo_note: { pl: 'Konto demo', en: 'Demo account' },
