@@ -60,16 +60,16 @@ Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <na
 - [ ] Test: no foreign invoices → no actions. Exposure small (shock < 500 zł) → no `fx_hedge`.
 
 ### [B] ★ 2. `rules/cashflow.ts` + `rules/liquidity.ts` — Anna ⚫ (required by the challenge)
-- [ ] `cashflow.ts`: shift each late payer's receivable by their average delay (from paid invoices of the same counterparty);
-      overdue invoices with no history stay "not expected" (worst case).
-- [ ] `cashflow.ts`: works for 30/60/90 days (check `/api/forecast?days=90` returns 91 points).
-- [ ] Test: `forecast(30)` has 31 points, `lowest` is the minimum, a known invoice moves by its counterparty's delay.
-- [ ] Rewrite the `cashGap` starter inside `liquidity.ts`; ask A to remove the old one from `rules/index.ts` and add `liquidity`.
-- [ ] Lowest point < `safetyBufferPLN` → `NEEDS_APPROVAL` `credit_line`, amount = gap rounded **up** to 1 000 zł.
+- [x] `cashflow.ts`: shift each late payer's receivable by their average delay (from paid invoices of the same counterparty);
+      overdue invoices with no history stay "not expected" (worst case). _(done; needs `paidDate` on paid invoices in the seed to have any effect)_
+- [x] `cashflow.ts`: works for 30/60/90 days (check `/api/forecast?days=90` returns 91 points).
+- [x] Test: `forecast(30)` has 31 points, `lowest` is the minimum, a known invoice moves by its counterparty's delay.
+- [x] Rewrite the `cashGap` starter inside `liquidity.ts`; ask A to remove the old one from `rules/index.ts` and add `liquidity`.
+- [x] Lowest point < `safetyBufferPLN` → `NEEDS_APPROVAL` `credit_line`, amount = gap rounded **up** to 1 000 zł.
       `why[]`: date of the lowest point, the balance then, the buffer.
-- [ ] Each overdue sales invoice → `NEEDS_APPROVAL` `payment_reminder` ("Send a reminder to <name> for X zł, N days late").
-- [ ] Optional: surplus well above buffer for the whole period → `RECOMMENDED` `deposit`.
-- [ ] Test: gap of 12 300 zł → credit line 13 000 zł. No gap → no credit line. Overdue invoice → one reminder.
+- [x] Each overdue sales invoice → `NEEDS_APPROVAL` `payment_reminder` ("Send a reminder to <name> for X zł, N days late").
+- [x] Optional: surplus well above buffer for the whole period → `RECOMMENDED` `deposit`.
+- [x] Test: gap of 12 300 zł → credit line 13 000 zł. No gap → no credit line. Overdue invoice → one reminder.
 
 ### [A] 3. `rules/vat.ts`, `zus.ts`, `pit.ts`, `ksef.ts` — Marek ⚪
 - [ ] `vat.ts`: output VAT (sales) − input VAT (purchases) for last month, due the 25th of this month → `NEEDS_APPROVAL` `tax_payment`.
@@ -81,16 +81,16 @@ Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <na
 - [ ] Tests: VAT amount for a tiny invoice set, ZUS due date = 20th, rejected invoice → 2 actions.
 
 ### [B] 4. `rules/expenses.ts` + `rules/margin.ts` — Tomasz 🟢
-- [ ] `expenses.ts`: biggest category in the last 30 days vs the 30 days before (`db.expenses`) → `RECOMMENDED` `cost_cut`
+- [x] `expenses.ts`: biggest category in the last 30 days vs the 30 days before (`db.expenses`) → `RECOMMENDED` `cost_cut`
       with the % change and amount ("Parts up 18%: 9 400 zł vs 7 950 zł").
-- [ ] `margin.ts`: repair orders with `labourBilledPLN < labourHours × labourRatePLN` → `RECOMMENDED` `pricing`
+- [x] `margin.ts`: repair orders with `labourBilledPLN < labourHours × labourRatePLN` → `RECOMMENDED` `pricing`
       (sum the missing money, list the cars).
-- [ ] `margin.ts`: orders with parts markup `(partsPrice − partsCost) / partsCost < partsMarkupTarget` → `RECOMMENDED` `cost_cut` / `pricing`.
-- [ ] Tests: one under-billed order → one pricing action with the right missing amount.
+- [x] `margin.ts`: orders with parts markup `(partsPrice − partsCost) / partsCost < partsMarkupTarget` → `RECOMMENDED` `cost_cut` / `pricing`.
+- [x] Tests: one under-billed order → one pricing action with the right missing amount.
 
 ### 5. Wire-up + alerts
 - [ ] [A] `RULES` in `rules/index.ts` = `[fx, liquidity, vat, zus, pit, ksef, expenses, margin]` (only imports left in that file).
-- [ ] [B] `GET /api/alerts` (`routes/finance.ts`): one alert per rule area (cash gap, FX shock, tax due ≤ 5 days, KSeF rejected).
+- [x] [B] `GET /api/alerts` (`routes/finance.ts`): one alert per rule area (cash gap, FX shock, tax due ≤ 5 days, KSeF rejected).
 - [ ] [A+B] `POST /api/autopilot/run` with the seed gives the demo list: 🔍 KSeF re-validate, ✋ VAT, ✋ credit line,
       ✋ FX hedge, 💡 labour under rate. Run it twice → no duplicates.
 - [ ] [A+B] Commit + push + PR to `main` (another pair's coder reviews).
@@ -107,7 +107,7 @@ Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <na
   - [ ] `tax_payment` / `supplier_payment` → balance − amount, obligation paid (exists, check it).
   - [ ] `deposit`, `pricing`, `cost_cut`, `ksef_fix` → a clear "simulated" activity line.
 - [ ] [A] After approve, `GET /api/state` shows the new balance and `GET /api/activity` shows the 🧪 simulated entry.
-- [ ] [B] Advice bubble: improve `pickCfo()` in `routes/boardroom.ts` with more PL + EN words
+- [x] [B] Advice bubble: improve `pickCfo()` in `routes/boardroom.ts` with more PL + EN words
       (e.g. `płynność|kredyt|gotówk|cash|liquid` → anna). Test: "Czy kurs euro to problem?" → kasia.
 - [ ] [A+B] New `mockKey`s? Message Pair 1 to add canned answers in `llm/mock.ts`.
 - [ ] [A+B] **H18 Sync 3:** Run check → Anna proposes a credit line, Kasia proposes an FX hedge → approve → balance + activity change.
