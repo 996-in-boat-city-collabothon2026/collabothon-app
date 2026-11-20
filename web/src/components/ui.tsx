@@ -121,21 +121,29 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
   const [imgOk, setImgOk] = useState(true);
   const hat = HATS[hatId];
   if (imgOk) {
-    // "Breaking the frame": head inside a circle, the hat pops out above it with a white outline.
+    // "Breaking the frame": ONE picture. A mask keeps it inside the circle at the bottom,
+    // and lets everything above the circle's middle (hair + hat) show over the ring – no seams.
     const S = Math.round(size * 1.6);
     const ring = hat.color === '#f8fafc' ? '#a1a1aa' : hat.color;
-    const fig = { width: '130%', left: '-15%', top: '-30%' } as const;
+    const T = Math.round(S * 0.42); // room above the circle for the hat
+    const X = Math.round(S * 0.2); // room left/right for the brim
+    const r = S / 2;
+    const mask = `radial-gradient(circle ${r}px at ${X + r}px ${T + r}px, #000 ${r - 0.5}px, transparent ${r}px), linear-gradient(#000, #000)`;
     return (
       <span title={label} role="img" aria-label={label} className="avatar-3d relative inline-block shrink-0"
-        style={{ width: S, height: S, marginTop: S * 0.3 }}>
-        <span className="absolute inset-0 overflow-hidden rounded-full"
-          style={{ background: '#f4f4f5', boxShadow: `inset 0 0 0 ${Math.max(2, S / 26)}px ${ring}` }}>
+        style={{ width: S, height: S, marginTop: T * 0.85 }}>
+        <span className="absolute inset-0 rounded-full"
+          style={{ background: '#f4f4f5', boxShadow: `inset 0 0 0 ${Math.max(2, S / 26)}px ${ring}` }} />
+        <span className="avatar-fig absolute" style={{
+          left: -X, top: -T, width: S + 2 * X, height: S + T,
+          WebkitMaskImage: mask, maskImage: mask,
+          WebkitMaskSize: `100% 100%, 100% ${T + r}px`, maskSize: `100% 100%, 100% ${T + r}px`,
+          WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+        }}>
           <img src={avatarSrc(hatId).replace('-hat.png', '-cut.png')} alt="" loading="lazy" decoding="async"
-            onError={() => setImgOk(false)} className="absolute max-w-none" style={fig} />
+            onError={() => setImgOk(false)} className="absolute max-w-none"
+            style={{ width: S * 1.15, height: S * 1.15, left: X - S * 0.075, top: T - S * 0.2 }} />
         </span>
-        {/* the same picture again, only its top part (the hat), drawn over the circle's edge */}
-        <img src={avatarSrc(hatId).replace('-hat.png', '-cut.png')} alt="" aria-hidden="true" loading="lazy" decoding="async"
-          className="avatar-hat pointer-events-none absolute max-w-none" style={{ ...fig, clipPath: 'inset(0 0 62% 0)' }} />
       </span>
     );
   }
