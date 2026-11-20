@@ -134,7 +134,7 @@
   ```
   ✅ Done when: `All checks passed` and LLM mode shows `mock`.
 
-- [ ] **1.8 💻🖱️ Auto-rebuild on merge to `main` (GitHub webhook).**
+- [x] **1.8 💻🖱️ Auto-rebuild on merge to `main` (GitHub webhook).**
   ```powershell
   oc describe bc/warsztat-cfo | Select-String -Context 0,2 "Webhook GitHub"
   ```
@@ -277,7 +277,7 @@ Each ✍️ step: Claude edits → `npm run typecheck; npm test` → commit → 
   ```
   (Back: `LLM_MODE=openai_compat`.) ✅ Done when: tried once; the team knows it exists. **Only use in an emergency: the jury must see the real model.**
 
-- [ ] **4.5 🖱️ Don't let things sleep.** Check the model has min replicas 1 (not scale-to-zero) and nobody "stops" it in RHOAI.
+- [x] **4.5 🖱️ Don't let things sleep.** Check the model has min replicas 1 (not scale-to-zero) and nobody "stops" it in RHOAI.
   ✅ Done when: model still answers after 30 min idle.
 
 - [ ] **4.6 💻 H30 Sync 5.** Hat conference on the real model, < 25 s, decisions linked to approval cards. ✅ Done when: Pair 2 confirms.
@@ -331,3 +331,5 @@ General: `oc get pods` · `oc logs deploy/warsztat-cfo --tail=50` · `oc describ
 | H0 | 1.3, Phase 2 | Nargiz + Claude | Organizers said: use their `llama-32-3b-instruct` (`my-first-model`). Tested inside the cluster: `/v1/models` ok, chat "OK" in 0.1 s. Phase 2 rewritten; own-model steps moved to Plan B. |
 | H1 | 1.4–1.7, 2.1–2.5 | user + Claude | Own `cfo-llm` model deploy stuck Pending (1 GPU taken) → deleted in RHOAI. App built from `main` (7efac7d) in **`my-first-model`**, edge route, probes, resources. First try used port 80 → "Connection error"; fixed to **:8080**. `/api/llm/health` → `openai_compat`, `ok:true`, 69 ms. Smoke `-RequireModel` on the live URL: all passed. Model already visible in the RHOAI dashboard (2.2). |
 | H1 | 3.1 | Claude | Boardroom on the real model: **15.8 s** (< 25 s ✅). ⚠️ For Pair 2: the model invents numbers (EUR/USD 1.13, forward @ 4.30, "3-month") and prints `38,400,00 zł`; prompts need "use ONLY these numbers". Live app still runs `main` (without our provider.ts changes) until our PR is merged + rebuilt. |
+| H1 | 1.8 | user + Claude | OCP blocks anonymous webhooks (403) → `oc policy add-role-to-group system:webhook system:unauthenticated -n my-first-model`. GitHub webhook (JSON, push events, SSL verify off) → ping 200. Build is pinned to `#main`: only merges to main rebuild. Webhook URL holds the secret: never commit/post it. |
+| H1 | 4.5 | Claude | `llama-32-3b-instruct`: minReplicas=1, maxReplicas=1, Standard mode → never scales to zero. |
