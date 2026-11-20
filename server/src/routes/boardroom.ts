@@ -33,6 +33,8 @@ const TOPICS: Record<CfoId, RegExp[]> = {
     /margin|profit|markup/i,
     /price|pricing|rate per hour|hourly rate|labou?r/i,
     /parts|wholesal|supplier|utilities|electricity/i,
+    // Setting a price (review of bc24564: both went to Anna). "charge" alone is too broad ("will the bank charge me").
+    /\b(?:how much|what)\s+(?:should|do|can|must)\s+(?:i|we)\s+(?:charge|bill|ask)\b|\bcharge\s+(?:per\s+hour|an?\s+hour|by\s+the\s+hour|for\s+(?:an?|the|my|this)\s+\w+|customers|clients)\b/i,
   ],
 };
 

@@ -50,7 +50,7 @@ export const hasTrend = (e: FxExposure) => e.trend.points >= 2;
 /** What a 5% move against us costs for a net position (in the foreign currency), in zł. */
 const shockOf = (net: number, currency: ForeignCurrency) => round2(Math.abs(toPLN(net, currency)) * SHOCK);
 
-/** Net exposure per currency (only currencies with unpaid invoices). Also used by the boardroom snapshot later. */
+/** Net exposure per currency (only currencies with unpaid invoices and an NBP rate). Used by Kasia's facts, the card explanations, the dashboard and the approve route. */
 export function fxExposures(): FxExposure[] {
   return FOREIGN.filter((c) => unpaid(c).length > 0 && hasRate(c)).map((currency) => {
     const invoices = unpaid(currency);

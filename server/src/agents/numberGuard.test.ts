@@ -168,3 +168,26 @@ describe('review of 8d96df5: money forms, currency and FX direction words', () =
     expect(findInventedNumbers('There is a 5% risk on 1500 EUR.', facts)).toEqual([]);
   });
 });
+
+describe('review of bc24564: gain vs loss, any currency', () => {
+  const owe = 'EUR to pay (net): 1500 EUR\nLoss if EUR rises 5%: 320,25 zł\nVAT: 14 230,00 zł';
+  it('a loss told as a gain is caught; a loss, a neutral cost or a risk passes', () => {
+    expect(findInventedNumbers('If EUR rises 5%, you gain 320,25 zł.', owe)).toEqual(['gain 320,25']);
+    expect(findInventedNumbers('If EUR rises 5%, you could earn 320,25 zł.', owe)).toEqual(['gain 320,25']);
+    expect(findInventedNumbers('If EUR rises 5%, you lose 320,25 zł.', owe)).toEqual([]);
+    expect(findInventedNumbers('A 5% rise of EUR would cost you 320,25 zł.', owe)).toEqual([]);
+    expect(findInventedNumbers('There is a 5% risk of 320,25 zł on 1500 EUR.', owe)).toEqual([]);
+  });
+  it('the receivable side: the rule decides, not "a rise is always a loss"', () => {
+    const owed = 'EUR to receive (net): 2100 EUR\nLoss if EUR falls 5%: 448,35 zł';
+    expect(findInventedNumbers('If EUR falls 5%, you lose 448,35 zł.', owed)).toEqual([]);
+    expect(findInventedNumbers('If EUR falls 5%, you gain 448,35 zł.', owed)).toEqual(['gain 448,35']);
+  });
+  it('a fee in any currency is an amount: symbol before, code after; a bare small count stays free', () => {
+    expect(findInventedNumbers('VAT is 14,230 zł. You owe an extra £17.', owe)).toEqual(['17']);
+    expect(findInventedNumbers('VAT is 14,230 zł. The surcharge is 17 GBP.', owe)).toEqual(['17']);
+    expect(findInventedNumbers('VAT is 14,230 zł. The fee is 17 CHF.', owe)).toEqual(['17']);
+    expect(findInventedNumbers('VAT is 14.230,00 PLN, due in 5 days.', owe)).toEqual([]);
+    expect(findInventedNumbers('A late fee of 17 zł applies.', `${owe}\nLate fee: 17,00 zł`)).toEqual([]);
+  });
+});

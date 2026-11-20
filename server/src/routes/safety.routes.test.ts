@@ -76,6 +76,11 @@ const UNSAFE: Case[] = [
   { name: 'Polish: mixed instruction', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14 230,00 zł, zaplac do 25 listopada.' },
   { name: 'Polish: short ambiguous', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT 14 230 zł.' },
   { name: 'Polish: diacritics (kept)', question: 'How much VAT do I owe?', cfo: 'marek', text: 'Podatek VAT wynosi 14 230 zł.' },
+  // Review of bc24564: a loss told as a gain, a fee in another currency, a payment confirmed by the receiver
+  { name: 'FX: loss told as a gain', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'If EUR rises 5%, you gain 320,25 zł.' },
+  { name: 'money: £17', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14,230 zł. You owe an extra £17.' },
+  { name: 'money: 17 GBP', question: 'How much VAT do I owe?', cfo: 'marek', text: 'You owe VAT of 14,230 zł. The surcharge is 17 GBP.' },
+  { name: 'done: receiver confirms', question: 'How much VAT do I owe?', cfo: 'marek', text: 'You owe VAT of 14,230 zł. The tax office received your payment.' },
 ];
 
 const SAFE: Case[] = [
@@ -97,6 +102,10 @@ const SAFE: Case[] = [
   { name: 'FX: neutral "5% risk"', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'There is a 5% risk on the 1500 EUR you owe: up to 320,25 zł.' },
   { name: 'English: names and zł', question: 'Will I have enough cash?', cfo: 'anna', text: 'Kurier Express Kraków owes you 7 380,00 zł and FlotaTrans Sp. z o.o. owes you 12 300,00 zł: remind them before the balance drops to -20 275,00 zł.' },
   { name: 'English: short', question: 'How much VAT do I owe?', cfo: 'marek', text: 'Pay VAT of 14 230,00 zł by November 25, 2026.' },
+  // Review of bc24564: the controls next to the new checks, each with a true VAT / FX fact
+  { name: 'FX: loss told as a loss', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'If EUR rises 5%, you lose 320,25 zł.' },
+  { name: 'done: receiver, negation', question: 'How much VAT do I owe?', cfo: 'marek', text: 'You owe VAT of 14,230 zł, due November 25, 2026: the tax office has not received your payment yet.' },
+  { name: 'done: receiver, condition', question: 'How much VAT do I owe?', cfo: 'marek', text: 'You owe VAT of 14,230 zł: the deadline of November 25, 2026 is met only if the tax office receives your payment by then.' },
 ];
 
 describe('POST /api/ask: unsafe → exact English rule fallback, HTTP 200, one model call', () => {
@@ -169,6 +178,7 @@ describe('FX direction after settling Krause (the shop is owed EUR: the loss com
     'If EUR rises 5%, you lose 448,35 zł.',
     'A +5% change would cost you 448,35 zł.',
     'EUR is falling, so a 5% appreciation would cost you 448,35 zł.',
+    'If EUR falls 5%, you gain 448,35 zł.', // review of bc24564: the loss told as a gain, receivable side
   ])('unsafe: %s', async (text) => {
     settle();
     reply = () => text;
@@ -179,6 +189,7 @@ describe('FX direction after settling Krause (the shop is owed EUR: the loss com
   it.each([
     'A 5% depreciation of the euro would cost you 448,35 zł on the 2100 EUR you will receive.',
     'If the euro weakens 5%, you lose 448,35 zł on the 2100 EUR you will receive.',
+    'If EUR falls 5%, you lose 448,35 zł.',
   ])('safe: %s', async (text) => {
     settle();
     expect(rule('kasia')).toMatch(/If EUR falls 5%/);

@@ -335,3 +335,20 @@ describe('review of 8d96df5: language', () => {
     'Pay VAT for October (JPK_V7M) by November 25, 2026.', 'Bill the full hours for the VW Passat 2015.',
   ])('English: %s', (t) => expect(looksPolish(t)).toBe(false));
 });
+
+describe('review of bc24564: the receiver confirms a payment', () => {
+  it.each(['The tax office received your payment.', 'The bank credited the transfer.', 'FlotaTrans paid you yesterday.', 'The tax office has received your payment.'])(
+    'claim: %s',
+    (t) => expect(claimsDone(t)).toBe(true),
+  );
+  it.each([
+    'The tax office has not received your payment yet.', "FlotaTrans hasn't paid you.", 'Send reminders to the customers who have not paid you.',
+    'If the tax office receives your payment by November 25, 2026, there is no penalty.', 'Once the tax office has received your payment, VAT is settled.',
+  ])('not a claim: %s', (t) => expect(claimsDone(t)).toBe(false));
+});
+
+describe('review of bc24564: a past "when" story is still a claim', () => {
+  it('"When the office checked, your VAT was paid." is a claim', () => {
+    expect(claimsDone('When the office checked, your VAT was paid.')).toBe(true);
+  });
+});

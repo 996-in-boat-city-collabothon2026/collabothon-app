@@ -57,12 +57,19 @@ const DONE_EN = new RegExp(
     `\\b(?:I|we)(?:'ve| have)?\\s+(?:took care|taken care|handled|dealt with)\\b`,
     `\\b(?:I|we)(?:'ve|'d| have| had)?\\s+(?:(?:already|just|successfully)\\s+)?(?:paid|sent|locked|approved|signed|transferred|submitted|settled|wired|booked|completed|finished|hedged|resent)\\b`,
     `\\balready\\s+${DONE_STATE}\\b`,
+    // The other side confirms it (review of bc24564): "The tax office received your payment.", "the bank credited the
+    // transfer", "FlotaTrans paid you". Present or future ("receives", "will receive") is not a claim.
+    `\\b(?:received|got|confirmed|accepted|processed|booked|credited|cashed)\\s+(?:your|the|our|my|this|that)\\s+(?:payment|money|transfer|funds|VAT|tax|reminder|e-?mail|message|invoice|forward|contract)\\b`,
+    `\\b(?:paid|transferred|wired)\\s+(?:you|us)\\b`,
   ].join('|'),
   'gi',
 );
+/** Negation right before the verb: "has not received your payment", "haven't paid you", "never got the money". */
+const NEGATED = /\b(?:not|never|no longer|n't)\s+(?:yet\s+|already\s+|actually\s+)?(?:been\s+)?$|n't\s+(?:yet\s+)?$/i;
 /** A clause that only imagines the action: "Once VAT is paid, …", "If the reminder is sent, …". */
 const HYPOTHETICAL = /\b(?:if|once|when|whenever|after|until|before|unless|whether|in case|as soon as|so that)\b/i;
 // Punctuation ends a clause only before a space: "14,230 zł" and "14.230,00" are numbers, not clauses.
+const CONDITION_FIRST = /^\s*(?:if|once|as soon as|unless|provided that)\b/i; // not "when"/"after": often a past story
 const CLAUSE_START = /[.;:!?,](?=\s|$)|\b(?:and|but|so|then)\b/gi;
 
 function claimsDoneEn(text: string): boolean {
@@ -70,6 +77,10 @@ function claimsDoneEn(text: string): boolean {
     const before = text.slice(0, m.index);
     const starts = [...before.matchAll(CLAUSE_START)];
     const clause = starts.length ? before.slice(starts[starts.length - 1].index! + starts[starts.length - 1][0].length) : before;
+    if (NEGATED.test(before.slice(-30))) continue;
+    // "Once VAT is paid, the deadline is met": a sentence that opens with a condition is conditional as a whole.
+    const sentence = before.split(/[.!?](?=\s)/).pop() ?? '';
+    if (CONDITION_FIRST.test(sentence)) continue;
     if (!HYPOTHETICAL.test(clause)) return true;
   }
   return false;

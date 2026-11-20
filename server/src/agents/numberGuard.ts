@@ -58,14 +58,39 @@ function percentDirection(text: string, start: number, end: number, sign?: strin
 // A money unit right after or right before a number: "17 zł", "1500 EUR", "PLN 17", "€ 17". Every money amount is
 // checked against money amounts in the facts, whatever its size (review: "The late fee is 17 zł" slipped through
 // as a "small number"). "zł" has no \b after it: in JS regexes "ł" is not a word character.
-const UNIT_AFTER = /^\s?(zł|zl|złoty|złotych|zlotych|zloty|zlotys|PLN|EUR|euros?|€|USD|dollars?|\$)(?![\p{L}])/iu;
-const UNIT_BEFORE = /(?:^|[^\p{L}])(zł|PLN|EUR|€|USD|\$)\s?$/iu;
-/** "zł", "złotych", "PLN" → "PLN"; "euro", "€" → "EUR"; "$", "dollars" → "USD". "1500 EUR" never matches "1500 zł". */
+// Any currency, not only the shop's: review of bc24564 found "You owe an extra £17." and "17 GBP" passing as a
+// free small number. A currency symbol before the number or an ISO code after it makes the number a money amount.
+const CURRENCY_WORDS = 'zł|zl|złoty|złotych|zlotych|zloty|zlotys|PLN|EUR|euros?|€|USD|dollars?|\\$|GBP|pounds?|£|CHF|francs?|JPY|yen|¥|CZK|SEK|NOK|DKK|HUF|UAH|CNY|CAD|AUD';
+const UNIT_AFTER = new RegExp(`^\\s?(${CURRENCY_WORDS})(?![\\p{L}])`, 'iu');
+const UNIT_BEFORE = /(?:^|[^\p{L}])(zł|PLN|EUR|€|USD|\$|GBP|£|CHF|JPY|¥)\s?$/iu;
+/** "zł", "złotych", "PLN" → "PLN"; "euro", "€" → "EUR"; "$" → "USD"; "£", "pounds" → "GBP"; other codes as written. */
 function currencyOf(unit?: string): string {
   if (!unit) return '';
   if (/^(?:eur|euros?|€)$/i.test(unit)) return 'EUR';
   if (/^(?:usd|dollars?|\$)$/i.test(unit)) return 'USD';
-  return 'PLN';
+  if (/^(?:gbp|pounds?|£)$/i.test(unit)) return 'GBP';
+  if (/^(?:chf|francs?)$/i.test(unit)) return 'CHF';
+  if (/^(?:jpy|yen|¥)$/i.test(unit)) return 'JPY';
+  if (/^(?:zł|zl|złoty|złotych|zlotych|zloty|zlotys|pln)$/i.test(unit)) return 'PLN';
+  return unit.toUpperCase();
+}
+
+/**
+ * Is the amount told as a loss (-1) or a gain (+1)? Review of bc24564: "If EUR rises 5%, you gain 320,25 zł." passed
+ * although the rule says that 320,25 zł is the LOSS for this exposure. The word nearest before the amount in its
+ * own clause counts ("Loss if EUR rises 5%: 320,25 zł", "you gain 320,25 zł"), else the first words after it
+ * ("a 320,25 zł loss"). "costs you", "risk" and "missing" are neutral on purpose: only a contradiction is caught.
+ */
+const LOSS_WORD = /^(?:lose|loses|losing|lost|loss|losses)$/i;
+const GAIN_WORD = /^(?:gain|gains|gained|gaining|earn|earns|earned|earning|profit|profits|win|wins|won|benefit|benefits)$/i;
+const OUTCOME_CLAUSE = /[.;!?](?=\s|$)|,(?=\s)|\b(?:and|but|so|while|whereas)\b/i;
+const outcomeWord = (w: string) => (LOSS_WORD.test(w) ? -1 : GAIN_WORD.test(w) ? 1 : 0);
+function outcomeOf(text: string, start: number, end: number): number {
+  const before = (text.slice(Math.max(0, start - 50), start).split(OUTCOME_CLAUSE).pop() ?? '').match(/\p{L}+/gu) ?? [];
+  for (let i = before.length - 1; i >= 0; i--) if (outcomeWord(before[i])) return outcomeWord(before[i]);
+  const after = text.slice(end, end + 25).split(OUTCOME_CLAUSE)[0].match(/\p{L}+/gu) ?? [];
+  for (const w of after.slice(0, 3)) if (outcomeWord(w)) return outcomeWord(w);
+  return 0;
 }
 
 /**
@@ -122,9 +147,9 @@ export function numberValues(raw: string): number[] {
 /** Dates, percents and every number (with its sign) found in a text. */
 function scan(text: string): {
   dates: Dates;
-  numbers: { value: number; neg: boolean; cur: string }[];
+  numbers: { value: number; neg: boolean; cur: string; outcome: number }[];
   percents: { raw: string; value: number; dir: number }[];
-  tokens: { raw: string; values: number[]; neg: boolean; cur: string }[];
+  tokens: { raw: string; values: number[]; neg: boolean; cur: string; outcome: number }[];
 } {
   const dates: Dates = { md: new Set(), full: new Set(), mdNoYear: new Set() };
   const percents = [...text.matchAll(PERCENT)].map((m) => ({
@@ -158,11 +183,12 @@ function scan(text: string): {
       values: numberValues(m[0].trim()),
       neg: NEGATIVE_BEFORE.test(before.slice(-7)) || NEGATIVE_WORDS_BEFORE.test(before) || NEGATIVE_WORDS_AFTER.test(after),
       cur: currencyOf(UNIT_AFTER.exec(after)?.[1] ?? UNIT_BEFORE.exec(before)?.[1]),
+      outcome: outcomeOf(rest, m.index!, m.index! + m[0].length),
     };
   });
   const numbers = [
-    ...years.map((value) => ({ value, neg: false, cur: '' })),
-    ...tokens.flatMap((t) => t.values.map((value) => ({ value, neg: t.neg, cur: t.cur }))),
+    ...years.map((value) => ({ value, neg: false, cur: '', outcome: 0 })),
+    ...tokens.flatMap((t) => t.values.map((value) => ({ value, neg: t.neg, cur: t.cur, outcome: t.outcome }))),
   ];
   return { dates, numbers, percents, tokens };
 }
@@ -221,7 +247,15 @@ export function findInventedNumbers(reply: string, facts: string): string[] {
     if (!ok) invented.push(p.raw);
   }
 
+  /** The rule told this same amount the other way round: a loss in the facts, a gain in the reply (or back). */
+  const contradicts = (v: number, cur: string, outcome: number) =>
+    outcome !== 0 && known.numbers.some((k) => Math.abs(k.value - v) < TOLERANCE && (!cur || k.cur === cur) && k.outcome === -outcome);
+
   for (const t of out.tokens) {
+    if (t.values.some((v) => contradicts(v, t.cur, t.outcome))) {
+      invented.push(`${t.outcome > 0 ? 'gain' : 'loss'} ${t.raw}`);
+      continue;
+    }
     if (!t.neg && !t.cur && t.values.some((v) => Number.isInteger(v) && v <= MAX_FREE_INTEGER)) continue;
     if (t.values.some((v) => isKnown(v, t.neg, t.cur))) continue;
     const d = asDayMonth(t.raw);

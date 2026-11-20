@@ -12,6 +12,10 @@ describe('pickCfo', () => {
     ['Is my margin on parts too low?', 'tomasz'],
     ['How can I cut costs?', 'tomasz'],
     ['Is my labour rate too low?', 'tomasz'],
+    ['How much should I charge per hour?', 'tomasz'], // review of bc24564: pricing questions
+    ['How much should I charge for an oil change?', 'tomasz'],
+    ['Will the bank charge me for the overdraft?', 'anna'], // "charge" alone is not pricing
+    ['Anna, how much should I charge per hour?', 'anna'], // a CFO asked by name still wins
     ['Will I have enough cash until the end of the month?', 'anna'],
     ['Do I need a loan?', 'anna'],
     ['A customer is late paying me', 'anna'],
