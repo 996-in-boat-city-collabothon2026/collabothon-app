@@ -94,9 +94,9 @@ Pattern for every rule: a file `server/src/rules/<name>.ts` exporting `const <na
 ### 5. Wire-up + alerts
 - [x] [A] `RULES` in `rules/index.ts` = `[fx, liquidity, vat, zus, pit, ksef, expenses, margin]` (only imports left in that file).
 - [x] [B] `GET /api/alerts` (`routes/finance.ts`): one alert per rule area (cash gap, FX shock, tax due ≤ 5 days, KSeF rejected).
-- [ ] [A+B] `POST /api/autopilot/run` with the seed gives the demo list: 🔍 KSeF re-validate, ✋ VAT, ✋ credit line,
+- [x] [A+B] `POST /api/autopilot/run` with the seed gives the demo list: 🔍 KSeF re-validate, ✋ VAT, ✋ credit line,
       ✋ FX hedge, 💡 labour under rate. Run it twice → no duplicates.
-      _(A, API test on a fresh seed, LLM mock: run 1 → 12 cards incl. all five above, run 2 → 0 new. Waiting for B to confirm.)_
+      _(A, API test on a fresh seed, LLM mock: run 1 → 12 cards incl. all five above, run 2 → 0 new. B confirmed on bd6c19b: same 12 → 0, Marek cards OK.)_
 - [ ] [A+B] Commit + push + PR to `main` (another pair's coder reviews).
 
 ---
