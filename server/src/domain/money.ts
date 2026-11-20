@@ -19,5 +19,14 @@ export function addDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/**
+ * "The last N days" = exactly N calendar dates, both ends included. Today is day 0.
+ * lastDays(today, 30) = [today−29, today]; lastDays(today, 30, 30) = the 30 days before = [today−59, today−30].
+ */
+export function lastDays(today: string, days: number, skipDays = 0): { from: string; to: string } {
+  const to = addDays(today, -skipDays);
+  return { from: addDays(to, -(days - 1)), to };
+}
+
 export const fmtPLN = (n: number) =>
   new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(n);
