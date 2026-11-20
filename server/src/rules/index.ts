@@ -4,6 +4,7 @@ import type { Action } from '@cfo/shared';
 import { db } from '../domain/store';
 import { daysBetween, fmtPLN } from '../domain/money';
 import { forecast } from './cashflow';
+import { fx } from './fx';
 
 export type DraftAction = Omit<Action, 'id' | 'status' | 'createdAt'>;
 export type Rule = () => DraftAction[];
@@ -60,4 +61,4 @@ const cashGap: Rule = () => {
   ];
 };
 
-export const RULES: Rule[] = [deadlines, ksefRejected, cashGap];
+export const RULES: Rule[] = [deadlines, ksefRejected, cashGap, fx];
