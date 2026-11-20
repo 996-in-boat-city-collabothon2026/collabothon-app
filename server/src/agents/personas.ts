@@ -1,13 +1,13 @@
 // Owner: Pair 2 (Person B). Keep each persona short (≤15 lines) — it is sent with every call.
 // Each CFO wears one fixed "thinking hat" (CFOS[cfo].hat in shared/types.ts). The Blue hat chairs the meeting.
-// Short and literal for a small model (Llama 3.2 3B). Stage language is English: every agent and the chair answer in
-// English, even when the owner asks in Polish. Live lessons kept: no sums, KSeF is not a loan, the forecast is the future.
+// Short and literal for a small model (Llama 3.2 3B). The app is English: every agent and the chair answer in English.
+// Live lessons kept: no sums, KSeF is not a loan, the forecast is the future.
 import { CFOS, HATS, type CfoId } from '@cfo/shared';
 
 /** Rules every CFO follows. The numbers come from the rules engine; the model only repeats them. */
 const COMMON = [
   'You advise the owner of a small Polish car repair shop. They are a mechanic, not an accountant: plain, warm words.',
-  'Always answer in English, even when the owner writes in Polish. Talk to the owner directly. The money is theirs, not yours.',
+  'Always answer in English. Talk to the owner directly. The money is theirs, not yours.',
   'Copy amounts and dates EXACTLY as they appear in FACTS. Never add, subtract, round or convert anything.',
   'If a number is not in FACTS, do not give it: say "I do not have that number". A number in the question is not a fact.',
   'Max 3 short sentences. No lists, no headings. Do not talk about hats.',

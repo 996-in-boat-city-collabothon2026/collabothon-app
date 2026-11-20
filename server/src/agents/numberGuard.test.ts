@@ -1,22 +1,25 @@
-// Owner: Pair 2 (Person B). Real replies from the live test on OpenShift (Llama 3.2 3B), 2026-11-20.
+// Owner: Pair 2 (Person B). Shapes of real replies from the live tests on OpenShift (Llama 3.2 3B), now English only.
 import { beforeAll, describe, expect, it } from 'vitest';
-import { resetDb } from '../domain/store';
+import { db, resetDb } from '../domain/store';
 import { runAutopilot } from './autopilot';
-import { snapshot } from './boardroom';
 import { cfoFacts } from './facts';
 import { findInventedNumbers, mentionsKeyFact, numberValues } from './numberGuard';
 
+/** All rule output a reply may use: every CFO's facts and conclusion, plus the open cards. */
 let facts = '';
 beforeAll(async () => {
   resetDb();
-  await runAutopilot(); // open cards go into the snapshot, like in the live app
-  facts = snapshot();
+  await runAutopilot();
+  facts = [
+    ...(['marek', 'anna', 'tomasz', 'kasia'] as const).flatMap((c) => [...cfoFacts(c).lines, cfoFacts(c).summary]),
+    ...db.actions.map((a) => a.title),
+  ].join('\n');
 });
 
 describe('numberValues', () => {
-  it('reads Polish, English and broken formats', () => {
+  it('reads Polish-style, English and broken number formats', () => {
     expect(numberValues('14 230,00')).toContain(14230);
-    expect(numberValues('14 230,00')).toContain(14230);
+    expect(numberValues('14\u00a0230,00')).toContain(14230);
     expect(numberValues('12,300.00')).toContain(12300);
     expect(numberValues('36,000,00')).toContain(36000);
     expect(numberValues('4,27')).toContain(4.27);
@@ -27,26 +30,24 @@ describe('numberValues', () => {
 
 describe('findInventedNumbers (live replies)', () => {
   it('catches a sum the model calculated itself', () => {
-    const anna = 'Auto-Serwis Nowak może stracić 14 230,00 zł za VAT i 36 000,00 zł za pożyczkę. To jest 50 230,00 zł.';
+    const anna = 'Auto-Serwis Nowak could lose 14 230,00 zł for VAT and 36 000,00 zł for the loan. That is 50 230,00 zł.';
     expect(findInventedNumbers(anna, facts)).toEqual(['50 230,00']);
   });
 
   it('catches an invented amount, keeps a real rate from the trend', () => {
     // 4,22 zł is in the data (EUR 4 weeks ago); 210,10 zł is not
-    const kasia = 'Jeśli chcesz kupić 1500 EUR za 4,27 zł, to 5% wzrostu kursu to 320,25 zł. Za 4,22 zł to 210,10 zł.';
+    const kasia = 'If you buy 1500 EUR at 4,27 zł, a 5% rise costs you 320,25 zł. At 4,22 zł it is 210,10 zł.';
     expect(findInventedNumbers(kasia, facts)).toEqual(['210,10']);
-    expect(findInventedNumbers('EUR kosztuje 4,35 zł.', facts)).toEqual(['4,35']);
+    expect(findInventedNumbers('EUR costs 4,35 zł.', facts)).toEqual(['4,35']);
   });
 
   it('catches an invented date written with a month name', () => {
-    const marek = 'VAT jest do 25 listopada, a KSeF-rejestracja do 20 listopada.';
-    expect(findInventedNumbers(marek, facts)).toEqual(['20 listopada']);
-    // live reply, Polish ordinal with a dot
-    expect(findInventedNumbers('VAT do dnia 25. listopada, KSeF do dnia 20. listopada.', facts)).toEqual(['20. listopada']);
+    expect(findInventedNumbers('VAT is due on November 25, and the KSeF fix on November 22.', facts)).toEqual(['November 22']);
+    expect(findInventedNumbers('VAT by the 25th of November, KSeF by the 22nd of November.', facts)).toEqual(['22nd of November']);
   });
 
   it('lets through a correct answer, even with English number formats', () => {
-    const marek = 'Wartość VAT to 14 230,00 zł, termin 25.11 (za 5 dni).';
+    const marek = 'VAT is 14 230,00 zł, due 25.11 (in 5 days).';
     const anna = 'You have 38,400.00 zł today, the lowest point is -20,275.00 zł on 2026-12-20.';
     const tomasz = "You're missing 1700,00 zł on 3 orders: 800,00 zł for VW Passat 2015, 600,00 zł for Ford Transit 2018.";
     expect(findInventedNumbers(marek, facts)).toEqual([]);
@@ -54,10 +55,10 @@ describe('findInventedNumbers (live replies)', () => {
     expect(findInventedNumbers(tomasz, facts)).toEqual([]);
   });
 
-  it('small counts and percents are free, the question counts as facts', () => {
+  it('small counts and percents are free; the question counts only when the caller adds it', () => {
     expect(findInventedNumbers('Pay within 3 days, 2 invoices, 5% risk.', facts)).toEqual([]);
-    expect(findInventedNumbers('Za 5000 zł nie kupisz podnośnika.', `${facts}\nCzy 5000 zł wystarczy?`)).toEqual([]);
-    expect(findInventedNumbers('Za 5000 zł nie kupisz podnośnika.', facts)).toEqual(['5000']);
+    expect(findInventedNumbers('You cannot buy a lift for 5000 zł.', `${facts}\nIs 5000 zł enough?`)).toEqual([]);
+    expect(findInventedNumbers('You cannot buy a lift for 5000 zł.', facts)).toEqual(['5000']);
   });
 
   it('catches an invented ISO date', () => {
@@ -67,50 +68,50 @@ describe('findInventedNumbers (live replies)', () => {
 
 describe('findInventedNumbers: percents are checked as percents', () => {
   const factsOf = (cfo: 'kasia' | 'tomasz') => {
-    const f = cfoFacts(cfo, 'pl');
+    const f = cfoFacts(cfo);
     return [...f.lines, f.summary].join('\n');
   };
 
   it('catches an invented percent even when the bare number is in the facts (live reply)', () => {
-    // Kasia's facts say "4 tygodnie temu" and "5%"; the rate went 4,22 → 4,27 zł, not up 4%
-    expect(findInventedNumbers('Kurs euro w ciągu ostatnich czterech tygodni wzrósł o 4%.', factsOf('kasia'))).toEqual(['4%']);
-    expect(findInventedNumbers('EUR wzrosło o 4,5%.', factsOf('kasia'))).toEqual(['4,5%']);
+    // Kasia's facts say "4 weeks ago" and "5%"; the rate went 4,22 → 4,27 zł, not up 4%
+    expect(findInventedNumbers('Over the last four weeks the euro rate rose 4%.', factsOf('kasia'))).toEqual(['4%']);
+    expect(findInventedNumbers('EUR went up 4,5%.', factsOf('kasia'))).toEqual(['4,5%']);
   });
 
   it('a percent from the facts passes, in any format the small model uses', () => {
     const kasia = factsOf('kasia');
-    expect(findInventedNumbers('Jeśli euro podrożeje o 5%, stracisz 320,25 zł.', kasia)).toEqual([]);
-    expect(findInventedNumbers('Przy 5 % wzrostu stracisz 320,25 zł.', kasia)).toEqual([]);
-    expect(findInventedNumbers('5-procentowy wzrost kursu to strata 320,25 zł.', kasia)).toEqual([]);
-    expect(findInventedNumbers('Wzrost o 5 procent kosztuje 320,25 zł.', kasia)).toEqual([]);
+    expect(findInventedNumbers('If the euro rises 5%, you lose 320,25 zł.', kasia)).toEqual([]);
+    expect(findInventedNumbers('With a 5 % rise you lose 320,25 zł.', kasia)).toEqual([]);
+    expect(findInventedNumbers('A 5-percent rise costs you 320,25 zł.', kasia)).toEqual([]);
+    expect(findInventedNumbers('A rise of 5 percent costs you 320,25 zł.', kasia)).toEqual([]);
   });
 
   it('small counts and days stay free', () => {
-    expect(findInventedNumbers('Za 4 tygodnie, 3 zlecenia, za 5 dni.', factsOf('kasia'))).toEqual([]);
+    expect(findInventedNumbers('In 4 weeks, 3 orders, in 5 days.', factsOf('kasia'))).toEqual([]);
   });
 
   it("Tomasz: a percent from his facts passes, a made-up one is caught", () => {
-    const tomasz = factsOf('tomasz'); // "poniżej 25%", "26% wszystkich kosztów"
-    expect(findInventedNumbers('Narzut na części jest poniżej 25%, a części to 26% kosztów.', tomasz)).toEqual([]);
-    expect(findInventedNumbers('Ustaw narzut 30% na części.', tomasz)).toEqual(['30%']);
+    const tomasz = factsOf('tomasz'); // "below 25%", "26% of all costs"
+    expect(findInventedNumbers('The parts markup is below 25%, and parts are 26% of all costs.', tomasz)).toEqual([]);
+    expect(findInventedNumbers('Set a 30% markup on parts.', tomasz)).toEqual(['30%']);
   });
 });
 
 describe('mentionsKeyFact (live replies on the test instance)', () => {
   const factsOf = (cfo: 'kasia' | 'tomasz' | 'marek' | 'anna') => {
-    const f = cfoFacts(cfo, 'pl');
+    const f = cfoFacts(cfo);
     return [...f.lines, f.summary].join('\n');
   };
 
   it('a reply with a money amount or an invoice number from the facts uses the facts', () => {
-    expect(mentionsKeyFact('Jeśli EUR podrożeje o 5%, stracisz 320,25 zł.', factsOf('kasia'))).toBe(true);
-    expect(mentionsKeyFact('Masz na koncie 38 400,00 zł.', factsOf('anna'))).toBe(true);
-    expect(mentionsKeyFact('Popraw dane nabywcy na fakturze FV/2026/11/009.', factsOf('marek'))).toBe(true);
+    expect(mentionsKeyFact('If EUR rises 5%, you lose 320,25 zł.', factsOf('kasia'))).toBe(true);
+    expect(mentionsKeyFact('You have 38 400,00 zł in the bank.', factsOf('anna'))).toBe(true);
+    expect(mentionsKeyFact('Fix the buyer data on invoice FV/2026/11/009.', factsOf('marek'))).toBe(true);
   });
 
   it('generic talk or only a rate does not', () => {
-    expect(mentionsKeyFact('Kurs euro nie jest problemem, bo rośnie. Dziś kurs 4,27 zł, 4 tygodnie temu 4,22 zł.', factsOf('kasia'))).toBe(false);
-    expect(mentionsKeyFact('Możesz obciąć koszty za robociznę albo za części.', factsOf('tomasz'))).toBe(false);
+    expect(mentionsKeyFact('The euro is not a problem because it is rising. Today the rate is 4,27 zł, 4 weeks ago 4,22 zł.', factsOf('kasia'))).toBe(false);
+    expect(mentionsKeyFact('You can cut labour costs or parts costs.', factsOf('tomasz'))).toBe(false);
   });
 });
 

@@ -7,23 +7,21 @@ const MAX_FREE_INTEGER = 31;
 const TOLERANCE = 0.006; // 320,25 vs 320.25 → same number
 
 const MONTHS: Record<string, number> = {
-  stycznia: 1, lutego: 2, marca: 3, kwietnia: 4, maja: 5, czerwca: 6,
-  lipca: 7, sierpnia: 8, września: 9, wrzesnia: 9, października: 10, pazdziernika: 10, listopada: 11, grudnia: 12,
   january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
   july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
 };
 const MONTH_RE = Object.keys(MONTHS).join('|');
 
-// "2026-12-20" · "20 listopada" / "20. listopada" / "20th of November" · "November 25th"
+// "2026-12-20" · "20 November" / "20th of November" · "November 25th"
 const ISO_DATE = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
 // An explicit year after the date is kept and checked: "November 25, 2099" is invented when the data says 2026.
 const DAY_MONTH = new RegExp(`\\b(\\d{1,2})(?:\\.|st|nd|rd|th)?\\s+(?:of\\s+)?(${MONTH_RE})(?:,?\\s+(\\d{4}))?\\b`, 'gi');
 const MONTH_DAY = new RegExp(`\\b(${MONTH_RE})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,?\\s+(\\d{4}))?\\b`, 'gi');
 // A number: "14 230,00" (space groups must have exactly 3 digits), "12,300.00", "4,27", "1500".
-// A percent: "5%", "5 %", "4,5%", "5 procent", "5-procentowy", "5 proc.", "5 percent". Checked AS A PERCENT:
+// A percent: "5%", "5 %", "4,5%", "5 percent", "5 per cent". Checked AS A PERCENT:
 // "4%" is invented even when the facts say "4 tygodnie", and it is never a free small number.
 // The sign is kept: "-5%" and "−5%" (Unicode minus) are a fall, "+5%" a rise.
-const PERCENT = /([-−+]\s?)?(\d+(?:[.,]\d+)?)\s*(?:%|-?\s*procent\w*|proc\.|percent\b)/gi;
+const PERCENT = /([-−+]\s?)?(\d+(?:[.,]\d+)?)\s*(?:%|-?\s*percent\b|\s*per cent\b)/gi;
 const percentValue = (raw: string) => Number(raw.replace(',', '.'));
 
 /**
@@ -34,8 +32,8 @@ const percentValue = (raw: string) => Number(raw.replace(',', '.'));
  * Only the percent's own clause counts, so "EUR is rising, so a 5% depreciation …" is a depreciation.
  * When the subject of the move is the złoty ("if the złoty weakens 5%"), the euro moves the other way.
  */
-const UP = /^(?:rise|rises|rising|rose|risen|up|increase|increases|increased|increasing|grow|grows|growing|grew|higher|stronger|strengthen|strengthens|strengthened|strengthening|appreciate|appreciates|appreciated|appreciating|appreciation|gain|gains|gained|climb|climbs|climbed|jump|jumps|jumped|surge|surges|surged|podroż\p{L}*|wzro\p{L}*|wzroś\p{L}*|rośnie|rosnie|umocni\p{L}*)$/iu;
-const DOWN = /^(?:fall|falls|falling|fell|fallen|drop|drops|dropping|dropped|down|decrease|decreases|decreased|decreasing|decline|declines|declined|declining|lower|weaker|weaken|weakens|weakened|weakening|depreciate|depreciates|depreciated|depreciating|depreciation|slide|slides|slid|sink|sinks|sank|loses|lost|slump|slumps|slumped|dip|dips|dipped|plunge|plunges|plunged|tumble|tumbles|tumbled|stanie\p{L}*|spad\p{L}*|tanieje|osłab\p{L}*)$/iu;
+const UP = /^(?:rise|rises|rising|rose|risen|up|increase|increases|increased|increasing|grow|grows|growing|grew|higher|stronger|strengthen|strengthens|strengthened|strengthening|appreciate|appreciates|appreciated|appreciating|appreciation|gain|gains|gained|climb|climbs|climbed|jump|jumps|jumped|surge|surges|surged)$/iu;
+const DOWN = /^(?:fall|falls|falling|fell|fallen|drop|drops|dropping|dropped|down|decrease|decreases|decreased|decreasing|decline|declines|declined|declining|lower|weaker|weaken|weakens|weakened|weakening|depreciate|depreciates|depreciated|depreciating|depreciation|slide|slides|slid|sink|sinks|sank|loses|lost|slump|slumps|slumped|dip|dips|dipped|plunge|plunges|plunged|tumble|tumbles|tumbled)$/iu;
 const dirOf = (word: string) => (UP.test(word) ? 1 : DOWN.test(word) ? -1 : 0);
 const PCT_CLAUSE = /[.;:!?,](?=\s|$)|\b(?:and|but|so|while|whereas|although|though|then|yet)\b/i;
 /** First currency NAME in the clause (not an amount unit like "1500 EUR" or "320,25 zł"): is it the złoty? */
@@ -75,7 +73,7 @@ function currencyOf(unit?: string): string {
  * "2 tys. zł", "1,5 mln". Any of them → the whole reply falls back (review of 8d96df5: "Add a fee of 17,-." and
  * "fifteen thousand euro" passed next to a true VAT figure).
  */
-const NUM_WORD = '(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|dozen|jeden|dwa|trzy|cztery|pięć|piec|sześć|szesc|siedem|osiem|dziewięć|dziewiec|dziesięć|dziesiec|sto|tysiąc|tysiace|tysiące|tysięcy|tysiecy|milion\\p{L}*)';
+const NUM_WORD = '(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand|million|billion|dozen)';
 const MONEY_UNIT = '(?:zł|zl|złot\\p{L}*|zlot\\p{L}*|PLN|EUR|euros?|USD|dollars?|bucks|€|\\$)';
 const UNREADABLE_MONEY = [
   new RegExp(`(?<![\\p{L}])${NUM_WORD}(?:[\\s-]+(?:and[\\s-]+)?${NUM_WORD})*[\\s-]+${MONEY_UNIT}(?![\\p{L}])(?!\\s+(?:invoices?|rates?|exposure|contracts?|risk|position|bills?))`, 'giu'),
@@ -91,7 +89,7 @@ const fullKey = (year: number, month: number, day: number) => `${year}-${month}-
 const NEGATIVE_BEFORE = /(?:[-−]\s?|minus\s+)$/i;
 /** A negative told in words: "a negative balance of 20 275,00 zł", "20 275,00 zł below zero / in the red". */
 const NEGATIVE_WORDS_BEFORE = /\b(?:negative|ujemn\w*)(?:\s+(?:balance|saldo))?(?:\s+(?:of|wynosi|do))?\s+$/i;
-const NEGATIVE_WORDS_AFTER = /^\s*(?:zł|PLN)?\s*(?:below zero|in the red|in minus|pod kreską|na minusie)/i;
+const NEGATIVE_WORDS_AFTER = /^\s*(?:zł|PLN)?\s*(?:below zero|in the red|in minus)/i;
 
 /** All dates in a text: "month-day" keys, plus "year-month-day" keys when the year is written. */
 interface Dates { md: Set<string>; full: Set<string>; mdNoYear: Set<string> }
@@ -182,7 +180,7 @@ function asDayMonth(raw: string): { md: string; full?: string } | null {
  * Numbers and dates in `reply` that are not in `facts` (ONLY the rule output sent to the model: never the owner's
  * question or the meeting topic, they cannot make a number true). Also invented: a known amount with the wrong
  * sign ("20 275 zł" for a forecast of -20 275 zł) and a known day with a wrong year ("November 25, 2099").
- * Returns the offending pieces of text, e.g. ["50 230,00", "20 listopada"]. Empty list = the reply is safe.
+ * Returns the offending pieces of text, e.g. ["50 230,00", "December 24"]. Empty list = the reply is safe.
  */
 export function findInventedNumbers(reply: string, facts: string): string[] {
   const known = scan(facts);
@@ -242,8 +240,8 @@ const INVOICE_NO = /\bFV\/[\w/]+/g;
 
 /**
  * True when the reply actually uses the facts: at least one money amount (≥ 100) from the facts, or an invoice
- * number from the facts. Live test: "Jak obciąć koszty?" got generic talk with no numbers, and "Kurs euro nie jest
- * problemem" quoted only the rate; such replies are replaced by the rule conclusion.
+ * number from the facts. Live test: "How can I cut costs?" got generic talk with no numbers, and "The euro is not
+ * a problem" quoted only the rate; such replies are replaced by the rule conclusion.
  */
 export function mentionsKeyFact(reply: string, facts: string): boolean {
   const amounts = (text: string) =>

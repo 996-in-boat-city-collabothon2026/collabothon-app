@@ -1,7 +1,9 @@
-// Owner: Pair 2. ONE check for every model reply an agent shows: /api/ask and each conference turn.
+// Owner: Pair 2. ONE check for every model reply an agent shows: /api/ask, each conference turn and the chair.
+// The app is English only. The Polish detector below is a GUARD, not Polish support: the model (and the Polish seed
+// names and labels it reads) can still slip into Polish, and such a reply must never reach the English UI.
 // A reply is shown only when it passes all of it; otherwise the caller shows the agent's rule conclusion.
 import { db } from '../domain/store';
-import type { CfoFacts, Lang } from './facts';
+import type { CfoFacts } from './facts';
 import { findInventedNumbers } from './numberGuard';
 import { claimsDone, falseCalm, myMoney } from './text';
 
@@ -110,8 +112,8 @@ export const factText = (facts: CfoFacts) => [...facts.lines, facts.summary].joi
  * `alsoKnown` = other rule text already shown (the conference: earlier, checked turns). Live, Anna repeated
  * Marek's "VAT 14 230,00 zł", a true rule number that is not in her own facts, and her whole turn was dropped.
  */
-export function replyProblem(text: string, facts: CfoFacts, lang: Lang, onTopic: (text: string) => boolean, alsoKnown = ''): string {
-  const problem = textProblem(text, [factText(facts), alsoKnown].join('\n'), lang);
+export function replyProblem(text: string, facts: CfoFacts, onTopic: (text: string) => boolean, alsoKnown = ''): string {
+  const problem = textProblem(text, [factText(facts), alsoKnown].join('\n'));
   if (problem) return problem;
   if (!onTopic(text)) return 'no key fact of its own';
   if (facts.misread?.(text)) return 'known misread';
@@ -122,9 +124,9 @@ export function replyProblem(text: string, facts: CfoFacts, lang: Lang, onTopic:
  * The checks every shown model text passes, also the chair's summary (which has no facts of its own, only `known`):
  * language, numbers / amounts / percent direction only from `known`, nothing "done", no false calm, not "my money".
  */
-export function textProblem(text: string, known: string, lang: Lang): string {
+export function textProblem(text: string, known: string): string {
   if (!text) return 'empty';
-  if (lang === 'en' && looksPolish(text)) return 'not in English';
+  if (looksPolish(text)) return 'not in English';
   const invented = findInventedNumbers(text, known);
   if (invented.length) return `invented ${JSON.stringify(invented)}`;
   if (claimsDone(text)) return 'claims something was done'; // golden rule 3

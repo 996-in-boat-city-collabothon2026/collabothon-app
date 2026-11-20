@@ -13,7 +13,7 @@ describe('personas', () => {
     expect(p).toContain(HATS[CFOS[cfo].hat].label.toLowerCase());
     expect(p).toContain('Copy amounts and dates EXACTLY');
     expect(p).toContain('Max 3 short sentences');
-    expect(p).toContain('Always answer in English, even when the owner writes in Polish');
+    expect(p).toContain('Always answer in English.');
   });
 
   it('no persona mentions another CFO hat', () => {

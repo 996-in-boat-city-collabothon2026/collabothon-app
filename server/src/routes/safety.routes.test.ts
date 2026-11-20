@@ -21,9 +21,9 @@ let calls = 0;
 const isChair = (m: ChatMessage[]) => m[0].content.includes('Reply ONLY with JSON');
 const speaker = (m: ChatMessage[]): CfoId | undefined =>
   (['marek', 'anna', 'tomasz', 'kasia'] as CfoId[]).find((c) => m[0].content.includes(`You are ${c[0].toUpperCase()}${c.slice(1)}`));
-const rule = (cfo: CfoId) => cfoFacts(cfo, 'en').summary;
+const rule = (cfo: CfoId) => cfoFacts(cfo).summary;
 const chairFallback = () =>
-  ruleSummary(db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL'), 'en');
+  ruleSummary(db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL'));
 
 async function post<T>(url: string, payload: object): Promise<{ status: number; body: T }> {
   const app = Fastify();
@@ -55,48 +55,48 @@ interface Case { name: string; question: string; cfo: CfoId; text: string; befor
 
 const UNSAFE: Case[] = [
   // 1. a completed action that did not happen (VAT is unpaid on the seed)
-  { name: 'done: "got paid"', question: 'Ile VAT?', cfo: 'marek', text: 'VAT of 14,230 zł got paid.' },
+  { name: 'done: "got paid"', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT of 14,230 zł got paid.' },
   { name: 'done: "went out"', question: 'Will I have enough cash?', cfo: 'anna', text: 'The reminder to FlotaTrans Sp. z o.o. for 12 300,00 zł went out.' },
-  { name: 'done: "is complete"', question: 'Ile VAT?', cfo: 'marek', text: 'The payment of VAT of 14,230 zł is complete.' },
-  { name: 'done: "was paid yesterday" (kept)', question: 'Ile VAT?', cfo: 'marek', text: 'VAT of 14,230 zł was paid yesterday.' },
+  { name: 'done: "is complete"', question: 'How much VAT do I owe?', cfo: 'marek', text: 'The payment of VAT of 14,230 zł is complete.' },
+  { name: 'done: "was paid yesterday" (kept)', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT of 14,230 zł was paid yesterday.' },
   // 2. invented money in formats the validator cannot read, next to a true figure
-  { name: 'money: number words', question: 'Ile VAT?', cfo: 'marek', text: 'VAT is 14,230 zł. Add a fee of fifteen thousand euro.' },
-  { name: 'money: "17,-"', question: 'Ile VAT?', cfo: 'marek', text: 'VAT is 14,230 zł. Add a fee of 17,-.' },
-  { name: 'money: "15k zł"', question: 'Ile VAT?', cfo: 'marek', text: 'VAT is 14,230 zł. Add a fee of 15k zł.' },
-  { name: 'money: wrong currency', question: 'Ile VAT?', cfo: 'marek', text: 'VAT is 14,230 EUR, due on November 25, 2026.' },
-  { name: 'money: invented 17 zł (kept)', question: 'Ile VAT?', cfo: 'marek', text: 'VAT is 14,230 zł. The late fee is 17 zł.' },
+  { name: 'money: number words', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14,230 zł. Add a fee of fifteen thousand euro.' },
+  { name: 'money: "17,-"', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14,230 zł. Add a fee of 17,-.' },
+  { name: 'money: "15k zł"', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14,230 zł. Add a fee of 15k zł.' },
+  { name: 'money: wrong currency', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14,230 EUR, due on November 25, 2026.' },
+  { name: 'money: invented 17 zł (kept)', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14,230 zł. The late fee is 17 zł.' },
   // 3. the FX move in the wrong direction (the shop owes EUR: the loss comes from EUR appreciation)
-  { name: 'FX: "depreciation"', question: 'Czy kurs euro to problem?', cfo: 'kasia', text: 'A 5% depreciation would cost you 320,25 zł.' },
-  { name: 'FX: "weakens"', question: 'Czy kurs euro to problem?', cfo: 'kasia', text: 'If the euro weakens by 5%, you lose 320,25 zł.' },
-  { name: 'FX: "złoty strengthens"', question: 'Czy kurs euro to problem?', cfo: 'kasia', text: 'If the złoty strengthens 5%, you lose 320,25 zł.' },
-  { name: 'FX: two clauses, second wrong', question: 'Czy kurs euro to problem?', cfo: 'kasia', text: 'EUR is rising, so a 5% depreciation would cost you 320,25 zł.' },
-  { name: 'FX: "-5%" (kept)', question: 'Czy kurs euro to problem?', cfo: 'kasia', text: 'A -5% change would cost you 320,25 zł.' },
+  { name: 'FX: "depreciation"', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'A 5% depreciation would cost you 320,25 zł.' },
+  { name: 'FX: "weakens"', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'If the euro weakens by 5%, you lose 320,25 zł.' },
+  { name: 'FX: "złoty strengthens"', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'If the złoty strengthens 5%, you lose 320,25 zł.' },
+  { name: 'FX: two clauses, second wrong', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'EUR is rising, so a 5% depreciation would cost you 320,25 zł.' },
+  { name: 'FX: "-5%" (kept)', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'A -5% change would cost you 320,25 zł.' },
   // 4. Polish, also without diacritics or mixed into English
-  { name: 'Polish: no diacritics', question: 'Ile VAT?', cfo: 'marek', text: 'VAT to 14 230 zł. Zaplac go.' },
-  { name: 'Polish: mixed instruction', question: 'Ile VAT?', cfo: 'marek', text: 'VAT is 14 230,00 zł, zaplac do 25 listopada.' },
-  { name: 'Polish: short ambiguous', question: 'Ile VAT?', cfo: 'marek', text: 'VAT 14 230 zł.' },
-  { name: 'Polish: diacritics (kept)', question: 'Ile VAT?', cfo: 'marek', text: 'Podatek VAT wynosi 14 230 zł.' },
+  { name: 'Polish: no diacritics', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT to 14 230 zł. Zaplac go.' },
+  { name: 'Polish: mixed instruction', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14 230,00 zł, zaplac do 25 listopada.' },
+  { name: 'Polish: short ambiguous', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT 14 230 zł.' },
+  { name: 'Polish: diacritics (kept)', question: 'How much VAT do I owe?', cfo: 'marek', text: 'Podatek VAT wynosi 14 230 zł.' },
 ];
 
 const SAFE: Case[] = [
-  { name: 'done: negation', question: 'Ile VAT?', cfo: 'marek', text: 'VAT of 14,230 zł has not been paid yet, it is due on November 25, 2026.' },
-  { name: 'done: proposal', question: 'Ile VAT?', cfo: 'marek', text: 'We can send reminders about VAT of 14,230 zł before November 25, 2026.' },
-  { name: 'done: hypothetical', question: 'Ile VAT?', cfo: 'marek', text: 'Once VAT of 14,230 zł is paid, the deadline of November 25, 2026 is met.' },
-  { name: 'money: supported formats', question: 'Ile VAT?', cfo: 'marek', text: 'VAT is 14.230,00 PLN, written also as 14,230 zł, due on November 25, 2026.' },
+  { name: 'done: negation', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT of 14,230 zł has not been paid yet, it is due on November 25, 2026.' },
+  { name: 'done: proposal', question: 'How much VAT do I owe?', cfo: 'marek', text: 'We can send reminders about VAT of 14,230 zł before November 25, 2026.' },
+  { name: 'done: hypothetical', question: 'How much VAT do I owe?', cfo: 'marek', text: 'Once VAT of 14,230 zł is paid, the deadline of November 25, 2026 is met.' },
+  { name: 'money: supported formats', question: 'How much VAT do I owe?', cfo: 'marek', text: 'VAT is 14.230,00 PLN, written also as 14,230 zł, due on November 25, 2026.' },
   {
     name: 'money: a small fee that is in the facts',
-    question: 'Ile VAT?',
+    question: 'How much VAT do I owe?',
     cfo: 'marek',
     text: 'VAT is 17 zł, due on November 25, 2026. Invoice FV/2026/11/009 must be fixed and sent again.',
     before: () => {
       db.obligations.find((o) => o.id === 'ob-vat-10')!.amountPLN = 17;
     },
   },
-  { name: 'FX: appreciation', question: 'Czy kurs euro to problem?', cfo: 'kasia', text: 'A 5% appreciation of the euro would cost you 320,25 zł on the 1500 EUR you owe.' },
-  { name: 'FX: złoty weakens', question: 'Czy kurs euro to problem?', cfo: 'kasia', text: 'If the złoty weakens 5% against the euro, you lose 320,25 zł on 1500 EUR.' },
-  { name: 'FX: neutral "5% risk"', question: 'Czy kurs euro to problem?', cfo: 'kasia', text: 'There is a 5% risk on the 1500 EUR you owe: up to 320,25 zł.' },
-  { name: 'English: names and zł', question: 'Czy starczy mi gotówki?', cfo: 'anna', text: 'Kurier Express Kraków owes you 7 380,00 zł and FlotaTrans Sp. z o.o. owes you 12 300,00 zł: remind them before the balance drops to -20 275,00 zł.' },
-  { name: 'English: short', question: 'Ile VAT?', cfo: 'marek', text: 'Pay VAT of 14 230,00 zł by November 25, 2026.' },
+  { name: 'FX: appreciation', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'A 5% appreciation of the euro would cost you 320,25 zł on the 1500 EUR you owe.' },
+  { name: 'FX: złoty weakens', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'If the złoty weakens 5% against the euro, you lose 320,25 zł on 1500 EUR.' },
+  { name: 'FX: neutral "5% risk"', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'There is a 5% risk on the 1500 EUR you owe: up to 320,25 zł.' },
+  { name: 'English: names and zł', question: 'Will I have enough cash?', cfo: 'anna', text: 'Kurier Express Kraków owes you 7 380,00 zł and FlotaTrans Sp. z o.o. owes you 12 300,00 zł: remind them before the balance drops to -20 275,00 zł.' },
+  { name: 'English: short', question: 'How much VAT do I owe?', cfo: 'marek', text: 'Pay VAT of 14 230,00 zł by November 25, 2026.' },
 ];
 
 describe('POST /api/ask: unsafe → exact English rule fallback, HTTP 200, one model call', () => {
@@ -172,7 +172,7 @@ describe('FX direction after settling Krause (the shop is owed EUR: the loss com
   ])('unsafe: %s', async (text) => {
     settle();
     reply = () => text;
-    expect((await ask('Czy kurs euro to problem?')).body.text).toBe(rule('kasia'));
+    expect((await ask('Is the euro rate a problem?')).body.text).toBe(rule('kasia'));
     reply = (m) => (speaker(m) === 'kasia' ? text : '');
     expect((await conference()).body.turns[3].text).toBe(rule('kasia'));
   });
@@ -183,22 +183,22 @@ describe('FX direction after settling Krause (the shop is owed EUR: the loss com
     settle();
     expect(rule('kasia')).toMatch(/If EUR falls 5%/);
     reply = () => text;
-    expect((await ask('Czy kurs euro to problem?')).body.text).toBe(text);
+    expect((await ask('Is the euro rate a problem?')).body.text).toBe(text);
   });
 });
 
 describe('every seeded English rule text passes its own safety check', () => {
   it('fact lines, summaries, card titles and explanations', () => {
     for (const cfo of ['marek', 'anna', 'tomasz', 'kasia'] as CfoId[]) {
-      const f = cfoFacts(cfo, 'en');
+      const f = cfoFacts(cfo);
       const known = [...f.lines, f.summary].join('\n');
-      for (const line of [...f.lines, f.summary]) expect([cfo, line, textProblem(line, known, 'en')]).toEqual([cfo, line, '']);
+      for (const line of [...f.lines, f.summary]) expect([cfo, line, textProblem(line, known)]).toEqual([cfo, line, '']);
     }
     for (const a of db.actions) {
       for (const t of [a.title, a.explanation ?? '']) if (t) expect([t, looksPolish(t)]).toEqual([t, false]);
       if (a.explanation) {
-        const known = [...cfoFacts(a.cfo, 'en').lines, cfoFacts(a.cfo, 'en').summary, a.explanation].join('\n');
-        expect([a.explanation, textProblem(a.explanation, known, 'en')]).toEqual([a.explanation, '']);
+        const known = [...cfoFacts(a.cfo).lines, cfoFacts(a.cfo).summary, a.explanation].join('\n');
+        expect([a.explanation, textProblem(a.explanation, known)]).toEqual([a.explanation, '']);
       }
     }
   });

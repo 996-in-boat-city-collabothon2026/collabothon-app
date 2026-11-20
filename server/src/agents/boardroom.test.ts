@@ -6,9 +6,9 @@ import { config } from '../config';
 import { setModelCallForTests } from '../llm/provider';
 import { db, resetDb } from '../domain/store';
 import { runAutopilot } from './autopilot';
-import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, snapshot, TURN_MAX_TOKENS, TURN_MAX_WORDS } from './boardroom';
+import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, TURN_MAX_TOKENS, TURN_MAX_WORDS } from './boardroom';
 import { cfoFacts } from './facts';
-import { explain, explainPL } from './explain';
+import { explain } from './explain';
 import { claimsDone, falseCalm, myMoney, wholeSentences } from './text';
 import { fixCurrencyPair, looksPolish } from './safety';
 
@@ -36,34 +36,22 @@ afterAll(() => {
 
 describe('wholeSentences', () => {
   it('keeps whole sentences within the limit, keeps dates whole, never ends mid-word', () => {
-    expect(wholeSentences('Jedno zdanie. Drugie zdanie. Trzecie zda', 10)).toBe('Jedno zdanie. Drugie zdanie.');
-    expect(wholeSentences('Saldo 38 400,00 zł. Bufor 15 000,00 zł.', 4)).toBe('Saldo 38 400,00 zł.');
-    expect(wholeSentences('Saldo spadnie 20.12.2026 do zera. Uwaga.', 20)).toBe('Saldo spadnie 20.12.2026 do zera. Uwaga.');
-    expect(wholeSentences('bardzo długie zdanie bez kropki które się urwało w poło', 5)).toBe('bardzo długie zdanie bez kropki…');
+    expect(wholeSentences('One sentence. Second sentence. Third sen', 10)).toBe('One sentence. Second sentence.');
+    expect(wholeSentences('Balance 38 400,00 zł. Buffer 15 000,00 zł.', 4)).toBe('Balance 38 400,00 zł.');
+    expect(wholeSentences('The balance drops to zero on 20.12.2026. Careful.', 20)).toBe('The balance drops to zero on 20.12.2026. Careful.');
+    expect(wholeSentences('a very long sentence without a full stop that got cut in the mid', 5)).toBe('a very long sentence without…');
     expect(wholeSentences('', 5)).toBe('');
   });
 });
 
-describe('snapshot (Polish, labelled numbers from the rules)', () => {
-  it('has the seed numbers with clear labels', async () => {
-    await runAutopilot();
-    const s = snapshot();
-    expect(s).toMatch(/Saldo dziś: 38\s400,00\szł/);
-    expect(s).toMatch(/Najniższe saldo w prognozie \(2026-12-20\): -20\s275,00\szł\. To prognoza/);
-    expect(s).toMatch(/Ryzyko EUR przy \+5%: 320,25\szł/);
-    expect(s).toMatch(/linia kredytowa \(czeka na zgodę właściciela\), kwota 36\s000,00\szł/);
-    expect(s).not.toMatch(/credit line|safety buffer|Bank balance/i);
-  });
-});
-
-const en = (c: CfoId) => cfoFacts(c, 'en').summary;
+const en = (c: CfoId) => cfoFacts(c).summary;
 const persona = (m: ChatMessage[], c: CfoId) => m[0].content.includes(`You are ${c[0].toUpperCase()}${c.slice(1)}`);
 
 describe('conference: English on stage, prompts and limits', () => {
-  it('Polish topic → each turn still gets English facts and must answer in English; 120 tokens, temperature 0.1', async () => {
+  it('each turn gets only its own English facts and must answer in English; 120 tokens, temperature 0.1', async () => {
     await runAutopilot();
     sent.length = 0;
-    await runBoardroom('Czy przeżyjemy grudzień?');
+    await runBoardroom('Will the cash last through December?');
     const turns = sent.filter((c) => !isChair(c.m));
     expect(turns).toHaveLength(4);
     turns.forEach((c, i) => {
@@ -128,7 +116,7 @@ describe('conference: the same safeguards as /api/ask', () => {
     expect(text('kasia')).toBe(en('kasia')); // "4,5%" is not in Kasia's facts
     expect(text('tomasz')).toBe('You are missing 1700,00 zł on labour. Bill the full hours.'); // real number, kept
     const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
-    expect(r.summary).toBe(ruleSummary(approvals, 'en'));
+    expect(r.summary).toBe(ruleSummary(approvals));
   });
 
   it('a Polish turn, a repeated colleague, a done-claim, false calm or a flipped sign → rule conclusion', async () => {
@@ -169,7 +157,7 @@ describe('conference: the same safeguards as /api/ask', () => {
   });
 
   it('Marek\'s English facts carry the KSeF reason in English', () => {
-    const lines = cfoFacts('marek', 'en').lines.join('\n');
+    const lines = cfoFacts('marek').lines.join('\n');
     expect(lines).toContain("Reason: the buyer's tax number (NIP) is wrong, it must have 10 digits");
     expect(looksPolish(lines)).toBe(false);
   });
@@ -178,7 +166,6 @@ describe('conference: the same safeguards as /api/ask', () => {
     expect(claimsDone('I suggest sending reminders and locking the rate.')).toBe(false);
     expect(claimsDone('The invoice must be sent again.')).toBe(false);
     expect(claimsDone('The reminders have been sent.')).toBe(true);
-    expect(claimsDone('Przypomnienia zostały wysłane.')).toBe(true);
     expect(falseCalm('You have nothing to lose.')).toBe(true);
     expect(falseCalm('You lose 320,25 zł if EUR rises.')).toBe(false);
   });
@@ -199,7 +186,7 @@ describe('conference: the same safeguards as /api/ask', () => {
         : '';
     const r = await runBoardroom();
     const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
-    expect(r.summary).toBe(ruleSummary(approvals, 'en'));
+    expect(r.summary).toBe(ruleSummary(approvals));
   });
 
   it('Kasia "EUR/USD rate" (live, only euro invoices) → "EUR rate", the rest of her turn is kept', async () => {
@@ -253,7 +240,7 @@ describe('conference: the same safeguards as /api/ask', () => {
     reply = (m) => (isChair(m) ? chair : '');
     const r = await runBoardroom();
     const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
-    expect(r.summary).toBe(ruleSummary(approvals, 'en'));
+    expect(r.summary).toBe(ruleSummary(approvals));
     expect(sent).toHaveLength(5); // 4 turns + chair, no extra model call
   });
 
@@ -282,7 +269,7 @@ describe('conference: the same safeguards as /api/ask', () => {
 
   it('one EUR rate: Kasia quotes it, no 4-week trend', async () => {
     db.fxRates = [...db.fxRates.filter((r) => r.currency !== 'EUR'), { currency: 'EUR', date: '2026-11-19', midPLN: 4.27 }];
-    const f = cfoFacts('kasia', 'en');
+    const f = cfoFacts('kasia');
     expect(f.lines.join('\n')).toMatch(/at the NBP rate 4,27 zł/);
     expect(f.lines.join('\n')).not.toMatch(/4 weeks ago/);
     expect(f.summary).not.toMatch(/going up/);
@@ -291,20 +278,20 @@ describe('conference: the same safeguards as /api/ask', () => {
 
 describe('approval explanations (autopilot)', () => {
   it('explanations are the English rule text, no model call (live: rephrasing added nonsense)', async () => {
-    reply = () => 'Sedno: Oto prognoza. Wszystkie kwoty muszą być zapłacone na naszą konto bankowe.';
+    reply = () => 'Sure: here is the forecast. All amounts must be paid into our bank account.';
     await runAutopilot();
     expect(sent).toHaveLength(0);
     const credit = db.actions.find((a) => a.kind === 'credit_line')!;
-    expect(credit.explanation).toBe(explain(credit, 'en'));
+    expect(credit.explanation).toBe(explain(credit));
     expect(credit.explanation).toMatch(/^Forecast: on December 20, 2026 the balance drops to -20\s275,00\szł, 35\s275,00\szł below your 15\s000,00\szł buffer/);
   });
 
-  it('every open approval card is explained in English (stage language), none in Polish', async () => {
+  it('every open approval card is explained in English, none in Polish', async () => {
     await runAutopilot();
     const open = db.actions.filter((x) => x.tier === 'NEEDS_APPROVAL' && x.status === 'open');
     expect(open.length).toBeGreaterThan(0);
     for (const a of open) {
-      expect(a.explanation).toBe(explain(a, 'en'));
+      expect(a.explanation).toBe(explain(a));
       expect(looksPolish(a.explanation!)).toBe(false);
     }
   });
@@ -312,18 +299,10 @@ describe('approval explanations (autopilot)', () => {
   it('English rule texts say the right thing for each card (seed)', async () => {
     await runAutopilot();
     const card = (kind: string) => db.actions.find((a) => a.kind === kind)!;
-    expect(explain(card('payment_reminder'), 'en')).toMatch(/^FlotaTrans .* is 15 days late paying you 12\s300,00\szł .* an email to the customer/);
-    expect(explain(card('tax_payment'), 'en')).toMatch(/^VAT for October \(JPK_V7M\): 14\s230,00\szł is due by November 25, 2026/);
-    expect(explain(card('supplier_payment'), 'en')).toMatch(/The EUR risk goes up from 320,25\szł to 448,35\szł/);
-    expect(explain(card('fx_hedge'), 'en')).toMatch(/you lose 320,25\szł/);
-  });
-
-  it('Polish rule texts are kept for a Polish UI', async () => {
-    await runAutopilot();
-    const card = (kind: string) => db.actions.find((a) => a.kind === kind)!;
-    expect(explainPL(card('payment_reminder'))).toMatch(/^Klient FlotaTrans .* spóźnia się 15 dni z zapłatą 12\s300,00\szł .* e-mail do klienta/);
-    expect(explainPL(card('tax_payment'))).toMatch(/^VAT za październik .*: 14\s230,00\szł trzeba zapłacić do 25\.11\.2026/);
-    expect(explainPL(card('supplier_payment'))).toMatch(/Ryzyko EUR wzrośnie z 320,25\szł do 448,35\szł/);
+    expect(explain(card('payment_reminder'))).toMatch(/^FlotaTrans .* is 15 days late paying you 12\s300,00\szł .* an email to the customer/);
+    expect(explain(card('tax_payment'))).toMatch(/^VAT for October \(JPK_V7M\): 14\s230,00\szł is due by November 25, 2026/);
+    expect(explain(card('supplier_payment'))).toMatch(/The EUR risk goes up from 320,25\szł to 448,35\szł/);
+    expect(explain(card('fx_hedge'))).toMatch(/you lose 320,25\szł/);
   });
 
   it('the VAT card title is all English', async () => {
