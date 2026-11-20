@@ -214,3 +214,103 @@ describe('every seeded English rule text passes its own safety check', () => {
     }
   });
 });
+
+// ---------- Review of f5f7df5: every case through /api/ask, its agent's turn, and the chair's valid JSON ----------
+// For the chair, ONLY the chair says the text (the agents fall back to rule text), so no bad turn is in its context.
+describe('review of f5f7df5', () => {
+  const vat = 'You owe VAT of 14,230 zł.';
+  const UNSAFE2: Case[] = [
+    // 1. a payment confirmed by the receiver, passive or with the payment as subject (VAT is unpaid on the seed)
+    ...[
+      'Your payment was received.', 'Your transfer cleared.', 'The payment reached the tax office.', 'The money arrived.',
+      'The bank confirmed it.', 'ZUS has your payment.',
+    ].map((t) => ({ name: `done: ${t}`, question: 'How much VAT do I owe?', cfo: 'marek' as CfoId, text: `${vat} ${t}` })),
+    // 2. the 320,25 zł LOSS (EUR rises, the shop owes 1500 EUR) told as a gain
+    ...[
+      'If EUR rises 5%, you gain, even after fees, 320,25 zł.', 'If EUR rises 5%, you come out 320,25 zł ahead.',
+      'If EUR rises 5%, you are 320,25 zł better off.', 'If EUR rises 5%, you make 320,25 zł.',
+      'If EUR rises 5%, you get a 320,25 zł windfall.',
+    ].map((t) => ({ name: `gain: ${t}`, question: 'Is the euro rate a problem?', cfo: 'kasia' as CfoId, text: t })),
+    // 3. a surcharge in a currency alias or form the validator cannot tie to the facts
+    ...['17 bucks', '17 quid', 'Fr. 17', '17-EUR'].map((x) => ({
+      name: `money: ${x}`, question: 'How much VAT do I owe?', cfo: 'marek' as CfoId, text: `VAT is 14,230 zł. The surcharge is ${x}.`,
+    })),
+  ];
+  const SAFE2: Case[] = [
+    { name: 'done: has not received', question: 'How much VAT do I owe?', cfo: 'marek', text: `${vat} The tax office has not received your payment.` },
+    { name: 'done: check if it receives', question: 'How much VAT do I owe?', cfo: 'marek', text: `${vat} Check if the tax office receives your payment.` },
+    { name: 'gain: negated', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'If EUR rises 5%, you do not gain 320,25 zł. You lose that amount.' },
+    { name: 'gain: the loss', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'If EUR rises 5%, you lose 320,25 zł.' },
+    { name: 'gain: neutral cost', question: 'Is the euro rate a problem?', cfo: 'kasia', text: 'You owe 1500 EUR at 4,27 zł. A 5% rise would cost you 320,25 zł.' },
+    {
+      name: 'money: a real 17 zł surcharge in the facts',
+      question: 'How much VAT do I owe?',
+      cfo: 'marek',
+      text: 'VAT is 17 zł, due on November 25, 2026. The surcharge is 17 zł. Invoice FV/2026/11/009 must be fixed and sent again.',
+      before: () => {
+        db.obligations.find((o) => o.id === 'ob-vat-10')!.amountPLN = 17;
+      },
+    },
+  ];
+  const chairSays = (summary: string) => (m: ChatMessage[]) => (isChair(m) ? JSON.stringify({ summary, decisionActionIds: [] }) : '');
+
+  describe.each([
+    ['/api/ask', async (c: Case) => {
+      reply = () => c.text;
+      const r = await ask(c.question);
+      expect(r.body.cfo).toBe(c.cfo);
+      return { status: r.status, shown: r.body.text, fallback: rule(c.cfo) };
+    }],
+    ['agent turn', async (c: Case) => {
+      reply = (m) => (speaker(m) === c.cfo ? c.text : '');
+      const r = await conference();
+      return { status: r.status, shown: r.body.turns.find((t) => t.cfo === c.cfo)!.text, fallback: rule(c.cfo) };
+    }],
+    ['chair summary', async (c: Case) => {
+      reply = chairSays(c.text);
+      const r = await conference();
+      return { status: r.status, shown: r.body.summary, fallback: chairFallback() };
+    }],
+  ] as const)('%s', (_, run) => {
+    it.each(UNSAFE2)('unsafe → fallback: $name', async (c) => {
+      c.before?.();
+      const { status, shown, fallback } = await run(c);
+      expect(status).toBe(200);
+      expect(shown).toBe(fallback);
+    });
+    it.each(SAFE2)('safe → unchanged: $name', async (c) => {
+      c.before?.();
+      const { status, shown } = await run(c);
+      expect(status).toBe(200);
+      expect(shown).toBe(c.text);
+    });
+  });
+
+  it('the conditional reminder sentence still passes', () => {
+    expect(textProblem('Once the reminders are sent, check the balance again.', 'x')).toBe('');
+  });
+
+  describe('after settling Krause: the shop is owed 2100 EUR, the loss comes when EUR FALLS', () => {
+    const settle = () => settlePayment(15372, 'inv-p-002');
+    it.each([
+      'If EUR falls 5%, you gain, even after fees, 448,35 zł.', 'If EUR falls 5%, you come out 448,35 zł ahead.',
+      'If EUR falls 5%, you are 448,35 zł better off.', 'If EUR falls 5%, you make 448,35 zł.', 'If EUR falls 5%, you get a 448,35 zł windfall.',
+    ])('unsafe: %s', async (text) => {
+      settle();
+      expect(rule('kasia')).toMatch(/If EUR falls 5%, you lose 448,35/); // the expectation comes from the current state
+      reply = () => text;
+      expect((await ask('Is the euro rate a problem?')).body.text).toBe(rule('kasia'));
+      reply = (m) => (speaker(m) === 'kasia' ? text : '');
+      expect((await conference()).body.turns[3].text).toBe(rule('kasia'));
+      reply = chairSays(text);
+      expect((await conference()).body.summary).toBe(chairFallback());
+    });
+    it.each(['If EUR falls 5%, you do not gain 448,35 zł. You lose that amount.', 'If EUR falls 5%, you lose 448,35 zł.'])('safe: %s', async (text) => {
+      settle();
+      reply = () => text;
+      expect((await ask('Is the euro rate a problem?')).body.text).toBe(text);
+      reply = (m) => (speaker(m) === 'kasia' ? text : '');
+      expect((await conference()).body.turns[3].text).toBe(text);
+    });
+  });
+});

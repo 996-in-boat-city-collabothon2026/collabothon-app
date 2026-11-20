@@ -60,12 +60,19 @@ function percentDirection(text: string, start: number, end: number, sign?: strin
 // as a "small number"). "zł" has no \b after it: in JS regexes "ł" is not a word character.
 // Any currency, not only the shop's: review of bc24564 found "You owe an extra £17." and "17 GBP" passing as a
 // free small number. A currency symbol before the number or an ISO code after it makes the number a money amount.
-const CURRENCY_WORDS = 'zł|zl|złoty|złotych|zlotych|zloty|zlotys|PLN|EUR|euros?|€|USD|dollars?|\\$|GBP|pounds?|£|CHF|francs?|JPY|yen|¥|CZK|SEK|NOK|DKK|HUF|UAH|CNY|CAD|AUD';
-const UNIT_AFTER = new RegExp(`^\\s?(${CURRENCY_WORDS})(?![\\p{L}])`, 'iu');
-const UNIT_BEFORE = /(?:^|[^\p{L}])(zł|PLN|EUR|€|USD|\$|GBP|£|CHF|JPY|¥)\s?$/iu;
-/** "zł", "złotych", "PLN" → "PLN"; "euro", "€" → "EUR"; "$" → "USD"; "£", "pounds" → "GBP"; other codes as written. */
+const CURRENCY_WORDS = 'zł|zl|złoty|złotych|zlotych|zloty|zlotys|PLN|EUR|euros?|€|USD|dollars?|bucks|\\$|GBP|pounds?|quid|£|CHF|francs?|JPY|yen|¥|CZK|SEK|NOK|DKK|HUF|UAH|CNY|CAD|AUD';
+const UNIT_AFTER = new RegExp(`^\\s?-?\\s?(${CURRENCY_WORDS})(?![\\p{L}])`, 'iu');
+const UNIT_BEFORE = /(?:^|[^\p{L}])(zł|PLN|EUR|€|USD|\$|GBP|£|CHF|JPY|¥|S?Fr\.?|kr\.?)\s?-?\s?$/iu;
+/**
+ * "zł", "złotych", "PLN" → "PLN"; "euro", "€" → "EUR"; "$" → "USD"; "£" → "GBP"; other codes as written.
+ * An alias that names no single currency ("bucks", "quid", "pounds", "dollars", "Fr.", "francs", "kr") stays an
+ * unknown currency: it is still a money amount (no small-number exception) and never matches a fact
+ * (review of f5f7df5: "The surcharge is 17 bucks / 17 quid / Fr. 17" passed).
+ */
+const ALIAS = /^(?:bucks|quid|pounds?|dollars?|s?fr\.?|francs?|kr\.?)$/i;
 function currencyOf(unit?: string): string {
   if (!unit) return '';
+  if (ALIAS.test(unit)) return `unknown:${unit.toLowerCase()}`;
   if (/^(?:eur|euros?|€)$/i.test(unit)) return 'EUR';
   if (/^(?:usd|dollars?|\$)$/i.test(unit)) return 'USD';
   if (/^(?:gbp|pounds?|£)$/i.test(unit)) return 'GBP';
@@ -76,21 +83,42 @@ function currencyOf(unit?: string): string {
 }
 
 /**
- * Is the amount told as a loss (-1) or a gain (+1)? Review of bc24564: "If EUR rises 5%, you gain 320,25 zł." passed
- * although the rule says that 320,25 zł is the LOSS for this exposure. The word nearest before the amount in its
- * own clause counts ("Loss if EUR rises 5%: 320,25 zł", "you gain 320,25 zł"), else the first words after it
- * ("a 320,25 zł loss"). "costs you", "risk" and "missing" are neutral on purpose: only a contradiction is caught.
+ * Is the amount told as a loss (-1), a gain (+1), both (AMBIGUOUS) or neither (0)?
+ * Review of bc24564: "If EUR rises 5%, you gain 320,25 zł." passed although the rule says 320,25 zł is the LOSS.
+ * Review of f5f7df5: "you gain, even after fees, 320,25 zł", "you come out 320,25 zł ahead", "you are 320,25 zł
+ * better off", "you make 320,25 zł", "a 320,25 zł windfall" passed, and the true "you do not gain 320,25 zł" failed.
+ *   - Before the amount: every gain/loss word in the amount's own clause (an aside like ", even after fees," stays in
+ *     the clause). "make"/"pocket" count only right before the amount ("you make 320,25 zł", not "make a payment of").
+ *   - After the amount: "ahead", "better off", "richer", "windfall", "in profit" / "loss", "worse off", "poorer".
+ *   - A negated word ("do not gain", "won't lose") says nothing.
+ *   - Gain and loss words for the same amount → AMBIGUOUS: the caller uses the rule text when the rule tells it.
+ * "costs you", "risk" and "missing" are neutral on purpose: only a contradiction with the rule is caught.
  */
+export const AMBIGUOUS = 2;
 const LOSS_WORD = /^(?:lose|loses|losing|lost|loss|losses)$/i;
-const GAIN_WORD = /^(?:gain|gains|gained|gaining|earn|earns|earned|earning|profit|profits|win|wins|won|benefit|benefits)$/i;
-const OUTCOME_CLAUSE = /[.;!?](?=\s|$)|,(?=\s)|\b(?:and|but|so|while|whereas)\b/i;
-const outcomeWord = (w: string) => (LOSS_WORD.test(w) ? -1 : GAIN_WORD.test(w) ? 1 : 0);
+const GAIN_WORD = /^(?:gain|gains|gained|gaining|earn|earns|earned|earning|profit|profits|win|wins|won|benefit|benefits|windfall)$/i;
+const GAIN_NEAR = /^(?:make|makes|making|made|pocket|pockets|pocketed)$/i;
+const NEGATION_BEFORE = /(?:\b(?:not|never|no)|n't)\s+(?:\p{L}+\s+)?$/iu;
+const GAIN_AFTER = /^\s*(?:zł|PLN|EUR|USD|€)?\s*(?:more\s+)?(?:ahead|better off|richer|windfall|in profit|in the black|profit|gain|bonus)\b/i;
+const LOSS_AFTER = /^\s*(?:zł|PLN|EUR|USD|€)?\s*(?:worse off|poorer|loss|losses|in the red|down)\b/i;
+// Clauses end at a sentence end or a coordinator, NOT at a comma: "you gain, even after fees, 320,25 zł".
+const OUTCOME_CLAUSE = /[.;!?](?=\s|$)|\b(?:and|but|so|while|whereas)\b/i; // not "or": "gain or lose X" is ambiguous
 function outcomeOf(text: string, start: number, end: number): number {
-  const before = (text.slice(Math.max(0, start - 50), start).split(OUTCOME_CLAUSE).pop() ?? '').match(/\p{L}+/gu) ?? [];
-  for (let i = before.length - 1; i >= 0; i--) if (outcomeWord(before[i])) return outcomeWord(before[i]);
-  const after = text.slice(end, end + 25).split(OUTCOME_CLAUSE)[0].match(/\p{L}+/gu) ?? [];
-  for (const w of after.slice(0, 3)) if (outcomeWord(w)) return outcomeWord(w);
-  return 0;
+  const window = text.slice(Math.max(0, start - 70), start);
+  const clause = window.split(OUTCOME_CLAUSE).pop() ?? '';
+  const words = [...clause.matchAll(/\p{L}+/gu)];
+  const found = new Set<number>();
+  words.forEach((m, i) => {
+    const w = m[0];
+    const near = words.length - 1 - i <= 0; // the word right before the amount
+    const dir = LOSS_WORD.test(w) ? -1 : GAIN_WORD.test(w) || (near && GAIN_NEAR.test(w)) ? 1 : 0;
+    if (dir && !NEGATION_BEFORE.test(clause.slice(0, m.index))) found.add(dir);
+  });
+  const after = text.slice(end, end + 30).split(/[.;!?](?=\s|$)/)[0];
+  if (GAIN_AFTER.test(after)) found.add(1);
+  if (LOSS_AFTER.test(after)) found.add(-1);
+  if (found.size > 1) return AMBIGUOUS;
+  return found.size ? [...found][0] : 0;
 }
 
 /**
@@ -249,11 +277,14 @@ export function findInventedNumbers(reply: string, facts: string): string[] {
 
   /** The rule told this same amount the other way round: a loss in the facts, a gain in the reply (or back). */
   const contradicts = (v: number, cur: string, outcome: number) =>
-    outcome !== 0 && known.numbers.some((k) => Math.abs(k.value - v) < TOLERANCE && (!cur || k.cur === cur) && k.outcome === -outcome);
+    outcome !== 0 &&
+    known.numbers.some(
+      (k) => Math.abs(k.value - v) < TOLERANCE && (!cur || k.cur === cur) && k.outcome !== 0 && (outcome === AMBIGUOUS || k.outcome === -outcome),
+    );
 
   for (const t of out.tokens) {
     if (t.values.some((v) => contradicts(v, t.cur, t.outcome))) {
-      invented.push(`${t.outcome > 0 ? 'gain' : 'loss'} ${t.raw}`);
+      invented.push(`${t.outcome === AMBIGUOUS ? 'gain or loss' : t.outcome > 0 ? 'gain' : 'loss'} ${t.raw}`);
       continue;
     }
     if (!t.neg && !t.cur && t.values.some((v) => Number.isInteger(v) && v <= MAX_FREE_INTEGER)) continue;

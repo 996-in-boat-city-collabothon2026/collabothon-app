@@ -48,7 +48,9 @@ export function stripAddress(text: string): string {
  * Not a claim (it passes): negation ("has not been paid": "not" breaks the pattern), a proposal or modal
  * ("we can send", "should be paid": no auxiliary from the list), and a hypothetical clause ("if / once / when …").
  */
-const DONE_STATE = '(?:paid|sent|settled|locked|transferred|submitted|signed|approved|hedged|executed|processed|cleared|wired|booked|resent|re-sent|dispatched|delivered|mailed|emailed|filed|completed?|done|finished|handled|confirmed|in place|taken care of|through)';
+const DONE_STATE = '(?:paid|sent|settled|locked|transferred|submitted|signed|approved|hedged|executed|processed|cleared|wired|booked|resent|re-sent|dispatched|delivered|mailed|emailed|filed|received|credited|completed?|done|finished|handled|confirmed|in place|taken care of|through)';
+/** What a payment claim is about: "your payment", "the money", "the transfer", "the VAT"… */
+const MONEY_THING = '(?:your|the|our|my|this|that)\\s+(?:payment|money|transfer|funds|VAT|tax|reminder|e-?mail|message|invoice|forward|contract)s?\\b';
 const DONE_EN = new RegExp(
   [
     `\\b(?:is|are|was|were|has been|have been|had been|got|gets|has|have|had)\\s+(?:(?:already|just|now|successfully|finally|fully|all)\\s+)*(?:been\\s+)?${DONE_STATE}\\b`,
@@ -59,8 +61,14 @@ const DONE_EN = new RegExp(
     `\\balready\\s+${DONE_STATE}\\b`,
     // The other side confirms it (review of bc24564): "The tax office received your payment.", "the bank credited the
     // transfer", "FlotaTrans paid you". Present or future ("receives", "will receive") is not a claim.
-    `\\b(?:received|got|confirmed|accepted|processed|booked|credited|cashed)\\s+(?:your|the|our|my|this|that)\\s+(?:payment|money|transfer|funds|VAT|tax|reminder|e-?mail|message|invoice|forward|contract)\\b`,
+    `\\b(?:received|got|confirmed|accepted|processed|booked|credited|cashed)\\s+${MONEY_THING}`,
+    `\\b(?:received|confirmed|accepted|processed|booked|credited|cashed)\\s+(?:it|this|that|them)\\b`, // "The bank confirmed it."
     `\\b(?:paid|transferred|wired)\\s+(?:you|us)\\b`,
+    // Review of f5f7df5: the payment itself as the subject ("Your transfer cleared.", "The money arrived.",
+    // "The payment reached the tax office."). "has not arrived" never matches: "not" breaks the pattern.
+    `\\b(?:payments?|transfers?|money|funds|reminders?|e-?mails?|invoices?)\\s+(?:has\\s+|have\\s+|had\\s+)?(?:(?:already|just|finally|now)\\s+)?(?:cleared|arrived|reached|landed|went\\s+through|got\\s+through|came\\s+through|came\\s+in)\\b`,
+    // Somebody else holds it: "ZUS has your payment.", "the tax office has the money" (not "you have the money").
+    `(?<!\\b(?:you|we|I|they)\\s)\\b(?:has|have|holds?|now\\s+has)\\s+(?:already\\s+)?(?:got\\s+)?${MONEY_THING}`,
   ].join('|'),
   'gi',
 );

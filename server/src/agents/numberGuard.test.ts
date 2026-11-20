@@ -191,3 +191,20 @@ describe('review of bc24564: gain vs loss, any currency', () => {
     expect(findInventedNumbers('A late fee of 17 zł applies.', `${owe}\nLate fee: 17,00 zł`)).toEqual([]);
   });
 });
+
+describe('review of f5f7df5: gain/loss binding and currency aliases', () => {
+  const owe = 'EUR to pay (net): 1500 EUR\nLoss if EUR rises 5%: 320,25 zł\nVAT: 14 230,00 zł';
+  it('both a gain and a loss for one amount is ambiguous → caught when the rule tells it', () => {
+    expect(findInventedNumbers('If EUR rises 5%, you gain or lose 320,25 zł.', owe)).toEqual(['gain or loss 320,25']);
+  });
+  it('"make" counts only right before the amount; "make a payment of" is neutral', () => {
+    expect(findInventedNumbers('Make a payment of 14 230,00 zł for VAT.', owe)).toEqual([]);
+    expect(findInventedNumbers('If EUR rises 5%, you will not make 320,25 zł, you lose it.', owe)).toEqual([]);
+  });
+  it('a currency alias is a money amount that never matches a fact; a bare small count stays free', () => {
+    expect(findInventedNumbers('The fee is 17 dollars.', owe)).toEqual(['17']);
+    expect(findInventedNumbers('The fee is kr 17.', owe)).toEqual(['17']);
+    expect(findInventedNumbers('Pay within 17 days.', owe)).toEqual([]);
+    expect(findInventedNumbers('VAT is 14.230,00 PLN, written also as 14,230 zł.', owe)).toEqual([]);
+  });
+});

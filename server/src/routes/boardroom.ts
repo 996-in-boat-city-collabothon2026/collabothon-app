@@ -14,7 +14,7 @@ import { chatOr } from '../llm/provider';
 const TOPICS: Record<CfoId, RegExp[]> = {
   anna: [
     /liquid|cash|money|balance|account/i,
-    /credit|loan|overdraft|deposit|saving/i,
+    /credit|loan|lend|borrow|overdraft|deposit|saving/i,
     /survive|solven|bankrupt|forecast|buffer|run out/i,
     /overdue|debtor|late pay|not paid|unpaid|reminder|collect|receivabl/i,
   ],
@@ -33,8 +33,9 @@ const TOPICS: Record<CfoId, RegExp[]> = {
     /margin|profit|markup/i,
     /price|pricing|rate per hour|hourly rate|labou?r/i,
     /parts|wholesal|supplier|utilities|electricity/i,
-    // Setting a price (review of bc24564: both went to Anna). "charge" alone is too broad ("will the bank charge me").
-    /\b(?:how much|what)\s+(?:should|do|can|must)\s+(?:i|we)\s+(?:charge|bill|ask)\b|\bcharge\s+(?:per\s+hour|an?\s+hour|by\s+the\s+hour|for\s+(?:an?|the|my|this)\s+\w+|customers|clients)\b/i,
+    // Setting a price (review of bc24564: both went to Anna). "charge" alone is too broad ("will the bank charge me"),
+    // and "ask" only with customers (review of f5f7df5: "How much should I ask the bank to lend me?" is a loan).
+    /\b(?:how much|what)\s+(?:should|do|can|must)\s+(?:i|we)\s+(?:charge|bill|ask\s+(?:my\s+)?(?:customers?|clients?))\b|\bcharge\s+(?:per\s+hour|an?\s+hour|by\s+the\s+hour|for\s+(?:an?|the|my|this)\s+\w+|customers|clients)\b/i,
   ],
 };
 
