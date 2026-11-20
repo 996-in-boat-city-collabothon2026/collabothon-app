@@ -63,10 +63,13 @@ export default function AgentHub({ className = '' }: { className?: string }) {
           <g key={a}>
             <circle cx={x} cy={y} r="24" fill={c.color} stroke={HATS[c.hat].color === '#f8fafc' ? '#d4d4d8' : HATS[c.hat].color} strokeWidth="4" />
             <text x={x} y={y + 7} textAnchor="middle" fontSize="20" fontWeight="700" fill="#fff">{c.name[0]}</text>
-            <clipPath id={`clip-${a}`}><rect x={x - 34} y={y - 34} width="68" height="68" rx="18" /></clipPath>
-            <rect x={x - 35} y={y - 35} width="70" height="70" rx="19" fill="#fff" stroke="#000" strokeOpacity=".1" />
-            <image href={avatarSrc(c.hat)} x={x - 34} y={y - 34} width="68" height="68" clipPath={`url(#clip-${a})`} preserveAspectRatio="xMidYMid slice" />
-            <text x={right ? x - 44 : x + 44} y={y + 6} textAnchor={right ? 'end' : 'start'} fontSize="17" fontWeight="600" fill="#1d1d1f">{c.name}</text>
+            {/* head inside the circle, hat breaking out of the frame */}
+            <clipPath id={`clip-${a}`}><circle cx={x} cy={y} r="30" /></clipPath>
+            <clipPath id={`hat-${a}`}><rect x={x - 60} y={y - 70} width="120" height="44" /></clipPath>
+            <circle cx={x} cy={y} r="31" fill="#f4f4f5" stroke={HATS[c.hat].color === '#f8fafc' ? '#a1a1aa' : HATS[c.hat].color} strokeWidth="3" />
+            <image href={avatarSrc(c.hat).replace('-hat.png', '-cut.png')} x={x - 39} y={y - 49} width="78" height="78" clipPath={`url(#clip-${a})`} />
+            <image href={avatarSrc(c.hat).replace('-hat.png', '-cut.png')} x={x - 39} y={y - 49} width="78" height="78" clipPath={`url(#hat-${a})`} className="avatar-hat" />
+            <text x={right ? x - 40 : x + 40} y={y + 6} textAnchor={right ? 'end' : 'start'} fontSize="17" fontWeight="600" fill="#1d1d1f">{c.name}</text>
           </g>
         );
       })}

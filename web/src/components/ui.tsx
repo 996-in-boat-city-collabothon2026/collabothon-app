@@ -121,11 +121,21 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
   const [imgOk, setImgOk] = useState(true);
   const hat = HATS[hatId];
   if (imgOk) {
+    // "Breaking the frame": head inside a circle, the hat pops out above it with a white outline.
+    const S = Math.round(size * 1.6);
+    const ring = hat.color === '#f8fafc' ? '#a1a1aa' : hat.color;
+    const fig = { width: '130%', left: '-15%', top: '-30%' } as const;
     return (
-      <span title={label} className="avatar-3d relative inline-flex shrink-0 overflow-hidden rounded-[28%] bg-zinc-100"
-        style={{ width: Math.round(size * 1.6), height: Math.round(size * 1.6) }}>
-        <img src={avatarSrc(hatId)} alt={label} loading="lazy" decoding="async" onError={() => setImgOk(false)}
-          className="h-full w-full object-cover" />
+      <span title={label} role="img" aria-label={label} className="avatar-3d relative inline-block shrink-0"
+        style={{ width: S, height: S, marginTop: S * 0.18 }}>
+        <span className="absolute inset-0 overflow-hidden rounded-full"
+          style={{ background: '#f4f4f5', boxShadow: `inset 0 0 0 ${Math.max(2, S / 26)}px ${ring}` }}>
+          <img src={avatarSrc(hatId).replace('-hat.png', '-cut.png')} alt="" loading="lazy" decoding="async"
+            onError={() => setImgOk(false)} className="absolute max-w-none" style={fig} />
+        </span>
+        {/* the same picture again, only its top part (the hat), drawn over the circle's edge */}
+        <img src={avatarSrc(hatId).replace('-hat.png', '-cut.png')} alt="" aria-hidden="true" loading="lazy" decoding="async"
+          className="avatar-hat pointer-events-none absolute max-w-none" style={{ ...fig, clipPath: 'inset(0 0 62% 0)' }} />
       </span>
     );
   }
