@@ -32,7 +32,7 @@ export default function Approvals() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">{t('approvals')}</h1>
-        {data && <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-sm text-rose-800">{queue.length} {t('waiting')}</span>}
+        {data && <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-sm text-accent-ink">{queue.length} {t('waiting')}</span>}
       </div>
 
       <FlowStrip steps={[t('flow_agent'), t('flow_action'), t('flow_you')]} />
@@ -62,9 +62,9 @@ export default function Approvals() {
             <li key={e.id} className="flex items-center gap-3 text-sm">
               {e.actor !== 'user' && e.actor !== 'system'
                 ? <CfoAvatar cfo={e.actor} size={30} />
-                : <span className="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-slate-200"><Icon name="user" size={16} /></span>}
+                : <span className="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-zinc-200"><Icon name="user" size={16} /></span>}
               <span className="flex-1">{e.text}</span>
-              {e.simulated && <span className="rounded-full bg-slate-200 px-2 py-0.5 text-sm">symulacja</span>}
+              {e.simulated && <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-sm">symulacja</span>}
             </li>
           ))}
         </ul>

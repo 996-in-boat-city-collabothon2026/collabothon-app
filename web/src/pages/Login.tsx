@@ -5,8 +5,8 @@ import { api } from '../api/client';
 import { CFOS, type CfoId } from '@cfo/shared';
 import { CfoAvatar } from '../components/ui';
 import { useT } from '../i18n';
-import Icon from '../components/Icon';
 import AgentHub from '../components/AgentHub';
+import Icon from '../components/Icon';
 
 export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const { t, lang, setLang } = useT();
@@ -47,7 +47,7 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
         <div className="text-center">
           <div className="reveal mx-auto -mt-4 mb-1 max-w-[220px]"><AgentHub /></div>
           <span className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1 text-sm font-medium">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white"><Icon name="bolt" size={14} /></span>
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-white"><Icon name="bolt" size={14} /></span>
             {t('login_demo_note')}
           </span>
           <h1 className="text-gradient mt-3 pb-1 text-4xl font-semibold tracking-tight">WarsztatCFO</h1>
@@ -65,10 +65,10 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password"
               className="min-h-14 w-full rounded-2xl border border-black/15 bg-white px-4 text-lg font-normal" />
           </label>
-          {error && <p role="alert" className="rounded-2xl bg-rose-50 p-3 text-rose-800">{error}</p>}
+          {error && <p role="alert" className="rounded-2xl bg-accent-soft p-3 text-accent-ink">{error}</p>}
           <button disabled={busy}
-            className="min-h-14 w-full rounded-full bg-stone-950 text-lg font-semibold text-white hover:bg-stone-800 disabled:opacity-60">
-            {busy ? t('loading') : `${t('login')} ↗`}
+            className="min-h-14 w-full rounded-full bg-accent text-lg font-bold text-white hover:brightness-95 disabled:opacity-60">
+            {busy ? t('loading') : t('login')}
           </button>
           <p className="text-center text-stone-700">{t('login_hint')}</p>
         </form>
