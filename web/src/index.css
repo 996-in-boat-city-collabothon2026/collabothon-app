@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
-/* Three colours only: paper (off-white + white), ink (near-black), accent (orange-red). */
+/* Three colours only: paper (off-white + white), ink (near-black), accent (blue). */
 @theme {
   --color-ink: #141414;
-  --color-accent: #d9431c;      /* white text on it passes AA for large/bold text */
-  --color-accent-ink: #a8320f;  /* accent for small text on white (AA) */
-  --color-accent-soft: #fde8df;
+  --color-accent: #2f5bff;      /* white text on it passes AA for large/bold text */
+  --color-accent-ink: #1f43d6;  /* accent for small text on white (AA) */
+  --color-accent-soft: #e6ecff;
   --color-paper: #f1f0ed;
 }
 
@@ -28,7 +28,7 @@ button, a { transition: background-color .2s ease, color .2s ease, box-shadow .2
 button:active:not(:disabled) { transform: scale(0.98); }
 /* Clear keyboard focus everywhere */
 :focus-visible {
-  outline: 3px solid #d9431c;
+  outline: 3px solid #2f5bff;
   outline-offset: 3px;
   border-radius: 9999px;
 }
@@ -54,7 +54,7 @@ button:active:not(:disabled) { transform: scale(0.98); }
 }
 /* Mint glow panel */
 .glow-mint {
-  background: radial-gradient(120% 80% at 50% 100%, rgb(217 67 28 / 0.10), transparent 70%), #fff;
+  background: radial-gradient(120% 80% at 50% 100%, rgb(47 91 255 / 0.10), transparent 70%), #fff;
 }
 /* Cards slide in gently, one after another */
 @keyframes fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
@@ -68,7 +68,7 @@ main .surface:nth-of-type(4), main .reveal:nth-of-type(4) { animation-delay: .24
 /* "AI is thinking" shimmer on text */
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .ai-shimmer {
-  background: linear-gradient(90deg, #141414 30%, #d9431c 50%, #141414 70%);
+  background: linear-gradient(90deg, #141414 30%, #2f5bff 50%, #141414 70%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -103,12 +103,12 @@ main .surface:nth-of-type(4), main .reveal:nth-of-type(4) { animation-delay: .24
 
 /* Live status dot with ripple */
 @keyframes ripple { from { transform: scale(1); opacity: .6; } to { transform: scale(2.6); opacity: 0; } }
-.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: #d9431c; animation: ripple 1.6s ease-out infinite; }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: #2f5bff; animation: ripple 1.6s ease-out infinite; }
 
 /* A dot travelling along a connector line (flow strips) */
 @keyframes travel { from { left: 0%; } to { left: 100%; } }
-.flow-line { position: relative; height: 2px; background: rgb(217 67 28 / .3); }
-.flow-line::after { content: ""; position: absolute; top: -4px; width: 10px; height: 10px; margin-left: -5px; border-radius: 9999px; background: #d9431c; animation: travel 1.6s linear infinite; }
+.flow-line { position: relative; height: 2px; background: rgb(47 91 255 / .3); }
+.flow-line::after { content: ""; position: absolute; top: -4px; width: 10px; height: 10px; margin-left: -5px; border-radius: 9999px; background: #2f5bff; animation: travel 1.6s linear infinite; }
 @media (prefers-reduced-motion: reduce) {
   .surface:hover { transform: none; }
   .live-dot::after, .flow-line::after { display: none; }
@@ -117,7 +117,7 @@ main .surface:nth-of-type(4), main .reveal:nth-of-type(4) { animation-delay: .24
 /* Glowing AI orb (advice screen) */
 @keyframes orb { 0%, 100% { transform: scale(1); filter: blur(0); } 50% { transform: scale(1.08); filter: blur(1px); } }
 .ai-orb {
-  background: radial-gradient(circle at 50% 45%, #fff3ec 0%, #f8a47f 30%, #d9431c 62%, rgb(217 67 28 / 0) 72%);
+  background: radial-gradient(circle at 50% 45%, #eef2ff 0%, #8ea5ff 30%, #2f5bff 62%, rgb(47 91 255 / 0) 72%);
   border-radius: 9999px;
   animation: orb 2.6s ease-in-out infinite;
 }

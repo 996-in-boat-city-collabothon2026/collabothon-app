@@ -16,8 +16,8 @@ const RANGES = [30, 60, 90] as const;
 const PRIORITY: Record<Tier, number> = { NEEDS_APPROVAL: 0, RECOMMENDED: 1, ANALYSED: 2 };
 // One accent in tints + greys: the biggest costs are the strongest colour.
 const CAT_COLOR: Record<ExpenseCategory, string> = {
-  payroll: '#d9431c', taxes: '#141414', parts: '#f08a62', rent: '#6b6b6b',
-  leasing: '#f6bda5', utilities: '#a3a3a3', other: '#d4d4d4',
+  payroll: '#2f5bff', taxes: '#141414', parts: '#7f9cff', rent: '#6b6b6b',
+  leasing: '#c3d0ff', utilities: '#a3a3a3', other: '#d4d4d4',
 };
 
 export default function Dashboard() {
@@ -241,12 +241,12 @@ function CashChart({ f }: { f: Forecast }) {
             <linearGradient id="cashFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset={0} stopColor="#141414" stopOpacity={0.2} />
               <stop offset={zeroAt} stopColor="#141414" stopOpacity={0.05} />
-              <stop offset={zeroAt} stopColor="#d9431c" stopOpacity={0.15} />
-              <stop offset={1} stopColor="#d9431c" stopOpacity={0.3} />
+              <stop offset={zeroAt} stopColor="#2f5bff" stopOpacity={0.15} />
+              <stop offset={1} stopColor="#2f5bff" stopOpacity={0.3} />
             </linearGradient>
             <linearGradient id="cashLine" x1="0" y1="0" x2="0" y2="1">
               <stop offset={zeroAt} stopColor="#141414" />
-              <stop offset={zeroAt} stopColor="#d9431c" />
+              <stop offset={zeroAt} stopColor="#2f5bff" />
             </linearGradient>
           </defs>
           <XAxis dataKey="date" ticks={xTicks} interval={0} tickFormatter={fmtDay} fontSize={18} fontWeight={600}
@@ -255,12 +255,12 @@ function CashChart({ f }: { f: Forecast }) {
           <Tooltip formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
             contentStyle={{ borderRadius: 16, border: '1px solid rgb(0 0 0 / 0.1)', fontSize: 18 }} />
           <ReferenceLine y={0} stroke="#1d1d1f" strokeWidth={2} />
-          <ReferenceLine y={f.bufferPLN} stroke="#d9431c" strokeDasharray="8 6" strokeWidth={2}>
-            <Label value={`${t('buffer')} ${tys(f.bufferPLN)}`} position="insideTopRight" fontSize={16} fontWeight={600} fill="#a8320f" />
+          <ReferenceLine y={f.bufferPLN} stroke="#2f5bff" strokeDasharray="8 6" strokeWidth={2}>
+            <Label value={`${t('buffer')} ${tys(f.bufferPLN)}`} position="insideTopRight" fontSize={16} fontWeight={600} fill="#1f43d6" />
           </ReferenceLine>
           <Area type="stepAfter" dataKey="balancePLN" stroke="url(#cashLine)" strokeWidth={5} fill="url(#cashFill)" isAnimationActive={false} />
-          <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={9} fill="#d9431c" stroke="#fff" strokeWidth={3}>
-            <Label value={`${t('lowest_point')} ${fmtDay(f.lowest.date)}`} position="left" fontSize={18} fontWeight={700} fill="#a8320f" offset={14} />
+          <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={9} fill="#2f5bff" stroke="#fff" strokeWidth={3}>
+            <Label value={`${t('lowest_point')} ${fmtDay(f.lowest.date)}`} position="left" fontSize={18} fontWeight={700} fill="#1f43d6" offset={14} />
           </ReferenceDot>
         </AreaChart>
       </ResponsiveContainer>
