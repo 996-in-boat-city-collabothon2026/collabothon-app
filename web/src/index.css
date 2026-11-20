@@ -5,13 +5,21 @@ html {
   font-size: 18px;
 }
 body {
-  /* Warm off-white, near-black text: calm and high contrast */
-  @apply bg-zinc-100 text-stone-900 antialiased;
-  line-height: 1.55;
+  /* Apple-like: system font, soft grey page, near-black text */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI Variable", "Segoe UI", Inter, system-ui, sans-serif;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+  letter-spacing: -0.011em;
 }
+h1, h2 { letter-spacing: -0.022em; }
+/* Gentle feedback on buttons and links */
+button, a { transition: background-color .2s ease, color .2s ease, box-shadow .2s ease, transform .1s ease; }
+button:active:not(:disabled) { transform: scale(0.98); }
 /* Clear keyboard focus everywhere */
 :focus-visible {
-  outline: 3px solid #1c1917;
+  outline: 3px solid #0071e3;
   outline-offset: 3px;
   border-radius: 9999px;
 }
@@ -22,6 +30,6 @@ body {
 /* White rounded card with a very soft shadow (dashboard look) */
 .surface {
   background: #fff;
-  border-radius: 1.75rem;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 12px 32px -16px rgb(0 0 0 / 0.12);
+  border-radius: 22px;
+  box-shadow: 0 2px 12px rgb(0 0 0 / 0.05);
 }

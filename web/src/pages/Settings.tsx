@@ -59,7 +59,7 @@ export default function SettingsPage() {
                 <div role="radiogroup" aria-labelledby={`kind-${kind}`} className="flex shrink-0 gap-1 rounded-full bg-stone-100 p-1">
                   {(['ask', 'auto'] as AutonomyMode[]).map((m) => (
                     <button key={m} role="radio" aria-checked={mode === m} onClick={() => void setMode(kind, m)} disabled={!data}
-                      className={`min-h-12 flex-1 rounded-full px-4 text-sm font-medium sm:flex-none ${mode === m ? 'bg-stone-900 text-white' : 'text-stone-600'}`}>
+                      className={`min-h-12 flex-1 rounded-full px-4 text-sm font-medium sm:flex-none ${mode === m ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-600'}`}>
                       {t(m === 'auto' ? 'mode_auto' : 'mode_ask')}
                     </button>
                   ))}

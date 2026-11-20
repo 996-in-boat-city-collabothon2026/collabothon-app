@@ -92,7 +92,7 @@ export default function Boardroom() {
               return (
                 <button type="button" key={k} role="radio" aria-checked={active} disabled={busy}
                   onClick={() => { setTopic(t(k)); setCustom(''); }}
-                  className={`min-h-12 rounded-full border px-3 text-sm ${active ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white'}`}>
+                  className={`min-h-12 rounded-full border px-3 text-sm ${active ? 'border-[#0071e3] bg-[#0071e3] text-white' : 'border-stone-300 bg-white'}`}>
                   {t(k)}
                 </button>
               );
@@ -101,7 +101,7 @@ export default function Boardroom() {
           <input value={custom} onChange={(e) => setCustom(e.target.value)} disabled={busy}
             placeholder={t('topic_custom')} aria-label={t('topic_custom')}
             className="min-h-12 w-full rounded-xl border border-slate-300 px-3" />
-          <button disabled={busy} className="min-h-12 w-full rounded-full bg-stone-900 py-3 text-lg font-semibold text-white disabled:opacity-60">
+          <button disabled={busy} className="min-h-12 w-full rounded-full bg-[#0071e3] py-3 text-lg font-semibold text-white disabled:opacity-60">
             {busy ? t('meeting_running') : `👥 ${t('start_meeting')}`}
           </button>
         </form>

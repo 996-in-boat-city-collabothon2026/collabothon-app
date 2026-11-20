@@ -147,7 +147,7 @@ function InvoiceTable({ rows, onSend, onFix, onView }: {
                 className={`${BTN} border border-slate-300 bg-white disabled:opacity-40`}>UPO</button>
             </div>
             {onSend && status === 'draft' && (
-              <button onClick={() => onSend(inv)} className={`${BTN} bg-stone-900 text-white md:col-span-6 md:justify-self-end`}>
+              <button onClick={() => onSend(inv)} className={`${BTN} bg-[#0071e3] text-white md:col-span-6 md:justify-self-end`}>
                 {t('send_ksef')}
               </button>
             )}
@@ -202,7 +202,7 @@ function FixSheet({ inv, onClose, onSubmit }: {
           </span>
         </label>
         <button disabled={!!nipErr || !!nameErr}
-          className="min-h-12 w-full rounded-full bg-stone-900 font-semibold text-white disabled:opacity-40">
+          className="min-h-12 w-full rounded-full bg-[#0071e3] font-semibold text-white disabled:opacity-40">
           {t('resend_btn')}
         </button>
       </form>

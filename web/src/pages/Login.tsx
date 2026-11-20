@@ -45,7 +45,7 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
             className="min-h-12 rounded-full px-4 text-sm font-semibold hover:bg-stone-100">
             {lang === 'pl' ? 'EN' : 'PL'}
           </button>
-          <a href="#login" className="flex min-h-12 items-center whitespace-nowrap rounded-full bg-stone-900 px-5 text-sm font-semibold text-white">
+          <a href="#login" className="flex min-h-12 items-center whitespace-nowrap rounded-full bg-[#0071e3] px-5 text-sm font-semibold text-white">
             {t('login')}
           </a>
         </span>
@@ -89,7 +89,7 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
           </label>
           {error && <p role="alert" className="rounded-2xl bg-rose-50 p-3 text-rose-800">⚠️ {error}</p>}
           <button disabled={busy}
-            className="mt-2 min-h-14 w-full rounded-full bg-stone-900 py-3 text-lg font-semibold text-white hover:bg-stone-700 disabled:opacity-60">
+            className="mt-2 min-h-14 w-full rounded-full bg-[#0071e3] py-3 text-lg font-semibold text-white hover:bg-[#0077ed] disabled:opacity-60">
             {busy ? t('loading') : `${t('login')} →`}
           </button>
           <p className="text-center text-sm text-stone-600">{t('login_hint')}</p>

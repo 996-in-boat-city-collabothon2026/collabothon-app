@@ -11,7 +11,6 @@ import Login from './pages/Login';
 import Approvals from './pages/Approvals';
 import Boardroom from './pages/Boardroom';
 import Ksef from './pages/Ksef';
-import Activity from './pages/Activity';
 import SettingsPage from './pages/Settings';
 
 const NAV = [
@@ -19,7 +18,6 @@ const NAV = [
   { to: '/approvals', key: 'approvals', icon: '✋' },
   { to: '/boardroom', key: 'boardroom', icon: '👥' },
   { to: '/ksef', key: 'ksef', icon: '🧾' },
-  { to: '/activity', key: 'activity', icon: '📜' },
   { to: '/settings', key: 'settings', icon: '⚙️' },
 ];
 
@@ -57,13 +55,13 @@ export default function App() {
       {/* Bottom padding: room for the mobile tab bar + the 💬 bubble, so it never covers the last buttons */}
       <div className="pb-40 md:pb-24">
         {/* Floating top bar: logo, menu pills (desktop), model, language, sign out */}
-        <header className="sticky top-0 z-30 px-3 pt-3">
-          <div className="surface mx-auto flex max-w-6xl items-center justify-between gap-2 py-1.5 pl-5 pr-1.5">
+        <header className="sticky top-0 z-30 border-b border-black/[0.06] bg-white/75 backdrop-blur-xl backdrop-saturate-150">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 py-1 pl-4 pr-2">
             <span className="whitespace-nowrap text-lg font-extrabold tracking-tight"><span aria-hidden="true" className="sm:hidden">🔧</span><span className="sr-only sm:not-sr-only">WarsztatCFO</span></span>
             <nav aria-label="Menu" className="hidden items-center gap-1 lg:flex">
               {NAV.map((n) => (
                 <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
-                  `flex min-h-12 items-center whitespace-nowrap rounded-full px-4 font-medium ${isActive ? 'bg-stone-900 text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
+                  `flex min-h-12 items-center whitespace-nowrap rounded-full px-4 font-medium ${isActive ? 'bg-black/[0.07] font-semibold text-stone-900' : 'text-stone-700 hover:bg-zinc-100'}`}>
                   {t(n.key)}
                 </NavLink>
               ))}
@@ -75,7 +73,7 @@ export default function App() {
                 {lang === 'pl' ? 'EN' : 'PL'}
               </button>
               <button onClick={logout} title={`${user.name} · demo`}
-                className="min-h-12 whitespace-nowrap rounded-full bg-stone-900 px-4 text-sm font-semibold text-white">{t('logout')}</button>
+                className="min-h-12 whitespace-nowrap rounded-full bg-black/[0.06] px-4 text-sm font-semibold text-stone-900 hover:bg-black/10">{t('logout')}</button>
             </div>
           </div>
         </header>
@@ -85,7 +83,6 @@ export default function App() {
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/boardroom" element={<Boardroom />} />
             <Route path="/ksef" element={<Ksef />} />
-            <Route path="/activity" element={<Activity />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -95,7 +92,7 @@ export default function App() {
       <AskBubble />
 
       {/* Mobile bottom tabs */}
-      <nav aria-label="Menu" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t border-stone-200 bg-white lg:hidden">
+      <nav aria-label="Menu" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-black/[0.06] bg-white/80 backdrop-blur-xl lg:hidden">
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
             `flex min-h-14 flex-col items-center justify-center py-1 text-center text-[13px] leading-tight ${isActive ? 'font-semibold text-stone-900' : 'text-stone-600'}`}>

@@ -122,7 +122,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
       </div>
       {canDecide && (
         <div className="mt-3 flex gap-2">
-          <button onClick={onApprove} className="min-h-12 flex-1 rounded-full bg-stone-900 py-2 font-semibold text-white">{t('approve')} →</button>
+          <button onClick={onApprove} className="min-h-12 flex-1 rounded-full bg-[#0071e3] py-2 font-semibold text-white">{t('approve')} →</button>
           <button onClick={onReject} className="min-h-12 flex-1 rounded-full border border-stone-300 bg-white py-2 font-semibold">{t('reject')}</button>
         </div>
       )}
@@ -156,7 +156,7 @@ export function useToast() {
   useEffect(() => () => window.clearTimeout(timer.current), []);
   const toast = msg ? (
     <div role="status"
-      className="fixed inset-x-4 bottom-24 z-50 mx-auto max-w-md rounded-full bg-stone-900 px-5 py-3 text-white md:bottom-6">
+      className="fixed inset-x-4 bottom-24 z-50 mx-auto max-w-md rounded-full bg-[#1d1d1f]/90 px-5 py-3 text-white backdrop-blur md:bottom-6">
       {msg}
     </div>
   ) : null;
