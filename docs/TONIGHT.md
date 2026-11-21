@@ -32,7 +32,17 @@ Live app: https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc
 | 6 | **H42 code freeze** | Final build, smoke with `-RequireModel` green |
 | 7 | **H44: no cluster changes** | Only the emergency switch (mock mode) or a rollback, and only if the app is down |
 
-Final freeze time from the organisers: **____** (fill in at stand-up).
+Final freeze time from the organisers: **Sunday 22 Nov, 10:00**.
+
+Proposed clock times for our checkpoints (Pair 1, Sat 14:15; agree at stand-up):
+
+| When | Checkpoint |
+|---|---|
+| Sat **18:00** | go/no-go for any feature still in progress (e.g. Whisper voice): not stable → it stays a line in the pitch |
+| Sat **~22:00** | **feature freeze** (step 4): only bug fixes after this; full click-through on a phone and a laptop |
+| Sun **08:00** | **code freeze** (step 6): last merge, final build, smoke `-RequireModel` green, delete the test instance |
+| Sun **09:00** | **no cluster changes** (step 7): only the mock switch or a rollback, and only if the app is down |
+| Sun **10:00** | organisers' freeze |
 
 ---
 
