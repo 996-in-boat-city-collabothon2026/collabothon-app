@@ -345,6 +345,18 @@ const DICT: Record<string, { pl: string; en: string }> = {
   all_done: { pl: 'Nic nie czeka na Twoją decyzję.', en: 'Nothing waits for your decision.' },
   recent_decisions: { pl: 'Ostatnie decyzje', en: 'Recent decisions' },
   waiting: { pl: 'czeka', en: 'waiting' },
+  available_today: { pl: 'Dostępne dziś', en: 'Available today' },
+  forecast_word: { pl: 'Prognoza', en: 'Forecast' },
+  projected_shortfall: { pl: 'Prognozowany brak', en: 'Projected shortfall' },
+  next_step: { pl: 'Najpierw:', en: 'First:' },
+  decide_now: { pl: 'Zdecyduj teraz', en: 'Decide now' },
+  demo_banner_title: { pl: 'Częściowo dane demo.', en: 'Partly demo data.' },
+  demo_banner_text: { pl: 'Kwoty z etykietą „dane demo” są przykładowe. Gotówka, należności, płatności i prognoza są prawdziwe (z API).', en: 'Figures marked “demo data” are examples. Cash, receivables, payments and the forecast are real (from the API).' },
+  grp_cash: { pl: 'Gotówka', en: 'Cash' },
+  grp_flow: { pl: 'Należności i płatności', en: 'Owed and payments' },
+  grp_cost: { pl: 'Koszty', en: 'Costs' },
+  done_approved: { pl: 'Zatwierdzono', en: 'Approved' },
+  done_rejected: { pl: 'Odrzucono', en: 'Rejected' },
   // Aleksander – KSeF and Settings (new keys only)
   show_upo: { pl: 'Pokaż UPO', en: 'Show UPO' },
   upo_ok: { pl: 'Faktura przyjęta przez KSeF (symulacja).', en: 'Invoice accepted by KSeF (simulated).' },
@@ -383,9 +395,6 @@ const DICT: Record<string, { pl: string; en: string }> = {
     pl: 'Gdy model nie odpowie, każdy agent ma gotową odpowiedź z reguł – pokaz nigdy się nie zatrzyma.',
     en: 'If the model does not answer, every agent has a rule-based answer ready – the demo never stops.',
   },
-  team_stage: { pl: 'Twój zespół', en: 'Your team' },
-  to_decide: { pl: 'do decyzji', en: 'to decide' },
-  nothing_waiting: { pl: 'nic nie czeka', en: 'nothing waiting' },
   // Aleksander – dashboard tiles and printable report (real API numbers only)
   short_on: { pl: 'Może zabraknąć pieniędzy', en: 'You may run short of money on' },
   kpi_balance: { pl: 'Na koncie firmy', en: 'In the business account' },
@@ -428,6 +437,17 @@ const DICT: Record<string, { pl: string; en: string }> = {
     pl: 'Wszystkie liczby liczą reguły w kodzie (bank, faktury KSeF, terminy podatkowe). Wszystkie płatności i wysyłki w aplikacji są symulowane.',
     en: 'All numbers come from rules in code (bank, KSeF invoices, tax deadlines). All payments and submissions in the app are simulated.',
   },
+  // Accessibility: comfort mode (Settings) + read aloud (SpeakButton)
+  comfort_title: { pl: 'Łatwiej czytać', en: 'Easier to read' },
+  comfort_note: { pl: 'Zapisane tylko na tym urządzeniu.', en: 'Saved on this device only.' },
+  comfort_size: { pl: 'Wielkość tekstu', en: 'Text size' },
+  comfort_size_100: { pl: 'Normalny tekst', en: 'Normal text' },
+  comfort_size_120: { pl: 'Większy tekst', en: 'Bigger text' },
+  comfort_size_140: { pl: 'Największy tekst', en: 'Biggest text' },
+  comfort_contrast: { pl: 'Wysoki kontrast', en: 'High contrast' },
+  comfort_contrast_hint: { pl: 'Szary tekst staje się czarny.', en: 'Grey text becomes black.' },
+  speak_read: { pl: 'Czytaj na głos', en: 'Read aloud' },
+  speak_stop: { pl: 'Stop', en: 'Stop' },
 };
 
 const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void }>({ lang: 'en', setLang: () => {} });
