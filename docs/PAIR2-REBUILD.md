@@ -225,9 +225,23 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
   - **Timing at the real 22 s budget:** hanging model → 22 013 ms; 6 s per call → 22 010 ms. Both under 24 s, 4 turns and a rule summary.
   - **For M8:** `replyProblem`, `textProblem`, `citesOwnFact`, `fixCurrencyPair`, `findInventedNumbers` and `mentionsKeyFact`, plus `tidyReply`, `wholeSentences` and `stripAddress`, are no longer called by any route; only their own tests use them.
 
-- [ ] **M6 Prompts** (`agents/personas.ts`)
+- [x] **M6 Prompts** (`agents/personas.ts`)
   Done when: the personas describe the JSON format, and Kasia no longer suggests paying early (or her facts gain the
   risk-after-paying line).
+
+  Result: **591/591 tests in 24 files**, typecheck clean, build OK.
+  - **Shared persona rules now match the rebuild:**
+    - pick the ids of ready-made points, most important first, and never write a fact;
+    - one short English comment talking to the owner as "you", with no numbers, dates, money, names, market moves or past tense;
+    - nothing is ever done, paid, sent or decided; leave the comment empty when there is nothing to add.
+    - Removed: "Copy amounts and dates EXACTLY as they appear in FACTS" and "Max 3 short sentences". The exact JSON format is still `CHOICE_FORMAT` / `CHAIR_FORMAT` in the user prompt.
+  - **Per CFO:**
+    - Marek: a question about one tax picks that tax; his comment is a rule of thumb.
+    - Anna: reminders first, credit last; the customers owe the shop.
+    - Tomasz: labour points are prices for customers, not wages.
+    - Kasia: no longer asked to "compare … paying the supplier early" (her facts had no numbers for it); she says how the risk feels and never where a rate is going.
+  - **Chair:** picks only ids from the list, most urgent first, with one comment and no numbers; the owner decides.
+  - **Tests:** `agents/personas.test.ts` rewritten (5 tests). They check the contract text, no digits in any persona, no hat mix-up, Kasia's change and the chair.
 
 - [ ] **M7 Regression corpus**
   Done when: the ~130 review cases are a test fixture with one property: every number in the shown text comes from
