@@ -38,18 +38,25 @@ export const VOICES: Record<CfoId, VoiceProfile> = {
 };
 const NEUTRAL = { pitch: 1, rate: 0.95 };
 
-const FEMALE = /female|woman|zira|hazel|susan|libby|sonia|jenny|aria|samantha|karen|moira|tessa|serena|paulina|zosia|ewa|agnieszka|maja/i;
-const MALE = /\bmale\b|\bman\b|david|mark|george|ryan|guy|daniel|alex|fred|oliver|thomas|adam|jacek|jan|krzysztof|marek/i;
+const FEMALE = /female|woman|zira|hazel|susan|libby|sonia|jenny|aria|ava|emma|michelle|ana\b|natasha|clara|ashley|cora|elizabeth|jane|nancy|sara|amber|samantha|karen|moira|tessa|serena|paulina|zofia|zosia|ewa|agnieszka|maja/i;
+const MALE = /\bmale\b|\bman\b|david|mark|george|ryan|guy|christopher|eric|andrew|brian|roger|steffan|william|davis|tony|jason|brandon|daniel|alex|fred|oliver|thomas|adam|jacek|\bjan\b|krzysztof|marek|marcin/i;
 const genderOf = (v: SpeechSynthesisVoice): Gender | null => (FEMALE.test(v.name) ? 'f' : MALE.test(v.name) ? 'm' : null);
 
-/** The best installed voice for this agent and language (undefined = the browser's default voice). */
+/** Natural (neural) voices sound human: Edge's "… Online (Natural)" voices and Chrome's "Google …" voices. */
+const isNatural = (v: SpeechSynthesisVoice) => /natural|neural|online|google/i.test(v.name);
+const quality = (v: SpeechSynthesisVoice) => (/natural|neural/i.test(v.name) ? 3 : 0) + (/online|google/i.test(v.name) ? 2 : 0) + (v.localService ? 0 : 1);
+
+/** The best installed voice for this agent and language (undefined = the browser's default voice).
+ *  Natural voices first; among equally good ones the agent's `pick` makes two agents of the same gender differ. */
 function voiceFor(cfo: CfoId, lang: Lang): SpeechSynthesisVoice | undefined {
-  const all = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith(lang));
+  const all = window.speechSynthesis.getVoices().filter((v) => v.lang.toLowerCase().startsWith(lang))
+    .sort((a, b) => quality(b) - quality(a));
   if (all.length === 0) return undefined;
   const p = VOICES[cfo];
   const same = all.filter((v) => genderOf(v) === p.gender);
-  if (same.length) return same[p.pick % same.length];
-  return all[(Object.keys(VOICES).indexOf(cfo)) % all.length]; // no gender in the names: at least a different voice each
+  const pool = same.length ? same : all;
+  const best = pool.filter((v) => quality(v) === quality(pool[0])); // only the best quality level
+  return best.length > p.pick ? best[p.pick] : pool[(same.length ? p.pick : Object.keys(VOICES).indexOf(cfo)) % pool.length];
 }
 
 // Chrome loads its voice list a moment after the page opens: ask early so it is ready at the first click.
@@ -61,10 +68,15 @@ function utterance(text: string, lang: Lang, cfo?: CfoId): SpeechSynthesisUttera
   const u = new SpeechSynthesisUtterance(speakable(text, lang));
   u.lang = lang === 'pl' ? 'pl-PL' : 'en-GB';
   const p = cfo ? VOICES[cfo] : NEUTRAL;
-  u.pitch = p.pitch;
-  u.rate = p.rate;
-  const v = cfo ? voiceFor(cfo, lang) : undefined;
+  // The joint recommendation (no agent) also gets the most natural voice available, not the browser's default.
+  const v = cfo ? voiceFor(cfo, lang) : window.speechSynthesis.getVoices()
+    .filter((x) => x.lang.toLowerCase().startsWith(lang)).sort((a, b) => quality(b) - quality(a))[0];
   if (v) u.voice = v;
+  // Natural voices already sound like different people, and bending their pitch makes them sound fake:
+  // keep only a hint of the agent's pitch and speed. Old robotic voices need the full difference.
+  const soft = v && isNatural(v);
+  u.pitch = soft ? 1 + (p.pitch - 1) * 0.25 : p.pitch;
+  u.rate = soft ? 1 + (p.rate - 1) * 0.5 : p.rate;
   return u;
 }
 

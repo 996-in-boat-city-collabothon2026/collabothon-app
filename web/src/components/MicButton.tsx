@@ -7,6 +7,10 @@ import { BrowserRecognizer, transcribeAudio, voiceMode, type Recognizer, type Vo
 
 const MAX_MS = 30_000;
 
+/** The owner speaks their own language: Polish when the browser is set to Polish, otherwise US English
+ *  (the most widely supported recognition language). */
+const speechLang = () => (navigator.language?.toLowerCase().startsWith('pl') ? 'pl-PL' : 'en-US');
+
 function MicIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -21,6 +25,7 @@ export default function MicButton({ onText, disabled = false }: { onText: (text:
   const [mode, setMode] = useState<VoiceMode>(null);
   const [state, setState] = useState<'idle' | 'listening' | 'working'>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [live, setLive] = useState(''); // words heard so far (browser speech recognition)
   const rec = useRef<MediaRecorder | null>(null);
   const recognizer = useRef<Recognizer | null>(null);
   const timer = useRef<number | undefined>(undefined);
@@ -53,18 +58,26 @@ export default function MicButton({ onText, disabled = false }: { onText: (text:
     const r = new BrowserRecognizer();
     recognizer.current = r;
     let heard = '';
-    r.lang = lang === 'pl' ? 'pl-PL' : 'en-GB';
-    r.interimResults = false;
-    r.continuous = false;
+    r.lang = speechLang();
+    r.interimResults = true; // show the words while the owner speaks
+    r.continuous = true;     // keep listening through short pauses, until the owner presses again
     r.maxAlternatives = 1;
-    r.onresult = (e) => { heard = Array.from(e.results).map((res) => res[0]?.transcript ?? '').join(' ').trim(); };
+    r.onresult = (e) => {
+      heard = Array.from(e.results).map((res) => res[0]?.transcript ?? '').join(' ').replace(/\s+/g, ' ').trim();
+      setLive(heard);
+    };
     r.onerror = (e) => {
-      setError(t(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'mic_denied' : e.error === 'no-speech' ? 'mic_nothing' : 'mic_failed'));
+      console.warn('[mic] browser speech recognition error:', e.error);
+      setError(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? t('mic_denied')
+        : e.error === 'no-speech' ? t('mic_nothing')
+        : e.error === 'aborted' ? null
+        : `${t('mic_failed')} (${e.error})`);
     };
     r.onend = () => {
       window.clearTimeout(timer.current);
       recognizer.current = null;
       setState('idle');
+      setLive('');
       if (heard) onText(heard);
     };
     try {
@@ -99,7 +112,7 @@ export default function MicButton({ onText, disabled = false }: { onText: (text:
       rec.current = null;
       setState('working');
       try {
-        const heard = await transcribeAudio(new Blob(chunks, { type: r.mimeType || 'audio/webm' }), lang === 'pl' ? 'pl' : 'en');
+        const heard = await transcribeAudio(new Blob(chunks, { type: r.mimeType || 'audio/webm' }), speechLang().startsWith('pl') ? 'pl' : 'en');
         if (heard) onText(heard);
         else setError(t('mic_nothing'));
       } catch {
@@ -124,7 +137,7 @@ export default function MicButton({ onText, disabled = false }: { onText: (text:
       </button>
       <span role="status" aria-live="polite"
         className={`pointer-events-none absolute bottom-full right-0 mb-2 w-max max-w-64 rounded-xl bg-ink px-3 py-2 text-sm text-white shadow-lg ${error || state === 'listening' ? '' : 'sr-only'}`}>
-        {error ?? (state === 'listening' ? t('mic_listening') : '')}
+        {error ?? (state === 'listening' ? (live ? `„${live}”` : t('mic_listening')) : '')}
       </span>
     </span>
   );
