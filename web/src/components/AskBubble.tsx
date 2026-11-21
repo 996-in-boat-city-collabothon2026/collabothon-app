@@ -6,6 +6,7 @@ import { useT } from '../i18n';
 import Icon from './Icon';
 import { CfoAvatar } from './ui';
 import SpeakButton from './SpeakButton';
+import MicButton from './MicButton';
 
 type Msg = { from: 'me' | 'cfo'; text: string; cfo?: CfoId };
 
@@ -100,6 +101,7 @@ export default function AskBubble() {
           <form onSubmit={submit} className="flex gap-2 border-t border-zinc-200 p-3">
             <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={t('ask_placeholder')}
               aria-label={t('ask_placeholder')} className="min-h-12 min-w-0 flex-1 rounded-xl border border-zinc-300 px-3" />
+            <MicButton disabled={busy} onText={(heard) => setInput((cur) => (cur.trim() ? `${cur.trim()} ${heard}` : heard))} />
             <button disabled={busy || !input.trim()} className="min-h-12 rounded-full bg-ink px-4 font-semibold text-white disabled:opacity-40">
               {t('send')}
             </button>

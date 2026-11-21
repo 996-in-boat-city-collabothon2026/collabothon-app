@@ -9,6 +9,7 @@ import { useT } from '../i18n';
 import { saveChat, type Chat, type ChatMsg } from '../lib/chats';
 import { TypingDots } from './AskBubble';
 import Icon from './Icon';
+import MicButton from './MicButton';
 import { CfoAvatar } from './ui';
 
 const AGENTS: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];
@@ -121,6 +122,7 @@ export default function ChatThread({ chat, onChange, skip = 0, autoFocus = false
           <input value={input} onChange={(e) => setInput(e.target.value)} autoFocus={autoFocus}
             placeholder={t('chat_followup_ph')} aria-label={t('chat_followup_ph')}
             className="min-h-12 min-w-0 flex-1 rounded-full bg-zinc-100 px-5 text-base" />
+          <MicButton disabled={busy} onText={(heard) => setInput((cur) => (cur.trim() ? `${cur.trim()} ${heard}` : heard))} />
           <button disabled={busy || !input.trim()} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-ink px-5 font-semibold text-white disabled:opacity-40">
             {t('send')} <Icon name="arrow" size={18} />
           </button>
