@@ -29,7 +29,7 @@ const DICT: Record<string, { pl: string; en: string }> = {
   login: { pl: 'Zaloguj się', en: 'Sign in' },
   logout: { pl: 'Wyloguj', en: 'Sign out' },
   login_tagline: { pl: 'Ty prowadzisz warsztat. MANI pilnuje liczb.', en: 'You run the workshop. MANI runs the numbers.' },
-  login_subtag: { pl: 'Czterech agentów AI pilnuje gotówki, podatków, kursu euro i kosztów. Decyzja zawsze Twoja.', en: 'Four AI agents watch your cash, taxes, euro rate and costs. You make the call.' },
+  login_subtag: { pl: 'Czterech agentów AI. Decyzja zawsze Twoja.', en: 'Four AI agents. You decide.' },
   login_h1a: { pl: 'Twój zespół finansowy', en: 'Your finance team' },
   login_h1b: { pl: 'na autopilocie', en: 'on autopilot' },
   flow_agent: { pl: 'Agent', en: 'Agent' },
