@@ -144,28 +144,28 @@ You own the safety part, so you can explain to the jury why the AI cannot invent
 "true" ones pass); health on the test copy shows the 8B model.
 
 ### Person B: topic, personas, one CFO answering · branch `agents8b-ask`
-- [ ] **B1 `server/src/agents/topic.ts`** (new): move `TOPICS` and `pickCfo()` from `routes/boardroom.ts` unchanged.
+- [x] **B1 `server/src/agents/topic.ts`** (new): move `TOPICS` and `pickCfo()` from `routes/boardroom.ts` unchanged.
   Add:
   - `leadFor(topic)`: the CFO with the highest keyword score, but `null` when nothing matches (so "Monthly review" is a
     general meeting). A CFO named in the topic ("Kasia, …") leads.
   - `isSmallTalk(text)`: true for greetings and thanks (hello, hi, hey, thanks, thank you, cześć, dzień dobry), and
     for text with fewer than 2 words of 3+ letters ("?", "ok").
-- [ ] **B2 `server/src/agents/personas.ts`** (rewrite, short). One persona per CFO plus `CHAIR_PERSONA`. Keep each CFO's
+- [x] **B2 `server/src/agents/personas.ts`** (rewrite, short). One persona per CFO plus `CHAIR_PERSONA`. Keep each CFO's
   hat and job (`CFOS`, `HATS` in `shared/types.ts`). Every persona says:
   - Use only the FACTS. Never write an amount, date or rate that is not in the FACTS.
   - 2–3 short plain sentences in English (one sentence when asked to react). No lists, no greetings.
   - The owner is a mechanic, not an accountant. Everything is simulated; nothing has been done; the owner decides.
   - If the question is not about your area, say so in one sentence and give your main point.
-- [ ] **B3 `server/src/agents/cfo.ts`** (new): `askCfo()`.
+- [x] **B3 `server/src/agents/cfo.ts`** (new): `askCfo()`.
   - Prompt (user message): `FACTS:` + `facts.lines` (one per line), `CONCLUSION:` + `facts.summary`, then
     `OWNER ASKS:` + question. With `short`, add `WHAT THE LEAD SAID:` + `heard` and "Reply in ONE sentence from your
     area."
   - Call `chatOr('', messages, { maxTokens: short ? 80 : 160, temperature: 0.3, mockKey: … })`. `chatOr` never throws.
   - `checkReply(reply, facts)` OK → `{ text: reply, fromModel: true, note: '' }`; otherwise →
     `{ text: facts.summary, fromModel: false, note: reason }` and `console.info('[guard] ask:<cfo> <reason>')`.
-- [ ] **B4 `/ask` in `server/src/routes/boardroom.ts`:** `pickCfo` (or the named CFO) → `askCfo` → `{ cfo, text }`.
+- [x] **B4 `/ask` in `server/src/routes/boardroom.ts`:** `pickCfo` (or the named CFO) → `askCfo` → `{ cfo, text }`.
   Keep the body checks (`ASK_BODY`) and the 400 for an empty question.
-- [ ] **B5 Tests:** `topic.test.ts`, `cfo.test.ts`, rewrite `routes/ask.test.ts` (list in section 6). Move the routing
+- [x] **B5 Tests:** `topic.test.ts`, `cfo.test.ts`, rewrite `routes/ask.test.ts` (list in section 6). Move the routing
   cases from the old `ask.test.ts` into `topic.test.ts`.
 
 **Done when:** the bubble answers in the model's own words on the test copy, and its tests pass.
@@ -189,7 +189,7 @@ You own the safety part, so you can explain to the jury why the AI cannot invent
        `ruleSummary(decisions)` (keep that function).
   5. Return `{ turns, summary, decisionActionIds }`. `shared/types.ts` does not change.
 - [ ] **C2 `/boardroom` route:** unchanged (`runBoardroom(req.body?.topic)`), keep `BOARDROOM_BODY`.
-- [ ] **C3 Delete** `agents/answer.ts`, `agents/comments.ts`, `agents/corpus.test.ts`, and in `agents/facts.ts` remove
+- [ ] **C3 Delete** `agents/answer.ts`, `agents/comments.ts`, `agents/corpus.test.ts` (already deleted in B's PR), and in `agents/facts.ts` remove
   `needs` / `sameAs` (keep `points`, `core`, `critical`, `lines`, `summary`: `explain.ts` uses Kasia's points).
   `npm run typecheck` shows anything still importing them.
 - [ ] **C4 Tests:** rewrite `agents/boardroom.test.ts` and `routes/boardroom.test.ts` (list in section 6).
@@ -244,22 +244,22 @@ test.
 - [ ] Every "wrong" reply in `review-corpus.ts` fails, and every "true" reply passes.
 
 **`topic.test.ts` (B): "the right CFO leads"**
-- [ ] "How to improve the margin?" → tomasz · "Should we lock the EUR rate?" → kasia · "Will we survive December?" →
+- [x] "How to improve the margin?" → tomasz · "Should we lock the EUR rate?" → kasia · "Will we survive December?" →
   anna · "When is VAT due?" → marek.
-- [ ] "Monthly review" → `leadFor` gives `null`. "Kasia, what do you think?" → kasia.
-- [ ] "hello", "Hi!", "thanks", "?" → small talk. "How to improve the margin?" → not small talk.
-- [ ] The old routing cases from `ask.test.ts` still pass with `pickCfo`.
+- [x] "Monthly review" → `leadFor` gives `null`. "Kasia, what do you think?" → kasia.
+- [x] "hello", "Hi!", "thanks", "?" → small talk. "How to improve the margin?" → not small talk.
+- [x] The old routing cases from `ask.test.ts` still pass with `pickCfo`.
 
 **`cfo.test.ts` (B): "one CFO answers safely"**
-- [ ] A good reply (rule numbers only) is shown as written, `fromModel: true`.
-- [ ] A reply with a made-up number → `facts.summary`, `fromModel: false`, `note` names the number.
-- [ ] Model throws / returns '' / times out → `facts.summary`, no exception.
-- [ ] The prompt holds the facts and the question. With `short`, it holds `heard` and asks for one sentence.
+- [x] A good reply (rule numbers only) is shown as written, `fromModel: true`.
+- [x] A reply with a made-up number → `facts.summary`, `fromModel: false`, `note` names the number.
+- [x] Model throws / returns '' / times out → `facts.summary`, no exception.
+- [x] The prompt holds the facts and the question. With `short`, it holds `heard` and asks for one sentence.
 
 **`routes/ask.test.ts` (B): "the bubble works as before"**
-- [ ] The answer is `{ cfo, text }`. A named CFO (`cfo: 'kasia'`) answers. `cfo: 'toString'` is ignored.
-- [ ] Empty question → 400. `{"question": 123}` → 400.
-- [ ] "Is my VAT 99 999 zł?" with a fake model that repeats 99 999 → the answer does not contain 99 999.
+- [x] The answer is `{ cfo, text }`. A named CFO (`cfo: 'kasia'`) answers. `cfo: 'toString'` is ignored.
+- [x] Empty question → 400. `{"question": 123}` → 400.
+- [x] "Is my VAT 99 999 zł?" with a fake model that repeats 99 999 → the answer does not contain 99 999.
 
 **`agents/boardroom.test.ts` (C): "the meeting follows the topic"**
 - [ ] "How to improve the margin?" → the first turn is tomasz. "Should we lock the EUR rate?" → kasia first.
