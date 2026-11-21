@@ -46,8 +46,8 @@ describe('POST /api/ask', () => {
     await ask('Is the euro rate a problem?');
     const prompt = sp(lastPrompt[1].content);
     expect(prompt).toContain('POINTS');
-    expect(prompt).toContain('- fx-EUR: You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł');
-    expect(prompt).toContain('- rate-EUR: ');
+    expect(prompt).toContain('- fx-EUR (main): You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł');
+    expect(prompt).toContain('- rate-EUR (detail): ');
     expect(prompt).toContain('OWNER ASKS: Is the euro rate a problem?');
     expect(prompt).toContain('Reply ONLY with JSON');
     expect(prompt).not.toContain('36 000,00 zł'); // Anna's credit line is not Kasia's business
@@ -162,12 +162,17 @@ describe('POST /api/ask: JSON choice (rebuild M4)', () => {
     expect(r.text).toBe(`${point('marek', 'next-tax')} ${point('marek', 'tax-ob-zus-11')} Taxes are not negotiable, so put that money aside first.`);
   });
 
-  it('the main conclusion is always shown: a car detail never hides Tomasz\'s advice', async () => {
-    const id = cfoFacts('tomasz').points.find((p) => p.id.startsWith('car-'))!.id;
-    modelReply = choice([id], 'bill every hour you work, your skill is worth it');
-    expect((await askAs('tomasz', 'What about the Passat?')).text).toBe(
-      `${point('tomasz', 'labour')} ${point('tomasz', id)} Bill every hour you work, your skill is worth it.`,
-    );
+  it('only details picked → the first main point is added (Tomasz: car-* ids only → "labour")', async () => {
+    const cars = cfoFacts('tomasz').points.filter((p) => p.id.startsWith('car-')).map((p) => p.id);
+    modelReply = choice(cars);
+    const r = await askAs('tomasz', 'What is my biggest cost?');
+    expect(r.text).toContain(point('tomasz', 'labour'));
+    expect(r.text).toBe([point('tomasz', 'labour'), ...cars.map((id) => point('tomasz', id))].join(' '));
+  });
+
+  it('a main point picked → no other main point is forced in (Tomasz: "markup")', async () => {
+    modelReply = choice(['markup']);
+    expect((await askAs('tomasz', 'Is my parts markup too low?')).text).toBe(point('tomasz', 'markup'));
   });
 
   it('"If that is not enough, a credit line…" always comes with the reminders it follows', async () => {

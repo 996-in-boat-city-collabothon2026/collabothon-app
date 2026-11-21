@@ -29,8 +29,8 @@ export const CHOICE_FORMAT =
   'Reply ONLY with JSON: {"points": ["ids of the points that answer, most important first, at most 3"], ' +
   '"comment": "one short sentence of your own opinion with no numbers, dates, names or money, or an empty string"}';
 
-/** Points for the prompt, one per line: "- gap: Careful: on December 20, 2026 …". */
-export const pointList = (facts: CfoFacts) => facts.points.map((p) => `- ${p.id}: ${p.text}`).join('\n');
+/** Points for the prompt, one per line: "- gap (main): Careful: on December 20, 2026 …". Main = part of the conclusion. */
+export const pointList = (facts: CfoFacts) => facts.points.map((p) => `- ${p.id} (${p.core ? 'main' : 'detail'}): ${p.text}`).join('\n');
 
 /** The model's JSON (fences, trailing commas and single quotes are repaired by extractJson), or null. */
 export const parseChoice = (raw: string): Choice | null => extractJson(raw, ChoiceSchema);
@@ -49,6 +49,7 @@ export interface Answer {
  * Rule text for the owner from the model's choice:
  * - unknown ids are dropped, repeats too, at most MAX_POINTS; nothing valid → the core points (the summary);
  * - every critical point is always shown ("What is my balance?" never hides the cash gap);
+ * - with no core point among them, the first core point is added (the main advice never vanishes);
  * - the shown points keep the facts' order ("reminders" before "credit").
  */
 export function renderAnswer(facts: CfoFacts, choice: Choice | null): Answer {
@@ -60,9 +61,9 @@ export function renderAnswer(facts: CfoFacts, choice: Choice | null): Answer {
   const chosen = new Set(picked.length ? picked : facts.points.filter((p) => p.core).map((p) => p.id));
   if (choice && !picked.length) notes.push('no valid point → core points');
   for (const p of facts.points) if (p.critical) chosen.add(p.id);
-  // The first core point is the CFO's main conclusion: always shown, so a bad pick never hides the advice.
+  // Only details picked (live run 1: Tomasz showed cars, never "Bill the full hours") → add the first core point.
   const main = facts.points.find((p) => p.core);
-  if (main) chosen.add(main.id);
+  if (main && !facts.points.some((p) => p.core && chosen.has(p.id))) chosen.add(main.id);
   for (const p of facts.points) if (chosen.has(p.id) && p.needs) chosen.add(p.needs);
   for (const p of facts.points) if (p.sameAs && chosen.has(p.sameAs)) chosen.delete(p.id);
   const shown: CfoPoint[] = facts.points.filter((p) => chosen.has(p.id));

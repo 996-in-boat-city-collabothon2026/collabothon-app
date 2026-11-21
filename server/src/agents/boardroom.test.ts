@@ -56,7 +56,7 @@ describe('conference: prompts and limits', () => {
     expect(turns).toHaveLength(4);
     turns.forEach((c, i) => {
       expect(c.o).toMatchObject({ maxTokens: TURN_MAX_TOKENS, temperature: 0.1 });
-      for (const p of cfoFacts(ORDER[i]).points) expect(c.m[1].content).toContain(`- ${p.id}: ${p.text}`);
+      for (const p of cfoFacts(ORDER[i]).points) expect(c.m[1].content).toContain(`- ${p.id} (${p.core ? 'main' : 'detail'}): ${p.text}`);
       expect(c.m[1].content).toContain('Reply ONLY with JSON');
       expect(c.m[1].content).toContain('MEETING TOPIC: Will the cash last through December?');
     });
