@@ -20,7 +20,8 @@ import { isSmallTalk, leadFor, matchesTopic } from './topic';
 /** The order of a general meeting: White → Black → Green → Red. The Blue chair sums up. */
 export const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];
 export const SMALL_TALK_SUMMARY = 'Pick a topic: cash, taxes, margin or the euro rate.';
-/** A topic whose lead has nothing to approve (Tomasz has no cards: his fixes are about prices, not payments). */export const NOTHING_ON_TOPIC = 'Nothing to approve on this topic. Other proposals are in the approval queue.';
+/** A topic whose lead has nothing to approve (Tomasz has no cards: his fixes are about prices, not payments). */
+export const NOTHING_ON_TOPIC = 'Nothing to approve on this topic. Other proposals are in the approval queue.';
 
 // The chair returns a few ids and one sentence. Low temperature: we want valid JSON more than variety.
 export const CHAIR_MAX_TOKENS = 160;

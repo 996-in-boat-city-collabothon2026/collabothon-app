@@ -131,6 +131,14 @@ describe('tidyMoney: money on screen in the app format (golden rule 6)', () => {
     expect(sp(tidyMoney('The rate is 4.27 zł.'))).toBe('The rate is 4,27 zł.');
     expect(sp(tidyMoney('to avoid a -20,275 zł balance'))).toBe('to avoid a -20 275,00 zł balance');
   });
+  it('never rewrites part of a number (review of PR #32: "1234,567 zł" became "1234 567,00 zł")', () => {
+    for (const s of ['1234,567 zł', '12,34 zł', '4.2700 zł', '1.234,56 zł']) {
+      expect(tidyMoney(s)).toBe(s);
+      expect(numbersIn(tidyMoney(s))).toEqual(numbersIn(s));
+    }
+    expect(sp(tidyMoney('1,000,000 zł and 0.50 zł'))).toBe('1 000 000,00 zł and 0,50 zł');
+  });
+
   it('leaves our format, other currencies and plain numbers alone', () => {
     for (const s of ['VAT is 14 230,00 zł.', 'You owe 1,500 EUR.', 'It went up 4 weeks in a row, 5%.']) expect(tidyMoney(s)).toBe(s);
   });

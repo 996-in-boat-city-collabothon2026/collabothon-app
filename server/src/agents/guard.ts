@@ -107,7 +107,8 @@ export function checkReply(reply: string, facts: CfoFacts): { ok: boolean; reaso
 }
 
 /** English money before "zł": "14,230.00 zł", "36,000 zł", "4.27 zł". Our format ("14 230,00 zł") does not match. */
-const ENGLISH_MONEY = /(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})\s?zł/g;
+// (?<![\d.,]): start at the first digit, or "1234,567 zł" becomes "1234 567,00 zł" (review of PR #32).
+const ENGLISH_MONEY = /(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})\s?zł/g;
 
 /**
  * Golden rule 6: money on screen is "14 230,00 zł". The 8B model often writes "14,230.00 zł" (live run on 8B: 6 of 8
