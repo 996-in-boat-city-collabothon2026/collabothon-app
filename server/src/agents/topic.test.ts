@@ -128,6 +128,21 @@ describe('followUpCfo: a follow-up in a chat stays with the CFO who answered', (
     expect(followUpCfo('Why?', meeting)).toBe('kasia');
   });
 
+  it('"it/that/this" + money words stay with the CFO (B4 live check: "How much would it cost?" went to Tomasz)', () => {
+    expect(followUpCfo('How much would it cost?', kasiaAnswered)).toBe('kasia');
+    expect(followUpCfo('Is that expensive?', kasiaAnswered)).toBe('kasia');
+    expect(followUpCfo('OK, what first?', kasiaAnswered)).toBe('kasia');
+  });
+  it('a real topic still switches, even with "it"', () => {
+    expect(followUpCfo('Is it time to pay VAT?', kasiaAnswered)).toBe('marek');
+    expect(followUpCfo('Can we cut costs on that?', kasiaAnswered)).toBe('tomasz'); // "cut" is Tomasz's
+    expect(followUpCfo('Tomasz, how much would it cost?', kasiaAnswered)).toBe('tomasz');
+  });
+  it('money words without a pointer, or with no history, keep their keyword', () => {
+    expect(followUpCfo('How can I cut costs?', kasiaAnswered)).toBe('tomasz');
+    expect(followUpCfo('How much would it cost?')).toBe('tomasz');
+  });
+
   it('no history (or no CFO in it) → pickCfo (Anna)', () => {
     expect(followUpCfo('Why?')).toBe('anna');
     expect(followUpCfo('Why?', [{ from: 'owner', text: 'hi' }])).toBe('anna');
