@@ -21,12 +21,13 @@
 | Our project / namespace | **`my-first-model`**: the app was deployed here, next to the model (`oc project my-first-model`). `cfo-llm` exists but is empty. |
 | App route URL | https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com |
 | RHOAI dashboard URL | |
-| Model | organizers' **Llama 3.2 3B Instruct**, InferenceService `llama-32-3b-instruct` in namespace `my-first-model` |
-| Model used (exact OCI URI / tag) | `oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.2-3b-instruct` |
-| `LLM_MODEL` (id from `/v1/models`) | `llama-32-3b-instruct` |
-| Model **internal** endpoint (ends `/v1`) | `http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1` |
+| Model (live since Sat 21 Nov) | our **Llama 3.1 8B Instruct**, InferenceService `llama-31-8b-instruct` in project `cfo-llm` (setup: `deploy/model/llama-31-8b.yaml`) |
+| Model used (exact OCI URI / tag) | `oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.1-8b-instruct` |
+| `LLM_MODEL` (id from `/v1/models`) | `llama-31-8b-instruct` |
+| Model **internal** endpoint (ends `/v1`) | `http://llama-31-8b-instruct-predictor.cfo-llm.svc.cluster.local:8080/v1` |
 | Model **external** endpoint | none (no route): only reachable from inside the cluster |
-| Token | none: the organizers' model has token auth **off** |
+| Token | none: token auth **off** |
+| Fallback model | organizers' **Llama 3.2 3B** `llama-32-3b-instruct` in `my-first-model`: **stopped, not deleted** (deploy/README §2) |
 
 ---
 
@@ -180,7 +181,7 @@
 
 - [x] **2.4 💻 Connect the app.** No token, no secret needed.
   ```powershell
-  oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=22000
+  oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-31-8b-instruct LLM_BASE_URL=http://llama-31-8b-instruct-predictor.cfo-llm.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=22000
   ```
   ✅ Done when: the new pod is Running.
 
@@ -191,7 +192,7 @@
   ```powershell
   ./scripts/smoke.ps1 -Base https://<route-host> -RequireModel
   ```
-  ✅ Done when: `{"mode":"openai_compat","model":"llama-32-3b-instruct","ok":true,…}`, smoke passes, the header badge in the UI is green
+  ✅ Done when: `{"mode":"openai_compat","model":"llama-31-8b-instruct","ok":true,…}`, smoke passes, the header badge in the UI is green
   ("Model: OpenShift AI"), and the hat conference text is **different** from the canned mock text.
   `oc logs deploy/warsztat-cfo --tail=20` shows one `[llm] ok key=… ms=… tokens=…` line per model call.
   **→ H12 Sync 2: both 60-point items are green.** Take a screenshot for the presentation.
@@ -364,3 +365,4 @@ General: `oc get pods` · `oc logs deploy/warsztat-cfo --tail=50` · `oc describ
 | Sat 21 Nov 10:05 | 4.6, 3.9 (smoke), PR #10 live run 2 | user + Claude | Test deploy rebuilt (`warsztat-cfo-test-9` @ 8bd6d57 = `main` 0bcf148 content). Pair 2's `live.test.ts` on real Llama: main point shown 20/20 for every CFO, comment shown 77/80, routing 16/16, 80/80 answered. Demo order (reset → autopilot → conference) on the test copy: 6.6 / 6.9 / 6.0 s (24 s budget). Live app after the PR #10 merge (build 9): smoke `-RequireModel` all passed, conference 5.2 s. ⚠️ Pair 2: the chair's first decision is "Pay Krause early", whose title shows the EUR risk going up (320,25 → 448,35 zł). |
 | Sat 21 Nov | 3.9 (smoke), 4.1, 6.4, `pair3-ui` check | user + Claude | PR #11 → build 10, PR #12 → build 11: smoke `-RequireModel` all passed both times (conference 5.5 s / 6.3 s). README checked against the cluster: added the liveness probe and webhook setup; `LLM_BUDGET_MS=22000` (live value = code default). `scripts/demo-duty.ps1` (status; `-Mock` / `-Real`) tried on the test copy: 9 s each way. `POST /api/demo/reset` without a body → 415, so every reset command sends `-ContentType 'application/json' -Body '{}'`. Test instance rebuilt from `pair3-ui` @ 73efdd7 (`warsztat-cfo-test-10`): smoke all passed (conference 10.8 s), no overflow at 375 / 1366 px, no console errors. ⚠️ Pair 3: "Projected shortfall" sticks out of the dark card on phone; chat button covers buttons; Week "Free cash 28 600 zł" (demo) vs Overview "Available today 38 400,00 zł" (API); real "Lowest cash" carries a "demo data" label. |
 | Sat 21 Nov | 3.9 (smoke) | user + Claude | PRs #13, #14, #16, #17 merged → build 14 @ 3473211. Smoke `-RequireModel` on the live URL: all passed, `openai_compat` 89 ms, `/ask` → kasia 1.1 s, conference 6.6 s. `main` merged into `pair1-openshift`. |
+| Sat 21 Nov, 12:30 | model switch | Nargiz + Claude | Tried a bigger model on the one GPU (L4, 23 GB). Catalog check: Gemma 3 12B / Qwen3 14B do not fit, gpt-oss-20b and *-nvfp4 need a newer runtime/GPU. Picked **Llama 3.1 8B** (ModelCar `llama-3.1-8b-instruct`, same runtime image as the 3B, `--max-model-len=8192`, 90% GPU). Order: backup of the 3B setup → live app to mock → stop the 3B (`serving.kserve.io/stop=true`) → apply `deploy/model/llama-31-8b.yaml` in `cfo-llm` → Ready in ~15 min, 21.2 GB GPU. Pair 2's live test on the test app: main point 20/20 per CFO, routing 16/16, comments 65/80 (3B: 77/80), 6–12 different answers per 20 (3B: 6–9), conferences 12.5–13.2 s (3B: 6.0–6.9 s). Team chose the 8B → live app switched, smoke `-RequireModel` all passed (ask 1.8 s, conference 13.4 s). The 3B is stopped, not deleted: fallback in deploy/README §2. A teammate's `qwen3-14b` in `kasia-v2` stays Pending (asks for 4 GPUs) and is harmless. |

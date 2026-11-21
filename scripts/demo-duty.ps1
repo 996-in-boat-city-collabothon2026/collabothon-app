@@ -46,7 +46,8 @@ Show-Health
 Write-Host ""
 oc get pods -n $ns --field-selector=status.phase!=Succeeded
 Write-Host ""
-Write-Host "Model:" ; oc get inferenceservice -n $ns
+Write-Host "Models (live: llama-31-8b-instruct in cfo-llm; llama-32-3b-instruct in $ns is the stopped fallback):"
+oc get inferenceservice -A
 Write-Host ""
 Write-Host "Last builds:"; oc get builds -n $ns --sort-by=.metadata.creationTimestamp | Select-Object -Last 3
 Write-Host ""
