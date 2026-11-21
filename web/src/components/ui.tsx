@@ -170,11 +170,19 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
   );
 }
 
-export function ActionCard({ action, onApprove, onReject }: { action: Action; onApprove?: () => void; onReject?: () => void }) {
+export function ActionCard({ action, onApprove, onReject }: {
+  action: Action; onApprove?: () => void | Promise<unknown>; onReject?: () => void | Promise<unknown>;
+}) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState<'approve' | 'reject' | null>(null);
-  const finish = (kind: 'approve' | 'reject', fn?: () => void) => { if (done) return; setDone(kind); setTimeout(() => fn?.(), 750); };
+  // On success the parent reloads and this card goes away. If the card is still here afterwards (the call failed),
+  // drop the "Approved" state so the buttons work again.
+  const finish = (kind: 'approve' | 'reject', fn?: () => void | Promise<unknown>) => {
+    if (done) return;
+    setDone(kind);
+    setTimeout(() => void Promise.resolve(fn?.()).finally(() => setDone(null)), 750);
+  };
   const canDecide = action.tier === 'NEEDS_APPROVAL' && action.status === 'open';
   return (
     <article className="flex h-full flex-col rounded-3xl bg-white p-4">

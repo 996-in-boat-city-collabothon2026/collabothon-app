@@ -237,7 +237,7 @@ export default function Dashboard() {
         <div className="grid gap-5 lg:grid-cols-3">
           {open.slice(0, 3).map((a) => (
             <div key={a.id} className="surface flex p-1">
-              <ActionCard action={a} onApprove={() => void decide(a, true)} onReject={() => void decide(a, false)} />
+              <ActionCard action={a} onApprove={() => decide(a, true)} onReject={() => decide(a, false)} />
             </div>
           ))}
         </div>
