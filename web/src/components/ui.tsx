@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { CFOS, HATS, type Action, type CfoId, type Currency, type Execution, type Hat, type LlmHealth, type Tier } from '@cfo/shared';
 import { Link } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { useT } from '../i18n';
 import Icon, { type IconName } from './Icon';
 import SpeakButton from './SpeakButton';
@@ -286,17 +287,20 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  return (
+  // Portal to <body>: pages sit in an animated container (its own stacking context), so without it the
+  // phone's bottom menu (z-30) is drawn over the sheet and covers its last button (e.g. "Save draft").
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 md:items-center" onClick={onClose}>
       <div role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}
         className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl bg-white md:rounded-3xl">
         <header className="flex items-center gap-2 border-b border-stone-200 py-2 pl-4 pr-2">
           <h2 className="flex-1 text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} aria-label="Zamknij" className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-stone-100"><Icon name="close" /></button>
+          <button onClick={onClose} aria-label="Close" className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-stone-100"><Icon name="close" /></button>
         </header>
         <div className="space-y-3 overflow-y-auto p-4">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
