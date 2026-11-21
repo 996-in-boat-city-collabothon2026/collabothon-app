@@ -114,6 +114,14 @@ describe('buildFill: only the gaps are filled', () => {
     expect(f.missing).toEqual([{ field: 'nip' }]);
   });
 
+  it('a currency the form already has is not returned again; a new one only while no price is typed (PR #34 review)', () => {
+    expect(fill({ currency: 'PLN' }, 'olej 50 zł', { currency: 'PLN' }).set).toEqual({});
+    expect(fill({ currency: 'EUR' }, 'w euro', { currency: 'PLN', lines: [{ name: 'Olej', unitNet: '' }] }).set).toEqual({ currency: 'EUR' });
+    const priced = fill({ currency: 'EUR' }, 'w euro', { currency: 'PLN', lines: [{ name: 'Olej', unitNet: '50' }] });
+    expect(priced.set).toEqual({});
+    expect(priced.skipped).toEqual([{ field: 'currency', value: 'EUR', reason: 'already_filled' }]);
+  });
+
   it('an assumed qty may be replaced; a typed qty may not', () => {
     const assumed: InvoiceForm = { lines: [{ name: 'Olej', qty: 1, unitNet: 30, vatRate: 23, assumed: ['qty'] }] };
     expect(fill({ lines: [{ line: 1, qty: '#1' }] }, 'olej 4 litry', assumed).lineUpdates).toEqual([{ index: 0, qty: 4 }]);
@@ -174,6 +182,22 @@ describe('POST /api/invoices/parse-voice', () => {
     expect(f.lineUpdates).toEqual([{ index: 0, unitNet: 50 }]); // one line without a price + one amount
     expect(f.newLines).toEqual([]); // rules never invent items
     expect(f.missing).toEqual([{ field: 'name' }]);
+  });
+
+  it('rules: one amount + only the empty starter line → its price; missing then asks for the name (PR #34 review)', async () => {
+    modelAnswer = async () => 'no JSON';
+    const form = { currency: 'PLN', lines: [{ name: '', qty: '1', unitNet: '', vatRate: 23 }] };
+    const f = (await post({ text: '200 zł', form })).json<InvoiceFill>();
+    expect(f.set).toEqual({}); // PLN was already on the form
+    expect(f.lineUpdates).toEqual([{ index: 0, unitNet: 200 }]);
+    expect(f.missing).toContainEqual({ field: 'line.name', line: 0 });
+  });
+
+  it('rules: a named line without a price wins over an empty one', async () => {
+    modelAnswer = async () => 'no JSON';
+    const form = { lines: [{ name: '', unitNet: '' }, { name: 'Filtr', unitNet: '' }] };
+    const f = (await post({ text: '50 zł', form })).json<InvoiceFill>();
+    expect(f.lineUpdates).toEqual([{ index: 1, unitNet: 50 }]);
   });
 
   it('model down → rules, no crash', async () => {

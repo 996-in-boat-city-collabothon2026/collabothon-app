@@ -287,7 +287,9 @@ export function buildFill(reply: ClerkReply, form: InvoiceForm, numbers: SpokenN
 
   // Currency changes the meaning of every price: only while no price is on the form yet.
   const lines = form.lines ?? [];
-  if (reply.currency) {
+  // The form always sends a currency (PLN by default): the same value again is not news, so it is not returned
+  // (review of PR #34: the UI kept saying "Filled by voice: Currency" every round).
+  if (reply.currency && reply.currency !== form.currency) {
     const pricesOnForm = lines.some((l) => !empty(l.unitNet));
     (empty(form.currency) || !pricesOnForm) ? (set.currency = reply.currency) : alreadyFilled('currency', reply.currency);
   }
@@ -369,7 +371,12 @@ export function ruleReply(text: string, form: InvoiceForm, numbers: SpokenNumber
     return list.length === 1 ? list[0].id : null;
   };
   // One existing line without a price + exactly one amount said with zł/netto/brutto → that is its price.
-  const noPrice = (form.lines ?? []).flatMap((l, i) => (!empty(l.name) && empty(l.unitNet) ? [i + 1] : []));
+  // Named lines first; an unnamed one (the empty starter line) only when no named line needs a price.
+  // Review of PR #34: "200 zł" with only the empty starter line filled nothing; now it fills the price and
+  // `missing` asks for the name.
+  const withoutPrice = (form.lines ?? []).flatMap((l, i) => (empty(l.unitNet) ? [{ n: i + 1, named: !empty(l.name) }] : []));
+  const named = withoutPrice.filter((l) => l.named);
+  const noPrice = (named.length ? named : withoutPrice).map((l) => l.n);
   const money = only('money');
   return {
     counterpartyName: null,
