@@ -20,11 +20,14 @@ export const CHAIR_MAX_TOKENS = 160;
 
 const transcriptOf = (turns: BoardroomTurn[]) => turns.map((t) => `${CFOS[t.cfo].name}: ${t.text}`).join('\n');
 
-/** One CFO's turn prompt: what the others said, then this CFO's own points and comments. */
-function turnPrompt(cfo: CfoId, facts: CfoFacts, subject: string, turns: BoardroomTurn[], comments: CannedComment[]): string {
+/**
+ * One CFO's turn prompt: what the others said, then this CFO's own points and comments. `heard` holds only rule text:
+ * live run 1, Kasia copied Tomasz's comment word for word.
+ */
+function turnPrompt(cfo: CfoId, facts: CfoFacts, subject: string, heard: BoardroomTurn[], comments: CannedComment[]): string {
   return [
     `MEETING TOPIC: ${subject}`,
-    `WHAT THE OTHERS SAID:\n${transcriptOf(turns) || '(nobody has spoken yet)'}`, '',
+    `WHAT THE OTHERS SAID:\n${transcriptOf(heard) || '(nobody has spoken yet)'}`, '',
     `YOUR POINTS, ${CFOS[cfo].name} (ready-made from the rules, each with its id):`,
     pointList(facts), '',
     commentBlock(comments), '',
@@ -50,7 +53,9 @@ export const CHAIR_FORMAT =
 
 export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   const subject = topic?.trim() || 'Monthly review';
-  const turns: BoardroomTurn[] = [];
+  const turns: BoardroomTurn[] = []; // what the owner sees
+  const heard: BoardroomTurn[] = []; // the same turns without comments: what the next speakers and the chair read
+  const used = new Set<string>(); // comment ids already said: never twice in one meeting
   let critical = false; // any CFO with a real risk: the chair may not pick a calm comment
 
   for (const cfo of ORDER) {
@@ -61,14 +66,16 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
       continue;
     }
     // chatOr never throws: a dead, slow or empty model gives '' → no JSON → this CFO's conclusion (core points).
-    const comments = commentsFor(cfo, facts.points.some((p) => p.critical));
+    const comments = commentsFor(cfo, facts.points.some((p) => p.critical), used);
     const raw = await chatOr('', [
       { role: 'system', content: PERSONAS[cfo] },
-      { role: 'user', content: turnPrompt(cfo, facts, subject, turns, comments) },
+      { role: 'user', content: turnPrompt(cfo, facts, subject, heard, comments) },
     ], { maxTokens: TURN_MAX_TOKENS, temperature: 0.1, mockKey: `boardroom:${cfo}` });
     const answer = renderAnswer(facts, parseChoice(raw), comments);
     if (answer.note) console.info(`[guard] boardroom:${cfo} ${answer.note}`);
     turns.push({ cfo, text: answer.text });
+    heard.push({ cfo, text: answer.ruleText });
+    if (answer.commentId) used.add(answer.commentId);
   }
 
   // Only cards the rules still propose: approving a stale card is refused with 409 (review of PR #6: after paying
@@ -81,7 +88,7 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   const chairComments = commentsFor('chair', critical);
   const chairRaw = await chatOr('', [
     { role: 'system', content: `${CHAIR_PERSONA} ${CHAIR_FORMAT}` },
-    { role: 'user', content: `ITEMS TO APPROVE:\n${items}\n\nDEBATE:\n${transcriptOf(turns)}\n\n${commentBlock(chairComments)}` },
+    { role: 'user', content: `ITEMS TO APPROVE:\n${items}\n\nDEBATE:\n${transcriptOf(heard)}\n\n${commentBlock(chairComments)}` },
   ], { maxTokens: CHAIR_MAX_TOKENS, temperature: 0.1, mockKey: 'boardroom:chair' });
 
   const chair = extractJson(chairRaw, ChairSchema);

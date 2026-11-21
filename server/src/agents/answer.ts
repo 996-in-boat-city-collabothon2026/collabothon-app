@@ -35,6 +35,7 @@ export const commentBlock = (allowed: CannedComment[]) => `COMMENTS you may pick
 
 export interface Answer {
   text: string; // what the owner sees: rule text of the shown points, then the picked comment
+  ruleText: string; // the shown points only (what the next CFO in a conference hears)
   points: string[]; // ids of the shown points, in the facts' order
   comment: string; // the shown comment ('' = none)
   commentId: string; // its id ('' = none), so a conference can drop a repeat
@@ -69,6 +70,7 @@ export function renderAnswer(facts: CfoFacts, choice: Choice | null, allowed: Ca
   const comment = pickComment(wanted, allowed);
   if (wanted && !comment) notes.push(`comment id dropped: ${wanted.slice(0, 40)}`);
   const commentId = comment ? wanted : '';
-  const text = [...shown.map((p) => p.text), comment].filter(Boolean).join(' ');
-  return { text, points: shown.map((p) => p.id), comment, commentId, note: notes.join('; ') };
+  const ruleText = shown.map((p) => p.text).join(' ');
+  const text = [ruleText, comment].filter(Boolean).join(' ');
+  return { text, ruleText, points: shown.map((p) => p.id), comment, commentId, note: notes.join('; ') };
 }

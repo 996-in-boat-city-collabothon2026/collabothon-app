@@ -9,7 +9,7 @@ import { isCurrentCard, runAutopilot } from './autopilot';
 import { agentModel } from './answer';
 import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, TURN_MAX_TOKENS } from './boardroom';
 import { cfoFacts } from './facts';
-import { COMMENTS, type Speaker } from './comments';
+import { COMMENTS, commentsFor, type Speaker } from './comments';
 import { explain } from './explain';
 import { looksPolish } from './safety';
 
@@ -158,6 +158,29 @@ describe('conference turns: rule points + a picked comment', () => {
     expect(anna).not.toContain('anna-calm');
     expect(anna).not.toContain('tomasz-bill');
     expect(sent.find((c) => persona(c.m, 'tomasz'))!.m[1].content).toContain('tomasz-calm'); // nothing critical
+  });
+});
+
+describe('conference: no repeats (F3)', () => {
+  it('the next CFO and the chair hear only rule text, never an earlier comment', async () => {
+    await runAutopilot();
+    reply = (m) => (persona(m, 'marek') ? choice(['ksef'], 'marek-data') : '');
+    const r = await runBoardroom();
+    expect(r.turns[0].text).toContain(said_('marek-data')); // the owner sees it
+    for (const c of sent.slice(1)) expect(c.m[1].content).not.toContain(said_('marek-data'));
+    expect(sent.find((c) => persona(c.m, 'anna'))!.m[1].content).toContain(`Marek: ${pt('marek', 'next-tax')} ${pt('marek', 'ksef')}`);
+  });
+
+  it('two CFOs return the same comment id → the second has no comment', async () => {
+    await runAutopilot();
+    reply = (m) => (persona(m, 'marek') ? choice(['ksef'], 'marek-data') : persona(m, 'anna') ? choice(['reminders'], 'marek-data') : '');
+    const r = await runBoardroom();
+    expect(r.turns[0].text).toContain(said_('marek-data'));
+    expect(r.turns[1].text).toBe(`${pt('anna', 'gap')} ${pt('anna', 'reminders')}`);
+  });
+
+  it('an id already said is no longer offered or accepted', () => {
+    expect(commentsFor('anna', true, new Set(['anna-chase'])).map((c) => c.id)).toEqual(['anna-cushion', 'anna-worst']);
   });
 });
 
