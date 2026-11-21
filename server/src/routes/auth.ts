@@ -6,6 +6,9 @@ import type { User } from '@cfo/shared';
 const DEMO_USER: User = { id: 'demo', name: 'Piotr Nowak', email: 'owner@autoserwis-nowak.demo', provider: 'demo' };
 let current: User | null = null; // one shared demo session is enough for the hackathon
 
+/** True while the demo user is signed in (used by routes that spend a paid service, e.g. routes/voice.ts). */
+export const isSignedIn = (): boolean => current !== null;
+
 const routes: FastifyPluginAsync = async (app) => {
   app.get('/auth/me', async () => ({ user: current }));
   app.post('/auth/demo-login', async () => {

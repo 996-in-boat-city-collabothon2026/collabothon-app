@@ -28,7 +28,9 @@ export const config = {
     baseUrl: (process.env.WHISPER_BASE_URL ?? '').trim().replace(/\/$/, ''),
     model: process.env.WHISPER_MODEL || 'whisper-1',
     apiKey: process.env.WHISPER_API_KEY ?? '',
-    timeoutMs: Number(process.env.WHISPER_TIMEOUT_MS ?? 20000),
+    // A typo like "20s" would give NaN (and abort every request at once): fall back to 20 s.
+    timeoutMs: Number.isFinite(Number(process.env.WHISPER_TIMEOUT_MS)) && Number(process.env.WHISPER_TIMEOUT_MS) > 0
+      ? Number(process.env.WHISPER_TIMEOUT_MS) : 20000,
   },
 };
 
