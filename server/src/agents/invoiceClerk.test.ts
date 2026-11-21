@@ -200,6 +200,37 @@ describe('POST /api/invoices/parse-voice', () => {
     expect(f.lineUpdates).toEqual([{ index: 1, unitNet: 50 }]);
   });
 
+  it.each([
+    ['with commas', 'Faktura dla Taxi Wawel, NIP 679 234 56 79, wymiana oleju 200 zł netto, filtr oleju 2 sztuki po 61,50 brutto, przelew za 14 dni'],
+    ['no punctuation (as speech recognition writes it)', 'faktura dla Taxi Wawel NIP 679 234 56 79 wymiana oleju 200 zł netto filtr oleju 2 sztuki po 61,50 brutto przelew za 14 dni'],
+  ])('rules without a model fill buyer, NIP and the items (%s)', async (_l, text) => {
+    modelAnswer = async () => 'no JSON';
+    const f = (await post({ text, form: { currency: 'PLN', lines: [{ name: '', qty: '1', unitNet: '', vatRate: 23 }] } })).json<InvoiceFill>();
+    expect(f.source).toBe('fallback');
+    expect(f.set).toEqual({ name: 'Taxi Wawel', nip: '6792345679', dueDate: '2026-12-04', paymentMethod: 'transfer' });
+    expect(f.lineUpdates).toEqual([]);
+    expect(f.newLines).toEqual([
+      { name: 'Wymiana oleju', kind: 'labour', qty: 1, unitNet: 200, vatRate: 23, assumed: ['qty', 'vatRate'] },
+      { name: 'Filtr oleju', kind: 'part', qty: 2, unitNet: 50, vatRate: 23, assumed: ['vatRate'] }, // 61,50 brutto → 50 netto
+    ]);
+    expect(f.missing).toEqual([]);
+  });
+
+  it('rules: an item with the same name as a form line without a price completes that line', async () => {
+    modelAnswer = async () => 'no JSON';
+    const form = { lines: [{ name: 'Wymiana oleju', qty: '1', unitNet: '200' }, { name: 'Filtr oleju', qty: '2', unitNet: '' }] };
+    const f = (await post({ text: 'filtr oleju 50 zł', form })).json<InvoiceFill>();
+    expect(f.lineUpdates).toEqual([{ index: 1, unitNet: 50 }]);
+    expect(f.newLines).toEqual([]);
+  });
+
+  it('rules: buyer at the start without "faktura dla", and a NIP never becomes an item', async () => {
+    modelAnswer = async () => 'no JSON';
+    const f = (await post({ text: 'Kurier Express NIP 6781234560 klocki hamulcowe 350 zł gotówka' })).json<InvoiceFill>();
+    expect(f.set).toMatchObject({ name: 'Kurier Express', paymentMethod: 'cash' });
+    expect(f.newLines.map((l) => [l.name, l.unitNet, l.kind])).toEqual([['Klocki hamulcowe', 350, 'part']]);
+  });
+
   it('model down → rules, no crash', async () => {
     modelAnswer = async () => { throw new Error('503'); };
     const f = (await post({ text: 'gotówka, za 7 dni' })).json<InvoiceFill>();

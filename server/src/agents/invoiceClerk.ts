@@ -87,6 +87,8 @@ export interface SpokenNumber {
   nipValid?: boolean;
   priceType?: 'net' | 'gross';
   currency?: Currency;
+  at: number; // where it starts in the text
+  end: number; // where it ends (rules use this to cut the text into line items)
 }
 
 const NIP_AFTER_WORD = /\b(?:nip|vat\s*id|numer\s+vat|tax\s*id)\b[\s:.-]*((?:pl|de)?[\s-]?(?:\d[\s-]?){8,10}\d)/gi;
@@ -107,7 +109,7 @@ const BEFORE_MONEY = /\b(?:po|cena|cenie|kwota|kwocie|at|price|for)\s*$/;
 
 /** Tags every number in the text. Pure code, no model. Exported for tests and for the prompt. */
 export function tagNumbers(text: string): SpokenNumber[] {
-  const found: (Omit<SpokenNumber, 'id'> & { at: number })[] = [];
+  const found: Omit<SpokenNumber, 'id'>[] = [];
   const mask = (s: string, from: number, len: number) => s.slice(0, from) + ' '.repeat(len) + s.slice(from + len);
   let rest = text;
 
@@ -116,7 +118,7 @@ export function tagNumbers(text: string): SpokenNumber[] {
     const nip = normalizeNip(raw.replace(/^(pl|de)\s/i, '$1'));
     const valid = isValidNip(nip) || isForeignVatId(nip);
     if (!valid && !afterWord) return; // a bare 10-digit number is a NIP only with a valid checksum
-    found.push({ raw: raw.trim(), role: 'nip', value: NaN, nip, nipValid: valid, at });
+    found.push({ raw: raw.trim(), role: 'nip', value: NaN, nip, nipValid: valid, at, end: at + raw.length });
     rest = mask(rest, at, raw.length);
   };
   for (const m of text.matchAll(NIP_AFTER_WORD)) takeNip(m[1], m.index! + m[0].length - m[1].length, true);
@@ -133,7 +135,7 @@ export function tagNumbers(text: string): SpokenNumber[] {
     else if (AFTER_MONEY.test(after)) role = 'money';
     else if (AFTER_QTY.test(after) || BEFORE_QTY.test(before)) role = 'qty';
     else if (BEFORE_MONEY.test(before)) role = 'money';
-    const n: Omit<SpokenNumber, 'id'> & { at: number } = { raw, role, value, at: m.index! };
+    const n: Omit<SpokenNumber, 'id'> = { raw, role, value, at: m.index!, end: m.index! + raw.length };
     if (role === 'money') {
       n.currency = CURRENCY_WORDS.find(([re]) => re.test(after))?.[1];
       if (/^(?:\S+\s+)?(?:netto|net\b)/.test(after)) n.priceType = 'net';
@@ -143,7 +145,7 @@ export function tagNumbers(text: string): SpokenNumber[] {
   }
   return found
     .sort((a, b) => a.at - b.at)
-    .map(({ at: _at, ...n }, i) => ({ ...n, id: `#${i + 1}` }));
+    .map((n, i) => ({ ...n, id: `#${i + 1}` }));
 }
 
 // ---------- Step 2 (model): match the numbers and words to the fields ----------
@@ -363,28 +365,103 @@ function stillMissing(form: InvoiceForm, set: InvoiceFill['set'], updates: LineU
   return out;
 }
 
-// ---------- Without a model: rules only pick what is unambiguous ----------
+// ---------- Without a model (mock mode, model down): rules ----------
+// Speech recognition often writes no commas, so the rules cut the text at the AMOUNTS: the words before each
+// amount are that item's name ("wymiana oleju 200 zł" → item "Wymiana oleju", price #2). The picks then go
+// through the same buildFill checks as the model's, so the field types are enforced the same way.
+const LABOUR_STEMS = ['wymian', 'napraw', 'montaż', 'montaz', 'demontaż', 'robocizn', 'roboczogodzin', 'usług', 'uslug',
+  'diagnost', 'przegląd', 'przeglad', 'serwis', 'regulacj', 'geometri', 'wyważ', 'wywaz', 'labour', 'labor', 'repair', 'service', 'replace'];
+const PART_STEMS = ['filtr', 'olej', 'oleju', 'klock', 'tarcz', 'opon', 'akumulator', 'świec', 'swiec', 'pas', 'rozrząd', 'rozrzad',
+  'amortyzator', 'sprzęgł', 'sprzegl', 'płyn', 'plyn', 'częśc', 'czesc', 'wycieraczk', 'żarówk', 'zarowk', 'part', 'filter', 'oil',
+  'tyre', 'tire', 'brake', 'battery'];
+const PAYMENT = /(?:^|[\s,;.])(?:przelew\w*|gotówk\w*|gotowk\w*|kart\w*|transfer|cash|card)(?=[\s,;.]|$)/gi;
+const wordStart = (stems: string[]) => new RegExp(`(?:^|[\\s,;.])(?:${stems.join('|')})`, 'i');
+const LABOUR = wordStart(LABOUR_STEMS);
+const PART = wordStart(PART_STEMS);
+/** Words that are never part of a name when they stand at its start or end. */
+const FILLER = new Set(`i oraz plus a także takze też tez po za x razy szt sztuk sztuki sztuka godzin godziny godzina godz h rbh
+  netto brutto net gross zł zl złotych zlotych złote zlote pln eur euro usd cena kwota koszt termin płatność platnosc płatności
+  platnosci faktura fakturę fakture dla na nip vat w ciągu ciagu dni dnia dzień dzien days in within for invoice at each per
+  przelew przelewem gotówka gotówką gotowka gotowka kartą karta karta transfer cash card`.split(/\s+/).filter(Boolean));
+const TRAILING_UNITS = /^\s*(?:zł|złotych|złote|zl|zlotych|pln|eur|euro|usd|dolarów|dolary|netto|brutto|net|gross|dni|dnia|dzień|dzien|days?|%|procent)\b\.?/i;
+
+/** "filtr oleju 2 sztuki po" → "Filtr oleju". null when nothing name-like is left. */
+function nameFrom(segment: string): string | null {
+  const words = segment.replace(/[,;:]/g, ' ').split(/\s+/).map((w) => w.replace(/^[.]+|[.]+$/g, '')).filter((w) => w && !/^\d+([.,]\d+)?$/.test(w));
+  while (words.length && FILLER.has(words[0].toLowerCase())) words.shift();
+  while (words.length && FILLER.has(words[words.length - 1].toLowerCase())) words.pop();
+  const name = words.join(' ');
+  return /[a-ząćęłńóśźż]{3,}/i.test(name) ? name[0].toUpperCase() + name.slice(1) : null;
+}
+
+/** Where a number really ends: "200" + " zł netto" → after "netto". */
+function endWithUnits(text: string, end: number): number {
+  let e = end;
+  for (let m = TRAILING_UNITS.exec(text.slice(e)); m; m = TRAILING_UNITS.exec(text.slice(e))) e += m[0].length;
+  return e;
+}
+
+/** "Faktura dla Taxi Wawel wymiana…" → "Taxi Wawel"; "Taxi Wawel NIP 679…" → "Taxi Wawel". Stops at a comma, NIP, a digit, an item or payment word. */
+function buyerFrom(text: string): { name: string | null; end: number } {
+  const dla = /(?:faktur\w*|invoice)\s+(?:dla|na|for)\s+/i.exec(text);
+  const nipWord = /(?:^|\s)nip\b/i.exec(text);
+  let start = -1;
+  if (dla) start = dla.index + dla[0].length;
+  else if (nipWord && !/\d/.test(text.slice(0, nipWord.index))) start = 0; // "Taxi Wawel NIP …" at the very start
+  if (start < 0) return { name: null, end: 0 };
+  const rest = text.slice(start);
+  const stops = [/[,;.](?:\s|$)/, /(?:^|\s)nip\b/i, /\d/, LABOUR, PART, new RegExp(PAYMENT.source, 'i')]
+    .map((re) => re.exec(rest)?.index ?? rest.length);
+  const stop = Math.min(...stops);
+  return { name: nameFrom(rest.slice(0, stop)), end: start + stop };
+}
+
+const firstStem = (s: string) => s.trim().toLowerCase().split(/\s+/)[0]?.slice(0, 5) ?? '';
+
 export function ruleReply(text: string, form: InvoiceForm, numbers: SpokenNumber[]): ClerkReply {
   const t = text.toLowerCase();
   const only = (role: NumberRole) => {
     const list = numbers.filter((n) => n.role === role && (role !== 'nip' || n.nipValid));
     return list.length === 1 ? list[0].id : null;
   };
-  // One existing line without a price + exactly one amount said with zł/netto/brutto → that is its price.
-  // Named lines first; an unnamed one (the empty starter line) only when no named line needs a price.
-  // Review of PR #34: "200 zł" with only the empty starter line filled nothing; now it fills the price and
-  // `missing` asks for the name.
-  const withoutPrice = (form.lines ?? []).flatMap((l, i) => (empty(l.unitNet) ? [{ n: i + 1, named: !empty(l.name) }] : []));
-  const named = withoutPrice.filter((l) => l.named);
-  const noPrice = (named.length ? named : withoutPrice).map((l) => l.n);
-  const money = only('money');
+  const buyer = buyerFrom(text);
+
+  // Every place where one item's text must stop: the buyer phrase, a NIP, an amount, "14 dni", "VAT 8%", a payment word.
+  const bounds = [buyer.end, ...[...text.matchAll(PAYMENT)].map((m) => m.index! + m[0].length)];
+  for (const n of numbers) if (n.role !== 'qty' && n.role !== 'plain') bounds.push(endWithUnits(text, n.end));
+
+  const formLines = form.lines ?? [];
+  const taken = new Set<number>(); // existing lines already given a price in this round
+  const lines: ClerkReply['lines'] = [];
+  for (const money of numbers.filter((n) => n.role === 'money')) {
+    const from = Math.max(0, ...bounds.filter((b) => b <= money.at));
+    const inside = (n: SpokenNumber) => n.at >= from && n.at < money.at;
+    const qty = numbers.filter((n) => n.role === 'qty' && inside(n)).at(-1);
+    const vat = numbers.filter((n) => n.role === 'vat' && inside(n)).at(-1);
+    const name = nameFrom(text.slice(from, money.at));
+    const pick = { unitPrice: money.id, qty: qty?.id ?? null, vatRate: vat?.id ?? null };
+
+    // Same name as a line on the form that still has no price → complete that line.
+    const same = name ? formLines.findIndex((l, i) => !taken.has(i) && empty(l.unitNet) && !empty(l.name) && firstStem(l.name!) === firstStem(name)) : -1;
+    if (same >= 0) { taken.add(same); lines.push({ line: same + 1, ...pick }); continue; }
+    if (name) {
+      lines.push({ line: 'new', name, kind: LABOUR.test(` ${name}`) ? 'labour' : PART.test(` ${name}`) ? 'part' : 'other', ...pick });
+      continue;
+    }
+    // Only an amount ("200 zł"): the one line without a price gets it (named lines first, then the empty starter line).
+    const withoutPrice = formLines.flatMap((l, i) => (!taken.has(i) && empty(l.unitNet) ? [{ i, named: !empty(l.name) }] : []));
+    const named = withoutPrice.filter((l) => l.named);
+    const candidates = named.length ? named : withoutPrice;
+    if (candidates.length === 1) { taken.add(candidates[0].i); lines.push({ line: candidates[0].i + 1, ...pick }); }
+  }
+
   return {
-    counterpartyName: null,
+    counterpartyName: buyer.name,
     nip: only('nip'),
     dueInDays: only('days'),
     paymentMethod: /przelew|transfer/.test(t) ? 'transfer' : /gotówk|gotowk|cash/.test(t) ? 'cash' : /kart|card/.test(t) ? 'card' : null,
     currency: /\beur|euro/.test(t) ? 'EUR' : /\busd|dolar|dollar/.test(t) ? 'USD' : /zł|złot|zlot|\bpln/.test(t) ? 'PLN' : null,
-    lines: noPrice.length === 1 && money ? [{ line: noPrice[0], unitPrice: money }] : [],
+    lines,
   };
 }
 
