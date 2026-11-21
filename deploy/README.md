@@ -17,9 +17,18 @@ oc logs -f bc/warsztat-cfo
 oc create route edge --service=warsztat-cfo
 oc get route warsztat-cfo
 oc set probe deploy/warsztat-cfo --readiness --get-url=http://:8080/api/health
+oc set probe deploy/warsztat-cfo --liveness --get-url=http://:8080/api/health --initial-delay-seconds=20
 oc set resources deploy/warsztat-cfo --requests=cpu=200m,memory=256Mi --limits=cpu=1,memory=1Gi
 ```
-Rebuild after a merge to main (if the webhook isn't set up): `oc start-build warsztat-cfo --follow`
+Auto-rebuild on merge to `main` (GitHub webhook, repo admin only):
+```powershell
+oc describe bc/warsztat-cfo | Select-String -Context 0,2 "Webhook GitHub"
+oc get bc warsztat-cfo -o jsonpath='{.spec.triggers[?(@.type=="GitHub")].github.secret}'
+```
+GitHub → repo → **Settings → Webhooks → Add webhook**: Payload URL = the first URL with `<secret>` replaced by the
+second output, Content type = `application/json`, "Just the push event". Never paste the secret into chat, logs or Git.
+
+Rebuild by hand (if the webhook isn't set up): `oc start-build warsztat-cfo --follow`
 
 Roll back a bad build (`oc rollout undo` does NOT work: the image trigger resets it). Point `latest` at an older image
 instead. Windows PowerShell 5.1, all in **one** PowerShell session (the return step needs `$original`):
@@ -65,11 +74,11 @@ oc label namespace my-first-model opendatahub.io/dashboard=true
 
 ## 3. Connect app → model
 ```
-oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=24000
+oc set env deploy/warsztat-cfo LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=22000
 oc rsh deploy/warsztat-cfo curl -s localhost:8080/api/llm/health
 ```
 Expect `"mode":"openai_compat","ok":true`. `LLM_TIMEOUT_MS` = max per model call, `LLM_BUDGET_MS` = max total model time per API request
-(the conference makes 5 calls; keep it under the 25 s demo target). Check what is set: `oc set env deploy/warsztat-cfo --list`. Back to mock any time: `oc set env deploy/warsztat-cfo LLM_MODE=mock`.
+(the conference makes 5 calls; keep it under the 25 s demo target; 22000 is also the code default, and the conference now takes ~6 s). Check what is set: `oc set env deploy/warsztat-cfo --list`. Back to mock any time: `oc set env deploy/warsztat-cfo LLM_MODE=mock`.
 
 If we ever switch to a model with token auth: `oc create secret generic llm --from-literal=LLM_API_KEY=<token>`
 then `oc set env deploy/warsztat-cfo --from=secret/llm`.
@@ -79,14 +88,14 @@ Runs next to the live app, on the same model. Example: Pair 2 wants to try `pair
 `-n my-first-model` on every line, so it never lands in the wrong project.
 ```
 oc new-app https://github.com/996-in-boat-city-collabothon2026/collabothon-app#pair2-agents --strategy=docker --name=warsztat-cfo-test -n my-first-model
-oc set env deploy/warsztat-cfo-test -n my-first-model LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=24000
+oc set env deploy/warsztat-cfo-test -n my-first-model LLM_MODE=openai_compat LLM_MODEL=llama-32-3b-instruct LLM_BASE_URL=http://llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=22000
 oc create route edge --service=warsztat-cfo-test -n my-first-model
 oc logs -f bc/warsztat-cfo-test -n my-first-model
 oc get route warsztat-cfo-test -n my-first-model -o jsonpath='{.spec.host}'
 ```
 URL: `https://warsztat-cfo-test-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com`. It has no webhook:
 after new pushes to the branch run `oc start-build warsztat-cfo-test --follow -n my-first-model`.
-`LLM_BUDGET_MS=24000` matches the live app, so the test shows whether the chair answers in demo conditions.
+`LLM_BUDGET_MS=22000` matches the live app, so the test shows whether the chair answers in demo conditions.
 Remove after testing: the five objects of the test instance only (the live app and the shared base-image ImageStream stay):
 `oc delete deploy,svc,route,bc,is warsztat-cfo-test -n my-first-model --ignore-not-found`
 

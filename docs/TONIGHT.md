@@ -54,18 +54,20 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
   ```powershell
   ./scripts/smoke.ps1 -Base https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com -RequireModel
   ```
-  **Done when:** it is green after the last merge. (Green after PR #10, 10:05: conference 5.2 s.)
+  **Done when:** it is green after the last merge. (Green after PR #10, 10:05: conference 5.2 s. Green after PR #11,
+  build 10: conference 5.5 s.)
 - [ ] **Redeploy from zero** (step 4.1): the other Pair 1 member follows `deploy/README.md` in a fresh terminal,
   dry run only (read each command and check it against the cluster, run nothing that changes anything).
   **Done when:** nothing in the README is wrong or missing.
 - [ ] **Demo duty kit** (step 6.4): one terminal with `oc get pods -w`, the mock switch and the rollback commands ready.
-  The other member has the RHOAI model page open for the jury.
-- [ ] **Delete the test instance** after PR #10 is decided (frees CPU and memory for the demo):
+  The other member has the RHOAI model page open for the jury. `./scripts/demo-duty.ps1` prints the status and the
+  ready commands (changes nothing); `-Mock` / `-Real` switch the model and wait until `/api/llm/health` shows it.
+- [ ] **Delete the test instance at H42** (code freeze), not before: until then it is where last fixes are tried on the
+  real model. It reserves no CPU or memory (1m CPU, 83 Mi used), so this is tidiness, and nobody demos the wrong URL:
   ```powershell
   oc delete deploy,svc,route,bc,is warsztat-cfo-test -n my-first-model --ignore-not-found
   ```
-- [ ] Optional, only if everything above is green before H36: real Google login (step 5.1).
-  Otherwise it is dropped and we keep the demo login.
+- [x] ~~Optional: real Google login (step 5.1).~~ **Dropped**: it would touch auth just before H36. We keep the demo login.
 
 ## Pair 2: agents
 
