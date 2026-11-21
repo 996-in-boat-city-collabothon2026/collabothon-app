@@ -1,8 +1,9 @@
 // A chat with the agents that you can keep going (Pair 1, Nara). Used under a finished meeting and on the
-// full-screen Chats page. Every question goes to the same POST /api/ask as the advice bubble: the answer is
-// built from the rules (the model only picks points), so numbers are never invented here.
+// full-screen Chats page. Every question goes to the same POST /api/ask as the advice bubble, with the last few
+// messages as history, so "Why?" stays with the CFO who just answered. The model writes the answer and the server's
+// guard checks every number against the rules (otherwise the rule summary is shown), so numbers are never invented.
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { CFOS, type CfoId } from '@cfo/shared';
+import { CFOS, type ChatLine, type CfoId } from '@cfo/shared';
 import { api } from '../api/client';
 import { useT } from '../i18n';
 import { saveChat, type Chat, type ChatMsg } from '../lib/chats';
@@ -11,6 +12,15 @@ import Icon from './Icon';
 import { CfoAvatar } from './ui';
 
 const AGENTS: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];
+const HISTORY = 6; // the API maximum: a whole meeting (topic, 4 turns, chair) fits, so the server sees who led
+
+/** The last messages as /api/ask history. Error bubbles (no CFO) are left out; long texts are cut to the API limit. */
+function toHistory(messages: ChatMsg[]): ChatLine[] {
+  return messages
+    .filter((m) => m.from !== 'cfo' || m.cfo)
+    .slice(-HISTORY)
+    .map((m) => ({ from: m.from === 'me' ? 'owner' : 'cfo', cfo: m.cfo, text: m.text.slice(0, 500) }));
+}
 
 export function ChatMessage({ m }: { m: ChatMsg }) {
   const { t, lang } = useT();
@@ -70,7 +80,7 @@ export default function ChatThread({ chat, onChange, skip = 0, autoFocus = false
     setInput('');
     setBusy(true);
     try {
-      const res = await api.ask(q, to);
+      const res = await api.ask(q, to, toHistory(chat.messages));
       update([...withQ.messages, { from: 'cfo', cfo: res.cfo, text: res.text }]);
     } catch {
       update([...withQ.messages, { from: 'cfo', text: t('ask_error') }]); // a bad model reply never breaks the page

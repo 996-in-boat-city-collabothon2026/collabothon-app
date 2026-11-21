@@ -1,7 +1,7 @@
 // The ONLY file that knows API URLs. Pages call these functions, never fetch() directly.
 import { useCallback, useEffect, useState } from 'react';
 import type {
-  Action, ActivityEntry, Alert, AppState, AskResult, AutopilotResult, BoardroomResult, CfoId, ExpenseBreakdown,
+  Action, ActivityEntry, Alert, AppState, AskResult, AutopilotResult, BoardroomResult, CfoId, ChatLine, ExpenseBreakdown,
   Forecast, Invoice, LlmHealth, Settings, Upo, User,
 } from '@cfo/shared';
 
@@ -35,8 +35,8 @@ export const api = {
   reject: (id: string) => post<Action>(`/actions/${id}/reject`),
   activity: () => call<ActivityEntry[]>('/activity'),
   boardroom: (topic?: string) => post<BoardroomResult>('/boardroom', { topic }),
-  /** Quick advice: leave cfo out and the server picks the right CFO by topic. */
-  ask: (question: string, cfo?: CfoId) => post<AskResult>('/ask', { question, cfo }),
+  /** Quick advice: leave cfo out and the server picks the right CFO by topic. history = the chat so far (max 6 lines). */
+  ask: (question: string, cfo?: CfoId, history?: ChatLine[]) => post<AskResult>('/ask', { question, cfo, history }),
   invoices: () => call<KsefInvoiceRow[]>('/ksef/invoices'),
   sendInvoice: (id: string, fix?: Pick<Invoice, 'counterparty'>) => post<Invoice>(`/ksef/invoices/${id}/send`, fix ?? {}),
   invoiceXml: (id: string) => call<string>(`/ksef/invoices/${id}/xml`),
