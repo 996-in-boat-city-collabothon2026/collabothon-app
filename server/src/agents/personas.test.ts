@@ -39,6 +39,10 @@ describe('personas', () => {
     expect(CHAIR_PERSONA).not.toMatch(/\d/);
   });
 
+  it('Tomasz leads with the bigger missing amount (test copy: the markup came before labour)', () => {
+    expect(PERSONAS.tomasz).toContain('Lead with the bigger missing amount');
+  });
+
   it('Anna always gives the order: reminders first, the credit line only if that is not enough', () => {
     expect(PERSONAS.anna).toContain('reminders to the late customers first, the credit line only if that is not enough');
   });
