@@ -1,5 +1,5 @@
-// Owner: Pair 2 (Person B). Personas stay short, wear the right hat and describe the rebuild's contract (M6):
-// pick ready-made points by id, write no fact, pick at most one pre-written comment by id.
+// Owner: Pair 2 (Person B). Personas stay short, wear the right hat and describe Rebuild 2's contract (8B):
+// the model writes the answer itself, but only with numbers from the FACTS; the owner decides.
 import { describe, expect, it } from 'vitest';
 import { CFOS, HATS, type CfoId } from '@cfo/shared';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
@@ -7,17 +7,19 @@ import { CHAIR_PERSONA, PERSONAS } from './personas';
 const cfos = Object.keys(CFOS) as CfoId[];
 
 describe('personas', () => {
-  it.each(cfos)('%s: ≤ 15 lines, its own hat, picks points, writes no fact, picks one comment by id', (cfo) => {
+  it.each(cfos)('%s: ≤ 15 lines, its own hat, FACTS only, 2–3 English sentences, simulated, the owner decides', (cfo) => {
     const p = PERSONAS[cfo];
     expect(p.split('\n').length).toBeLessThanOrEqual(15);
     expect(p).toContain(`You are ${CFOS[cfo].name}`);
     expect(p).toContain(HATS[CFOS[cfo].hat].label.toLowerCase());
-    expect(p).toContain('pick the ids');
-    expect(p).toContain('Never write a fact yourself');
-    expect(p).toContain('pick ONE comment by its id from COMMENTS');
-    expect(p).toContain('Never write a comment yourself');
+    expect(p).toContain('Use only the FACTS');
+    expect(p).toContain('Never write an amount, date or rate that is not in the FACTS');
+    expect(p).toContain('two or three short plain sentences in English');
+    expect(p).toContain('ONE sentence'); // when reacting to the lead
+    expect(p).toContain('not about your area');
+    expect(p).toContain('simulated');
     expect(p).toContain('the owner decides');
-    expect(p).not.toMatch(/Copy amounts|FACTS/); // the old free-text contract is gone
+    expect(p).not.toMatch(/COMMENTS|pick the ids/); // the old "pick ids" contract (answer.ts) is gone
   });
 
   it('no persona mentions another CFO hat', () => {
@@ -33,7 +35,7 @@ describe('personas', () => {
     expect(CHAIR_PERSONA).not.toMatch(/\d/);
   });
 
-  it('Kasia is not asked to compare paying the supplier early (her facts have no numbers for it), nor to predict rates', () => {
+  it('Kasia is not asked to compare paying the supplier early, nor to predict rates', () => {
     expect(PERSONAS.kasia).not.toMatch(/paying the supplier early|Compare/i);
     expect(PERSONAS.kasia).toContain('never say where a rate is going');
   });
@@ -42,7 +44,7 @@ describe('personas', () => {
     expect(CHAIR_PERSONA).toContain(HATS.blue.label.toLowerCase());
     expect(CHAIR_PERSONA).toContain('no new numbers');
     expect(CHAIR_PERSONA).toContain('Pick only ids from the list');
-    expect(CHAIR_PERSONA).toContain('pick ONE comment by its id from COMMENTS');
+    expect(CHAIR_PERSONA).toContain('one plain English sentence');
     expect(CHAIR_PERSONA).toContain('the owner decides');
   });
 });
