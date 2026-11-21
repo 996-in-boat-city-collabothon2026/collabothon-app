@@ -59,6 +59,7 @@ describe('isSmallTalk: nothing to discuss, so no CFO speaks', () => {
     'Kasia, what do you think?',
     'Margin', // one finance keyword is enough for a meeting
     'EUR?',
+    'Kasia?', // a CFO's name alone: the owner wants that CFO (review of PR #22)
   ])('"%s" is not small talk', (text) => expect(isSmallTalk(text)).toBe(false));
 
   it('"hi" inside a word is not a greeting ("this", "history")', () => {

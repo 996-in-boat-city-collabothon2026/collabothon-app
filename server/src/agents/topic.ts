@@ -74,10 +74,11 @@ const GREETING = /(?<!\p{L})(?:hello|hi|hey|thanks|thank you|good (?:morning|aft
 /**
  * True for "hello", "Hi!", "thanks", "?" or "ok": nothing to talk about, so no CFO needs to answer.
  * After removing greetings, fewer than 2 words of 3+ letters is small talk ("Hi, how do I improve the margin?" is not).
- * A finance keyword is never small talk, so a one-word topic like "Margin" or "EUR" still starts a meeting.
+ * A finance keyword or a CFO's name is never small talk, so "Margin", "EUR" or "Kasia?" still starts a meeting.
  */
 export function isSmallTalk(text: string): boolean {
-  if (bestByKeywords(text)) return false;
+  // A finance keyword or a CFO's name ("Kasia?") means the owner wants an answer (review of PR #22).
+  if (bestByKeywords(text) || namedCfo(text)) return false;
   const words = text.replace(GREETING, ' ').match(/\p{L}{3,}/gu) ?? [];
   return words.length < 2;
 }

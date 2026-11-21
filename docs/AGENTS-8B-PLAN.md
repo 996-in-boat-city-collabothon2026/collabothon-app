@@ -229,8 +229,10 @@ $env:LIVE_LLM_BASE_URL='http://localhost:8081/v1'; npx vitest run src/agents/liv
 $env:LIVE_APP_URL='https://warsztat-cfo-test-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com'; npx vitest run src/agents/live.test.ts
 ```
 
-**Mock mode:** the canned answers in `llm/mock.ts` (Pair 1) contain numbers that are not in our facts, so the guard
-rejects them and mock mode shows the rule summary. That is expected. Pair 1 may add new canned answers later.
+**Mock mode:** the guard checks the canned answers in `llm/mock.ts` (Pair 1) like any reply. Canned answers with
+numbers that are not in our facts are rejected, and the rule summary is shown. The generic `ask:` reply ("(mock) Anna
+here. Good question…") and the chair's canned summary have no wrong numbers, so they ARE shown in mock mode. That is
+fine for local dev (they are labelled "(mock)"). Pair 1 may add canned answers built from real fact numbers later.
 
 ---
 

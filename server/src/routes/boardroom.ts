@@ -10,7 +10,9 @@ import { pickCfo } from '../agents/topic';
 export { pickCfo };
 
 // Body checks (review of PR #6: {"topic":123}, {"question":123} and {"cfo":"toString"} gave 500).
-// A wrong type is refused with 400. Length limits keep prompts small.
+// An object or a too-long text is refused with 400. A plain number is NOT for /boardroom: Fastify turns
+// {"topic": 123} into "123" (200, the meeting then treats it as small talk). /ask refuses it in preValidation.
+// Length limits keep prompts small.
 const BOARDROOM_BODY = {
   type: 'object',
   properties: { topic: { type: 'string', maxLength: 200 } },
