@@ -178,11 +178,14 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
   const canDecide = action.tier === 'NEEDS_APPROVAL' && action.status === 'open';
   return (
     <article className="rounded-3xl bg-white p-4">
-      <div className="flex items-start gap-3">
-        <span className="flex w-20 shrink-0 flex-col items-center pt-3 text-center">
+      {/* Phone: the agent sits in a row above the text, so big text (Settings → A++) still has the full width. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+        <span className="flex shrink-0 items-center gap-2 sm:w-20 sm:flex-col sm:gap-0 sm:pt-3 sm:text-center">
           <span className="agent-hello"><CfoAvatar cfo={action.cfo} size={36} live /></span>
-          <span className="mt-1 text-base font-bold leading-tight">{CFOS[action.cfo].name}</span>
-          <span className="text-sm leading-tight text-zinc-700">{CFOS[action.cfo].role}</span>
+          <span className="flex flex-col sm:items-center">
+            <span className="text-base font-bold leading-tight sm:mt-1">{CFOS[action.cfo].name}</span>
+            <span className="text-sm leading-tight text-zinc-700">{CFOS[action.cfo].role}</span>
+          </span>
         </span>
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap gap-1.5">

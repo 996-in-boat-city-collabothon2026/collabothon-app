@@ -63,8 +63,8 @@ export default function Approvals() {
               {e.actor !== 'user' && e.actor !== 'system'
                 ? <CfoAvatar cfo={e.actor} size={30} />
                 : <span className="inline-flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-zinc-200"><Icon name="user" size={16} /></span>}
-              <span className="flex-1">{e.text}</span>
-              {e.simulated && <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-sm">symulacja</span>}
+              <span className="min-w-0 flex-1 break-words">{e.text}</span>
+              {e.simulated && <span className="shrink-0 rounded-full bg-zinc-200 px-2 py-0.5 text-sm">{t('simulated')}</span>}
             </li>
           ))}
         </ul>
