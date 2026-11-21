@@ -11,19 +11,20 @@ const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 
 
 /**
  * One number, in any way the model writes it:
- * - "14 230,00" / "14 230"   groups of 3 digits split by spaces, optional ",00"   (our format, fmtPLN)
- * - "14,230" / "20,275,00"   groups of 3 digits split by commas, optional ",00"   (English format)
- * - "4,27" / "4.27" / "1500" a plain number, comma or dot as the decimal point
+ * - "14 230,00" / "14 230.00" / "14 230"   groups of 3 digits split by spaces, optional cents   (our format, fmtPLN)
+ * - "14,230" / "14,230.00" / "20,275,00"  groups of 3 digits split by commas, optional cents   (English format)
+ * - "4,27" / "4.27" / "1500"              a plain number, comma or dot as the decimal point
+ * Live run (PR #22): "1,700.00 zł" was read as 1700 AND 0, so good answers fell back. Cents belong to the number.
  */
-const NUMBER = /\d{1,3}(?: \d{3})+(?!\d)(?:,\d+)?|\d{1,3}(?:,\d{3})+(?:,\d{2})?(?![\d,])|\d+(?:[.,]\d+)?/g;
+const NUMBER = /\d{1,3}(?: \d{3})+(?!\d)(?:[.,]\d+)?|\d{1,3}(?:,\d{3})+(?:[.,]\d{2})?(?![\d,])|\d+(?:[.,]\d+)?/g;
 /** A short date "20.12" or "25.11.2026": day and month (and year) are separate numbers, not the decimal 20.12. */
 const SHORT_DATE = /\b(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?\b/g;
 
-/** "14 230,00" → 14230, "14,230" → 14230, "4,27" → 4.27. */
+/** "14 230,00" → 14230, "14,230.00" → 14230, "4,27" → 4.27. */
 function toValue(token: string): number {
-  if (/^\d{1,3}( \d{3})+(,\d+)?$/.test(token)) return Number(token.replace(/ /g, '').replace(',', '.'));
-  if (/^\d{1,3}(,\d{3})+(,\d{2})?$/.test(token)) {
-    const cents = /,\d{2}$/.test(token) ? token.slice(-2) : '';
+  if (/^\d{1,3}( \d{3})+([.,]\d+)?$/.test(token)) return Number(token.replace(/ /g, '').replace(',', '.'));
+  if (/^\d{1,3}(,\d{3})+([.,]\d{2})?$/.test(token)) {
+    const cents = /[.,]\d{2}$/.test(token) ? token.slice(-2) : '';
     const whole = cents ? token.slice(0, -3) : token;
     return Number(whole.replace(/,/g, '') + (cents ? `.${cents}` : ''));
   }
@@ -39,7 +40,8 @@ export function numbersIn(text: string): number[] {
   let t = text.replace(/[  ]/g, ' ');
   const found: number[] = [];
   t = t.replace(SHORT_DATE, (whole, d: string, m: string, y?: string) => {
-    if (Number(d) > 31 || Number(m) > 12) return whole; // "4.27" is a rate, not a date
+    // "4.27" is a rate and "15.00" is money (month 00), not dates
+    if (Number(d) < 1 || Number(d) > 31 || Number(m) < 1 || Number(m) > 12) return whole;
     found.push(Number(d), Number(m), ...(y ? [Number(y)] : []));
     return ' ';
   });
@@ -68,6 +70,8 @@ const sentences = (text: string) => (text.trim().match(/[.!?]+(?=\s+[A-Z„"]|\s
 const CLAIMS_DONE = new RegExp([
   String.raw`\b(?:i|we)(?:'ve| have)? (?:sent|opened|locked|paid|approved|decided|agreed|set up|fixed|corrected)\b`,
   String.raw`\b(?:is|are) now (?:active|covered|open)\b`,
+  // Live run (PR #22): "The credit line is open, but I advise against using it yet." No fact uses these words.
+  String.raw`\b(?:is|are) (?:already )?(?:open|opened|active|paid|sent|approved|locked|done)\b`,
   String.raw`\b(?:was|were|has been|have been|got) (?:paid|sent|reminded|approved|accepted|opened|set up)\b`,
   String.raw`\bit'?s done\b|\bhas paid\b|\bpaid its\b|\bon its way\b|\bis sorted\b|\bis complete\b|\bwent out\b`,
   String.raw`\b(?:received|accepted|took) (?:your|the)\b|\bgot its money\b|\bleft your account\b|\b(?:you|the owner) approved\b`,
