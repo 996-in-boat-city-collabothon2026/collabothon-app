@@ -1,6 +1,7 @@
 // Owner: Pair 2 (Person B). "The right CFO leads": keyword routing, general topics and small talk. No model involved.
 import { describe, expect, it } from 'vitest';
-import { isSmallTalk, leadFor, matchesTopic, pickCfo } from './topic';
+import type { ChatLine } from '@cfo/shared';
+import { followUpCfo, isSmallTalk, leadFor, matchesTopic, pickCfo } from './topic';
 
 describe('leadFor: the CFO who owns the topic leads the meeting', () => {
   it.each([
@@ -101,4 +102,34 @@ describe('pickCfo: keyword routing', () => {
     ['Good morning!', 'anna'], // no keywords → Anna
     ['I went to the hospital', 'anna'], // "pit" inside "hospital" does not match
   ])('%s → %s', (q, cfo) => expect(pickCfo(q)).toBe(cfo));
+});
+
+describe('followUpCfo: a follow-up in a chat stays with the CFO who answered', () => {
+  const kasiaAnswered: ChatLine[] = [
+    { from: 'owner', text: 'Should we lock the EUR rate?' },
+    { from: 'cfo', cfo: 'kasia', text: 'Yes, a forward contract would protect the Krause invoice.' },
+  ];
+
+  it('"Why?" after Kasia → kasia', () => expect(followUpCfo('Why?', kasiaAnswered)).toBe('kasia'));
+  it('a keyword wins: "When is VAT due?" → marek', () => expect(followUpCfo('When is VAT due?', kasiaAnswered)).toBe('marek'));
+  it('a named CFO wins', () => expect(followUpCfo('Tomasz, why?', kasiaAnswered)).toBe('tomasz'));
+  it('the last CFO who answered counts', () => {
+    const later: ChatLine[] = [...kasiaAnswered, { from: 'cfo', cfo: 'anna', text: 'Cash is tight.' }, { from: 'owner', text: 'Hmm' }];
+    expect(followUpCfo('Why?', later)).toBe('anna');
+  });
+  it('after a meeting the lead stays, not the last CFO who reacted', () => {
+    const meeting: ChatLine[] = [
+      { from: 'owner', text: 'Should we lock the EUR rate?' },
+      { from: 'cfo', cfo: 'kasia', text: 'Lead answer.' },
+      { from: 'cfo', cfo: 'anna', text: 'Reaction.' },
+      { from: 'cfo', cfo: 'marek', text: 'Reaction.' },
+      { from: 'cfo', text: 'Joint recommendation.' },
+    ];
+    expect(followUpCfo('Why?', meeting)).toBe('kasia');
+  });
+
+  it('no history (or no CFO in it) → pickCfo (Anna)', () => {
+    expect(followUpCfo('Why?')).toBe('anna');
+    expect(followUpCfo('Why?', [{ from: 'owner', text: 'hi' }])).toBe('anna');
+  });
 });

@@ -1,6 +1,6 @@
 // Owner: Pair 2 (Person B). Who answers a question, who leads a meeting, and what is only small talk.
 // Keywords only: no model call, so this is fast and always gives the same answer.
-import { CFOS, type CfoId } from '@cfo/shared';
+import { CFOS, type ChatLine, type CfoId } from '@cfo/shared';
 
 // Pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
 // score wins. Ties and no match → Anna. Short words use \b so "pit" doesn't match "hospital", "vat" not "private".
@@ -65,6 +65,21 @@ export function leadFor(topic: string): CfoId | null {
 /** Who answers a bubble question. Always a CFO: no match → Anna. */
 export function pickCfo(question: string): CfoId {
   return leadFor(question) ?? 'anna';
+}
+
+/**
+ * Who answers a follow-up in a chat ("Why?", "And next month?"). A named CFO or a keyword match wins, so
+ * "When is VAT due?" still goes to Marek. Otherwise the CFO who answered the owner's last question stays: the FIRST
+ * one after it, because after a meeting the lead speaks first and the others only react. No CFO in the history →
+ * pickCfo (Anna).
+ */
+export function followUpCfo(question: string, history: ChatLine[] = []): CfoId {
+  const byTopic = leadFor(question);
+  if (byTopic) return byTopic;
+  const isCfo = (line: ChatLine) => line.from === 'cfo' && line.cfo;
+  const lastOwner = history.map((line) => line.from).lastIndexOf('owner');
+  const answer = history.slice(lastOwner + 1).find(isCfo) ?? [...history].reverse().find(isCfo);
+  return answer?.cfo ?? pickCfo(question);
 }
 
 // Greetings and thanks (English and Polish, with or without Polish letters).

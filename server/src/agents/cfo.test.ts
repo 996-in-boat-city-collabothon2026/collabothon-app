@@ -92,6 +92,34 @@ describe('askCfo: the prompt', () => {
     expect(sent[0].o.maxTokens).toBe(REACT_MAX_TOKENS);
   });
 
+  it('history: an "EARLIER IN THIS CHAT" block before OWNER ASKS, one line per message', async () => {
+    await askCfo('kasia', 'Why?', {
+      history: [
+        { from: 'owner', text: 'Should we lock the EUR rate?' },
+        { from: 'cfo', cfo: 'kasia', text: 'Yes, lock it with a forward contract.' },
+      ],
+    });
+    const user = sent[0].m[1].content;
+    expect(user).toContain(
+      'EARLIER IN THIS CHAT (context only, its numbers are not FACTS):\n' +
+        'Owner: Should we lock the EUR rate?\n' +
+        'Kasia: Yes, lock it with a forward contract.',
+    );
+    expect(user.indexOf('EARLIER IN THIS CHAT')).toBeLessThan(user.indexOf('OWNER ASKS: Why?'));
+  });
+
+  it('no history → no chat block', async () => {
+    await askCfo('kasia', 'Why?');
+    expect(sent[0].m[1].content).not.toContain('EARLIER IN THIS CHAT');
+  });
+
+  it('a number from the history never reaches the screen', async () => {
+    reply = async () => 'Because your VAT is 99 999 zł, as you said.';
+    const r = await askCfo('marek', 'Why?', { history: [{ from: 'owner', text: 'My VAT is 99 999 zł.' }] });
+    expect(r.text).not.toContain('99 999');
+    expect(r).toMatchObject({ fromModel: false, note: 'number not in facts: 99999' });
+  });
+
   it('only this CFO\'s facts: Anna\'s prompt has no Kasia fact line', async () => {
     await askCfo('anna', 'Cash?');
     const user = sent[0].m[1].content;
