@@ -1,6 +1,8 @@
 // Owner: Pair 1. Speech → text for questions to the agents, with Whisper (any OpenAI-compatible
-// /audio/transcriptions endpoint). The browser sends the recording ONLY to our server; the server forwards it.
-// Not configured (WHISPER_BASE_URL empty) → no request is sent and the web app uses the browser's own speech input.
+// /audio/transcriptions endpoint). With Whisper, the recording goes only to our server, which forwards it to the
+// Whisper endpoint in WHISPER_BASE_URL (in the cluster, or an external service if that is what is configured).
+// Not configured (WHISPER_BASE_URL empty) → no request is sent and the web app uses the browser's own speech input,
+// which may use the browser vendor's service (in Chrome: Google). Say so if anyone asks.
 import { config } from '../config';
 
 export class SpeechNotConfigured extends Error {}

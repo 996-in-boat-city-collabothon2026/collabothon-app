@@ -7,9 +7,9 @@ import { BrowserRecognizer, transcribeAudio, voiceMode, type Recognizer, type Vo
 
 const MAX_MS = 30_000;
 
-/** The owner speaks their own language: Polish when the browser is set to Polish, otherwise US English
- *  (the most widely supported recognition language). */
-const speechLang = () => (navigator.language?.toLowerCase().startsWith('pl') ? 'pl-PL' : 'en-US');
+/** Listen in the language chosen in the app (not the browser's), so the transcript matches what the owner speaks.
+ *  English uses US English, the most widely supported recognition language. */
+const speechLang = (lang: string) => (lang === 'pl' ? 'pl-PL' : 'en-US');
 
 function MicIcon() {
   return (
@@ -23,18 +23,22 @@ function MicIcon() {
 export default function MicButton({ onText, disabled = false }: { onText: (text: string) => void; disabled?: boolean }) {
   const { t, lang } = useT();
   const [mode, setMode] = useState<VoiceMode>(null);
-  const [state, setState] = useState<'idle' | 'listening' | 'working'>('idle');
+  const [state, setState] = useState<'idle' | 'opening' | 'listening' | 'working'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(''); // words heard so far (browser speech recognition)
   const rec = useRef<MediaRecorder | null>(null);
   const recognizer = useRef<Recognizer | null>(null);
+  const starting = useRef(false); // true while the microphone is being opened (Whisper mode)
+  const mounted = useRef(true);   // false once the bubble / chat is closed
   const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
+    mounted.current = true;
     voiceMode().then((m) => { if (alive) setMode(m); });
     return () => {
       alive = false;
+      mounted.current = false;
       window.clearTimeout(timer.current);
       rec.current?.stream.getTracks().forEach((tr) => tr.stop()); // never leave the microphone on
       recognizer.current?.stop();
@@ -58,7 +62,7 @@ export default function MicButton({ onText, disabled = false }: { onText: (text:
     const r = new BrowserRecognizer();
     recognizer.current = r;
     let heard = '';
-    r.lang = speechLang();
+    r.lang = speechLang(lang);
     r.interimResults = true; // show the words while the owner speaks
     r.continuous = true;     // keep listening through short pauses, until the owner presses again
     r.maxAlternatives = 1;
@@ -93,47 +97,71 @@ export default function MicButton({ onText, disabled = false }: { onText: (text:
 
   async function toggle() {
     if (mode === 'browser') { toggleBrowser(); return; }
+    if (starting.current) return; // still opening the microphone (e.g. the permission prompt): ignore extra presses
     setError(null);
     if (rec.current?.state === 'recording') { rec.current.stop(); return; }
+    starting.current = true;
+    setState('opening');
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch {
+      starting.current = false;
+      if (!mounted.current) return;
+      setState('idle');
       setError(t('mic_denied'));
       return;
     }
-    const chunks: Blob[] = [];
-    const r = new MediaRecorder(stream);
-    rec.current = r;
-    r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    r.onstop = async () => {
-      window.clearTimeout(timer.current);
+    // The bubble or chat was closed while the permission prompt was open: switch the microphone off, record nothing.
+    if (!mounted.current) {
       stream.getTracks().forEach((tr) => tr.stop());
-      rec.current = null;
-      setState('working');
-      try {
-        const heard = await transcribeAudio(new Blob(chunks, { type: r.mimeType || 'audio/webm' }), speechLang().startsWith('pl') ? 'pl' : 'en');
-        if (heard) onText(heard);
-        else setError(t('mic_nothing'));
-      } catch {
-        setError(t('mic_failed'));
-      } finally {
-        setState('idle');
-      }
-    };
-    r.start();
+      starting.current = false;
+      return;
+    }
+    const chunks: Blob[] = [];
+    let r: MediaRecorder;
+    try {
+      r = new MediaRecorder(stream);
+      r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      r.onstop = async () => {
+        window.clearTimeout(timer.current);
+        stream.getTracks().forEach((tr) => tr.stop());
+        rec.current = null;
+        setState('working');
+        try {
+          const heard = await transcribeAudio(new Blob(chunks, { type: r.mimeType || 'audio/webm' }), lang === 'pl' ? 'pl' : 'en');
+          if (heard) onText(heard);
+          else setError(t('mic_nothing'));
+        } catch {
+          setError(t('mic_failed'));
+        } finally {
+          setState('idle');
+        }
+      };
+      r.start();
+    } catch {
+      // Partial MediaRecorder support: never leave the microphone on
+      stream.getTracks().forEach((tr) => tr.stop());
+      starting.current = false;
+      setState('idle');
+      setError(t('mic_failed'));
+      return;
+    }
+    rec.current = r;
+    starting.current = false;
     setState('listening');
     timer.current = window.setTimeout(() => { if (r.state === 'recording') r.stop(); }, MAX_MS);
   }
 
-  const label = state === 'listening' ? t('mic_stop') : state === 'working' ? t('mic_working') : t('mic_start');
+  const label = state === 'listening' ? t('mic_stop') : state === 'working' ? t('mic_working')
+    : state === 'opening' ? t('mic_opening') : t('mic_start');
   return (
     <span className="relative inline-flex shrink-0">
-      <button type="button" onClick={() => void toggle()} disabled={disabled || state === 'working'}
+      <button type="button" onClick={() => void toggle()} disabled={disabled || state === 'working' || state === 'opening'}
         aria-pressed={state === 'listening'} aria-label={label} title={label}
         className={`inline-flex min-h-12 min-w-12 items-center justify-center rounded-full border font-semibold disabled:opacity-50 ${
           state === 'listening' ? 'mic-live border-accent bg-accent text-white' : 'border-zinc-300 bg-white text-ink hover:bg-zinc-50'}`}>
-        {state === 'working' ? <span className="ai-shimmer px-1 text-sm">…</span> : <MicIcon />}
+        {state === 'working' || state === 'opening' ? <span className="ai-shimmer px-1 text-sm">…</span> : <MicIcon />}
       </button>
       <span role="status" aria-live="polite"
         className={`pointer-events-none absolute bottom-full right-0 mb-2 w-max max-w-64 rounded-xl bg-ink px-3 py-2 text-sm text-white shadow-lg ${error || state === 'listening' ? '' : 'sr-only'}`}>
