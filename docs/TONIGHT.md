@@ -55,7 +55,7 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
   ./scripts/smoke.ps1 -Base https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com -RequireModel
   ```
   **Done when:** it is green after the last merge. (Green after PR #10, 10:05: conference 5.2 s. Green after PR #11,
-  build 10: conference 5.5 s. Green after PR #12, build 11: conference 6.3 s.)
+  build 10: conference 5.5 s. Green after PR #12, build 11: conference 6.3 s. Green after PR #13–#17, build 14 @ 3473211: conference 6.6 s, `/ask` 1.1 s.)
 - [ ] **Redeploy from zero** (step 4.1): the other Pair 1 member follows `deploy/README.md` in a fresh terminal,
   dry run only (read each command and check it against the cluster, run nothing that changes anything).
   **Done when:** nothing in the README is wrong or missing.
