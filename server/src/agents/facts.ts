@@ -157,6 +157,7 @@ function kasia(): Built {
 /**
  * KSeF gives its rejection reason in Polish ("Nieprawidłowy NIP nabywcy (Podmiot2): wymagane 10 cyfr").
  * The facts carry it in English, or the model copies Polish words onto the English stage.
+ * (The UI uses ksefReasonEn from shared/ksefReason.ts; this one words it as part of a sentence.)
  */
 function reasonEn(reason?: string): string {
   if (!reason) return 'none given';

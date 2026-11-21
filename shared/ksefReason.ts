@@ -1,0 +1,19 @@
+// KSeF answers in Polish (see server/src/ksef/nip.ts → nipError). The stored rejectionReason stays Polish,
+// like the real KSeF answer; the English UI shows it through this translator.
+const NIP = 'Invalid buyer NIP (Podmiot2)';
+
+const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
+  [/NIP nabywcy.*?wymagane (\d+) cyfr/i, (m) => `${NIP}: must have ${m[1]} digits`],
+  [/NIP nabywcy.*?błędna suma kontrolna/i, () => `${NIP}: wrong checksum`],
+  [/NIP nabywcy.*?nieobsługiwany prefiks kraju „(.+?)”/i, (m) => `${NIP}: unsupported country prefix "${m[1]}"`],
+  [/NIP nabywcy.*?niemiecki numer VAT to DE i 9 cyfr/i, () => `${NIP}: a German VAT ID is DE and 9 digits`],
+];
+
+/** English text for a KSeF rejection reason. Unknown (or already English) reasons come back unchanged. */
+export function ksefReasonEn(reason: string): string {
+  for (const [re, en] of RULES) {
+    const m = re.exec(reason);
+    if (m) return en(m);
+  }
+  return reason;
+}

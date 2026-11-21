@@ -1,5 +1,5 @@
 // Owner: Pair 2 (Person A). Marek ⚪: KSeF problems — rejected invoices and missing UPO receipts.
-import type { Invoice } from '@cfo/shared';
+import { ksefReasonEn, type Invoice } from '@cfo/shared';
 import { db } from '../domain/store';
 import { fmtPLN, invoiceGross } from '../domain/money';
 import type { DraftAction, Rule } from './index';
@@ -12,7 +12,7 @@ const fmtGross = (i: Invoice) =>
 
 /** Rejected invoice → re-validated automatically (safe) + advice to fix the data and resend. */
 function rejected(i: Invoice): DraftAction[] {
-  const reason = i.ksef.rejectionReason?.trim() || 'KSeF gave no reason';
+  const reason = ksefReasonEn(i.ksef.rejectionReason?.trim() || 'KSeF gave no reason');
   const inv = `${i.number} (${fmtGross(i)})`; // every line names the invoice and its amount
   return [
     {
