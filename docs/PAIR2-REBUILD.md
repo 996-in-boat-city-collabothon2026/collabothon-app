@@ -481,3 +481,22 @@ EUR topic; Marek and Anna say "not my area" instead of passing (`agents/boardroo
 because the 4 full answers ran one after another. They now run at the same time, like the reactions in a topic
 meeting; the order on screen stays Marek → Anna → Tomasz → Kasia. A hanging model still costs one budget, but now 4
 requests are cancelled instead of 1 (`llm/provider.test.ts` updated). To check on the test copy: Monthly review < 10 s.
+
+### Live run: Monthly review in parallel (2026-11-21, 21:15–21:45 CET, `llama-31-8b-instruct`)
+The same `live.test.ts` (80 questions + 10 meetings) on production (`main`) and on the test copy built from
+`agents8b-meeting-parallel` (c8dc5bd), one after the other, then "Monthly review" 3 more times on each.
+
+| Measure | Production (`main`) | Test copy (this branch) |
+|---|---|---|
+| **Monthly review** (4 runs) | 22,2 · 22,3 · 19,0 · 20,9 s → **21,1 s** | 12,6 · 11,9 · 12,4 · 12,7 s → **12,4 s** |
+| Meetings over the 22 s goal | 1 (Monthly review) | 0 |
+| Monthly review summary in the full test | rule summary (the chair ran out of time) | the chair's sentence |
+| Other meetings (code not changed) | 5,0–12,7 s | 5,0–15,5 s (same code: normal spread) |
+| Chair sentence from the model | 6/9 | 5/9 (only topic meetings differ: same code, model spread) |
+| Guard pass rate `/api/ask` | 71/74 (96%)* | 76/80 (95%) |
+| Numbers on screen not from the rules | 0 | 0 |
+
+\* The connection dropped at question 75 on production ("other side closed", no deploy at that time), so 74 answers.
+
+Not < 10 s as hoped: 4 parallel answers share the one GPU, so each is a bit slower, and the chair still comes after
+them. Still 41% faster, and the general meeting is well inside the 22 s budget.
