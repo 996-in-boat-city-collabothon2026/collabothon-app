@@ -240,3 +240,53 @@ export interface LlmHealth {
   latencyMs: number;
   error?: string;
 }
+
+// ---------- Voice-to-Invoice: the Invoice clerk agent (POST /api/invoices/parse-voice) ----------
+// Added by Pair 2 for PR #34 (review: one type for server and web instead of a hand-made copy).
+export type PaymentMethod = 'transfer' | 'cash' | 'card';
+
+/** The form the UI sends. Empty string = a gap. `assumed` = guessed earlier (qty 1, VAT 23%), may be replaced. */
+export interface ClerkForm {
+  counterparty: { name: string; nip: string };
+  currency: Currency | '';
+  dueDate: string;
+  paymentMethod: PaymentMethod | '';
+  lines: Array<{ name: string; kind: InvoiceLine['kind']; qty: string; unitNet: string; vatRate: VatRate; assumed: ('qty' | 'vatRate')[] }>;
+}
+
+/** A line the clerk adds. unitNet null = price not said. */
+export interface ClerkNewLine {
+  name: string;
+  kind: InvoiceLine['kind'];
+  qty: number;
+  unitNet: number | null;
+  vatRate: VatRate;
+  assumed: ('qty' | 'vatRate')[]; // not said: qty 1, VAT 23%
+}
+
+/** Gaps filled in a line already on the form. index = 0-based, in the order the form sent its lines. */
+export interface ClerkLineUpdate {
+  index: number;
+  name?: string;
+  kind?: InvoiceLine['kind'];
+  qty?: number;
+  unitNet?: number;
+  vatRate?: VatRate;
+}
+
+export type ClerkSkipReason = 'already_filled' | 'wrong_type' | 'not_said' | 'invalid_nip' | 'used_twice' | 'bad_value';
+export type ClerkMissingField =
+  | { field: 'name' | 'nip' | 'dueDate' }
+  | { field: 'line.name' | 'line.qty' | 'line.unitNet'; line: number };
+
+/** The clerk's answer: values for the EMPTY fields only, what it refused (and why), what is still missing. */
+export interface InvoiceFill {
+  agent: 'clerk';
+  /** 'llm' = the model helped; 'fallback' = no model, rules only. */
+  source: 'llm' | 'fallback';
+  set: { name?: string; nip?: string; currency?: Currency; paymentMethod?: PaymentMethod; dueDate?: string };
+  lineUpdates: ClerkLineUpdate[];
+  newLines: ClerkNewLine[];
+  skipped: { field: string; value: string; reason: ClerkSkipReason }[];
+  missing: ClerkMissingField[];
+}

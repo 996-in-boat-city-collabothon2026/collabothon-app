@@ -10,15 +10,16 @@
 //    and only EMPTY fields are filled. Everything refused is listed in `skipped` with the reason.
 // 4. CODE does the maths (gross → net, "in 14 days" → a date) and lists what is still missing.
 import { z } from 'zod';
-import type { Currency, InvoiceLine, VatRate } from '@cfo/shared';
+import type {
+  ClerkLineUpdate, ClerkMissingField, ClerkNewLine, ClerkSkipReason, Currency, InvoiceFill, InvoiceLine, PaymentMethod, VatRate,
+} from '@cfo/shared';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
 import { addDays, round2 } from '../domain/money';
 import { isForeignVatId, isValidNip, normalizeNip } from '../ksef/nip';
 
-export const INVOICE_CLERK = { id: 'clerk', name: 'Invoice clerk', job: 'Fills the gaps in an invoice from what you say' } as const;
+export const INVOICE_CLERK = { id: 'clerk', name: 'Invoice clerk', job: 'Fills the gaps in an invoice from what you say' } as const satisfies { id: InvoiceFill['agent'] } & Record<string, string>;
 
-export type PaymentMethod = 'transfer' | 'cash' | 'card';
 const VAT_RATES: VatRate[] = [23, 8, 5, 0];
 
 // ---------- The form as the UI sends it (empty string / null = a gap) ----------
@@ -42,39 +43,12 @@ export const InvoiceForm = z.object({
 export type InvoiceForm = z.infer<typeof InvoiceForm>;
 type FormLineT = z.infer<typeof FormLine>;
 
-// ---------- What the clerk answers (POST /api/invoices/parse-voice). Route-local type: shared/types.ts unchanged ----------
-export interface NewLine {
-  name: string;
-  kind: InvoiceLine['kind'];
-  qty: number;
-  unitNet: number | null; // null = price not said
-  vatRate: VatRate;
-  assumed: ('qty' | 'vatRate')[]; // not said: qty 1, VAT 23%
-}
-export interface LineUpdate {
-  index: number; // 0-based, into form.lines
-  name?: string;
-  kind?: InvoiceLine['kind'];
-  qty?: number;
-  unitNet?: number;
-  vatRate?: VatRate;
-}
-export type SkipReason = 'already_filled' | 'wrong_type' | 'not_said' | 'invalid_nip' | 'used_twice' | 'bad_value';
-export type MissingField = { field: 'name' | 'nip' | 'dueDate' } | { field: 'line.name' | 'line.qty' | 'line.unitNet'; line: number };
-
-export interface InvoiceFill {
-  agent: typeof INVOICE_CLERK.id;
-  /** 'llm' = the model matched the fields; 'fallback' = model failed, simple rules filled the safe fields. */
-  source: 'llm' | 'fallback';
-  /** Header fields, only the ones that were EMPTY on the form. */
-  set: { name?: string; nip?: string; currency?: Currency; paymentMethod?: PaymentMethod; dueDate?: string };
-  lineUpdates: LineUpdate[];
-  newLines: NewLine[];
-  /** What the clerk heard but did not fill, and why (shown to the user, nothing is silently dropped). */
-  skipped: { field: string; value: string; reason: SkipReason }[];
-  /** Required fields still empty after this fill: the UI asks for them. */
-  missing: MissingField[];
-}
+// ---------- What the clerk answers: InvoiceFill and friends live in shared/types.ts (one type for server + web) ----------
+export type NewLine = ClerkNewLine;
+export type LineUpdate = ClerkLineUpdate;
+export type SkipReason = ClerkSkipReason;
+export type MissingField = ClerkMissingField;
+export type { InvoiceFill, PaymentMethod };
 
 // ---------- Step 1 (code): find and type every number in the text ----------
 export type NumberRole = 'nip' | 'money' | 'qty' | 'days' | 'vat' | 'plain';
@@ -93,7 +67,24 @@ export interface SpokenNumber {
 
 const NIP_AFTER_WORD = /\b(?:nip|vat\s*id|numer\s+vat|tax\s*id)\b[\s:.-]*((?:pl|de)?[\s-]?(?:\d[\s-]?){8,10}\d)/gi;
 const BARE_TEN_DIGITS = /(?<![\d,.])(?:\d[\s-]?){9}\d(?![\d,.])/g;
-const NUMBER = /\d{1,3}(?:[  ]\d{3})+(?:[.,]\d{1,2})?(?![\d.,])|\d+(?:[.,]\d{1,2})?/g;
+// Thousands may be split by a space or a dot ("1 200", "1.200,50"); then only a comma starts the grosze.
+// PR #34 review: "naprawa 1.200 zł" was read as 1.20 and 0 zł.
+const NUMBER = /\d{1,3}(?:[ \u00a0.]\d{3})+(?:,\d{1,2})?(?![\d.,])|\d+(?:[.,]\d{1,2})?(?!\d)/g;
+const THOUSANDS = /^\d{1,3}(?:[ \u00a0.]\d{3})+(?:,\d{1,2})?$/;
+/** "1 200,50" / "1.200" → 1200.5 / 1200; "61,50" / "61.5" → 61.5. */
+const toValue = (raw: string) =>
+  THOUSANDS.test(raw) ? Number(raw.replace(/[ \u00a0.]/g, '').replace(',', '.')) : Number(raw.replace(',', '.'));
+
+/**
+ * Only as many digits as a NIP has (10, or 9 after "DE"). PR #34 review: in "NIP 679 234 56 79 200 zł" the greedy
+ * match took "679 234 56 79 2": a correct NIP looked invalid and the price became "00 zł".
+ */
+function nipPart(raw: string): string {
+  const need = /^\s*de/i.test(raw) ? 9 : 10;
+  let digits = 0;
+  for (let i = 0; i < raw.length; i++) if (/\d/.test(raw[i]) && ++digits === need) return raw.slice(0, i + 1);
+  return raw;
+}
 
 const CURRENCY_WORDS: [RegExp, Currency][] = [
   [/^(?:zł|zl\b|złot|zlot|pln)/, 'PLN'],
@@ -121,12 +112,12 @@ export function tagNumbers(text: string): SpokenNumber[] {
     found.push({ raw: raw.trim(), role: 'nip', value: NaN, nip, nipValid: valid, at, end: at + raw.length });
     rest = mask(rest, at, raw.length);
   };
-  for (const m of text.matchAll(NIP_AFTER_WORD)) takeNip(m[1], m.index! + m[0].length - m[1].length, true);
+  for (const m of text.matchAll(NIP_AFTER_WORD)) takeNip(nipPart(m[1]), m.index! + m[0].length - m[1].length, true);
   for (const m of rest.matchAll(BARE_TEN_DIGITS)) takeNip(m[0], m.index!, false);
 
   for (const m of rest.matchAll(NUMBER)) {
     const raw = m[0];
-    const value = Number(raw.replace(/[  ]/g, '').replace(',', '.'));
+    const value = toValue(raw);
     const after = rest.slice(m.index! + raw.length, m.index! + raw.length + 25).trimStart().toLowerCase();
     const before = rest.slice(Math.max(0, m.index! - 10), m.index!).toLowerCase();
     let role: NumberRole = 'plain';
@@ -261,9 +252,12 @@ function otherItemBetween(text: string, name: string, price: SpokenNumber): bool
 }
 
 /** Turns the model's (or the rules') picks into a checked fill. All maths is here. Exported for tests. */
-export function buildFill(reply: ClerkReply, form: InvoiceForm, numbers: SpokenNumber[], today: string, source: InvoiceFill['source'], text = ''): InvoiceFill {
+export function buildFill(
+  reply: ClerkReply, form: InvoiceForm, numbers: SpokenNumber[], today: string, source: InvoiceFill['source'],
+  text = '', dropped: InvoiceFill['skipped'] = [],
+): InvoiceFill {
   const used = new Set<string>();
-  const skipped: InvoiceFill['skipped'] = [];
+  const skipped: InvoiceFill['skipped'] = [...dropped];
   const set: InvoiceFill['set'] = {};
 
   /** Finds the tagged number a pick points to and checks that the field takes that type. */
@@ -451,6 +445,9 @@ export function ruleReply(text: string, form: InvoiceForm, numbers: SpokenNumber
     return list.length === 1 ? list[0].id : null;
   };
   const buyer = buyerFrom(text);
+  // The currency comes from the amounts ("200 zł", "50 euro"): one currency → that one, none or mixed → null.
+  // PR #34 review: "faktura dla Euromaster … 200 zł" was read as EUR because of the buyer's name.
+  const currencies = new Set(numbers.flatMap((n) => (n.role === 'money' && n.currency ? [n.currency] : [])));
 
   // Every place where one item's text must stop: the buyer phrase, a NIP, an amount, "14 dni", "VAT 8%", a payment word.
   const bounds = [buyer.end, ...[...text.matchAll(PAYMENT)].map((m) => m.index! + m[0].length)];
@@ -486,7 +483,7 @@ export function ruleReply(text: string, form: InvoiceForm, numbers: SpokenNumber
     nip: only('nip'),
     dueInDays: only('days'),
     paymentMethod: /przelew|transfer/.test(t) ? 'transfer' : /gotówk|gotowk|cash/.test(t) ? 'cash' : /kart|card/.test(t) ? 'card' : null,
-    currency: /\beur|euro/.test(t) ? 'EUR' : /\busd|dolar|dollar/.test(t) ? 'USD' : /zł|złot|zlot|\bpln/.test(t) ? 'PLN' : null,
+    currency: currencies.size === 1 ? [...currencies][0] : null,
     lines,
   };
 }
@@ -495,17 +492,58 @@ export function ruleReply(text: string, form: InvoiceForm, numbers: SpokenNumber
  * Code first, model second. Live test with Llama 3.1 8B (21.11): for "wymiana oleju 200 zł netto filtr oleju
  * 2 sztuki po 61,50 brutto" it merged both items into one line and gave it the filter's price. Types were right
  * (money → price), so the checks could not see it. Which amount belongs to which item is a fact of the word ORDER,
- * so the rules decide it whenever they found items; the model fills what code cannot read (the buyer's name in
- * messy speech, items without "zł"). NIP and days also come from the rules when they found exactly one.
+ * so the rules decide the items they found; the model ADDS items the rules missed (the buyer's name in messy
+ * speech, items without "zł"), and an item the model gives a rules amount to is reported, not silently dropped. NIP and days also come from the rules when they found exactly one.
  */
-export function mergeWithRules(model: ClerkReply, rules: ClerkReply): ClerkReply {
+export function mergeWithRules(
+  model: ClerkReply,
+  rules: ClerkReply,
+  form: InvoiceForm,
+  numbers: SpokenNumber[],
+): { reply: ClerkReply; dropped: InvoiceFill['skipped'] } {
+  // The rules' items come first. The model's items are ADDED when the rules did not have them (PR #34 review:
+  // "wymiana oleju 200 zł, filtr 50" – "50" has no "zł", only the model found the filter, and it was thrown away).
+  const formLines = form.lines ?? [];
+  const nameOf = (l: ClerkReply['lines'][number]) => {
+    const n = typeof l.line === 'number' ? l.line : /^\d+$/.test(String(l.line ?? '')) ? Number(l.line) : null;
+    return (n != null ? formLines[n - 1]?.name : '') || l.name || '';
+  };
+  /** "Wymiana oleju silnikowego" → "wymia oleju": the same item when the first two words start the same. */
+  const itemKey = (name: string) => name.toLowerCase().split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.slice(0, 5)).join(' ');
+  /** "#3" stays "#3"; a value the model wrote (50) becomes the id of the one number with that value. */
+  const idOf = (ref: string | number | null | undefined) => {
+    if (ref == null || ref === '') return '';
+    const s = String(ref).trim();
+    if (s.startsWith('#')) return s;
+    const same = numbers.filter((n) => n.value === toValue(s));
+    return same.length === 1 ? same[0].id : s;
+  };
+  const ruleItems = new Set(rules.lines.map((l) => itemKey(nameOf(l))).filter(Boolean));
+  const rulePrices = new Set(rules.lines.map((l) => idOf(l.unitPrice)).filter(Boolean));
+  const lines = [...rules.lines];
+  const dropped: InvoiceFill['skipped'] = [];
+  for (const l of model.lines) {
+    const key = itemKey(nameOf(l));
+    if (key && ruleItems.has(key)) continue; // the same item, already taken from the rules
+    const price = idOf(l.unitPrice);
+    if (price && rulePrices.has(price)) {
+      // The model gives this amount to a DIFFERENT item than the word order does: the word order wins, but say so.
+      const raw = numbers.find((n) => n.id === price)?.raw ?? price;
+      dropped.push({ field: `item ${l.name ?? '?'}`, value: raw, reason: 'used_twice' });
+      continue;
+    }
+    lines.push(l);
+  }
   return {
-    counterpartyName: model.counterpartyName || rules.counterpartyName,
-    nip: rules.nip ?? model.nip,
-    dueInDays: rules.dueInDays ?? model.dueInDays,
-    paymentMethod: model.paymentMethod ?? rules.paymentMethod,
-    currency: model.currency ?? rules.currency,
-    lines: rules.lines.length ? rules.lines : model.lines,
+    reply: {
+      counterpartyName: model.counterpartyName || rules.counterpartyName,
+      nip: rules.nip ?? model.nip,
+      dueInDays: rules.dueInDays ?? model.dueInDays,
+      paymentMethod: model.paymentMethod ?? rules.paymentMethod,
+      currency: model.currency ?? rules.currency,
+      lines,
+    },
+    dropped,
   };
 }
 
@@ -520,5 +558,6 @@ export async function fillInvoiceGaps(text: string, form: InvoiceForm, today: st
     if (reply) console.warn('[clerk] model reply was not valid JSON, using rules only');
     return buildFill(rules, form, numbers, today, 'fallback', text);
   }
-  return buildFill(mergeWithRules(parsed.data, rules), form, numbers, today, 'llm', text);
+  const { reply: merged, dropped } = mergeWithRules(parsed.data, rules, form, numbers);
+  return buildFill(merged, form, numbers, today, 'llm', text, dropped);
 }

@@ -263,6 +263,44 @@ describe('POST /api/invoices/parse-voice', () => {
     expect(f.missing).toContainEqual({ field: 'line.unitNet', line: 0 });
   });
 
+  // ---------- PR #34 review (GutowskiO): each case is the reviewer's own example ----------
+  it('review: a NIP followed directly by an amount keeps its 10 digits; the amount stays 200', () => {
+    const tags = tagNumbers('Taxi Wawel NIP 679 234 56 79 200 zł wymiana oleju');
+    expect(tags.map((n) => [n.role, n.role === 'nip' ? n.nip : n.value])).toEqual([['nip', '6792345679'], ['money', 200]]);
+    expect(tags[0].nipValid).toBe(true);
+  });
+
+  it('review: "1.200 zł" is one amount of 1200; "1.200,50" is 1200.5', () => {
+    expect(tagNumbers('naprawa 1.200 zł').map((n) => [n.role, n.value])).toEqual([['money', 1200]]);
+    expect(tagNumbers('naprawa 1.200,50 zł')[0].value).toBe(1200.5);
+    expect(tagNumbers('filtr 61.50 zł')[0].value).toBe(61.5); // a dot with 2 digits is still a decimal point
+  });
+
+  it('review: the currency comes from the amounts, not from a buyer like "Euromaster"', async () => {
+    modelAnswer = async () => 'no JSON';
+    const pln = (await post({ text: 'faktura dla euromaster wymiana oleju 200 zł', form: { currency: 'PLN', lines: [] } })).json<InvoiceFill>();
+    expect(pln.set.currency).toBeUndefined(); // PLN, already on the form
+    const eur = (await post({ text: 'naprawa zawieszenia 1300 euro', form: { currency: 'PLN', lines: [] } })).json<InvoiceFill>();
+    expect(eur.set.currency).toBe('EUR');
+    const mixed = (await post({ text: 'olej 200 zł, części 50 euro', form: { currency: 'PLN', lines: [] } })).json<InvoiceFill>();
+    expect(mixed.set.currency).toBeUndefined();
+  });
+
+  it('review: an item only the model found (no "zł") is kept next to the rules items', async () => {
+    // "50" has no "zł": the rules see only the oil change, the model also sees the filter.
+    modelAnswer = async () => '{"lines":[{"line":"new","name":"Wymiana oleju","kind":"labour","unitPrice":"#1"},{"line":"new","name":"Filtr","kind":"part","unitPrice":"#2"}]}';
+    const f = (await post({ text: 'wymiana oleju 200 zł, filtr 50', form: { currency: 'PLN', lines: [] } })).json<InvoiceFill>();
+    expect(f.newLines.map((l) => [l.name, l.unitNet])).toEqual([['Wymiana oleju', 200], ['Filtr', 50]]);
+    expect(f.skipped).toEqual([]);
+  });
+
+  it('review: a model item that takes an amount the word order gives to another item is reported, not silently dropped', async () => {
+    modelAnswer = async () => '{"lines":[{"line":"new","name":"Diagnostyka","kind":"labour","unitPrice":"#1"}]}';
+    const f = (await post({ text: 'wymiana oleju 200 zł', form: { currency: 'PLN', lines: [] } })).json<InvoiceFill>();
+    expect(f.newLines.map((l) => [l.name, l.unitNet])).toEqual([['Wymiana oleju', 200]]);
+    expect(f.skipped).toEqual([{ field: 'item Diagnostyka', value: '200', reason: 'used_twice' }]);
+  });
+
   it('model down → rules, no crash', async () => {
     modelAnswer = async () => { throw new Error('503'); };
     const f = (await post({ text: 'gotówka, za 7 dni' })).json<InvoiceFill>();
