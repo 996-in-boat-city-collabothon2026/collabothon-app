@@ -5,13 +5,13 @@
 // The whole app speaks English (money keeps the Polish format "12 430,00 zł", the shop is Polish).
 // The conclusion is split into POINTS: `critical` decides who speaks in the meeting (agents/boardroom.ts), and
 // explain.ts reuses Kasia's points. Rebuild 2 (8B): the model writes the answer, agents/guard.ts checks its numbers.
-import type { CfoId } from '@cfo/shared';
+import type { CfoId, Invoice } from '@cfo/shared';
 import { db } from '../domain/store';
-import { daysBetween, fmtPLN } from '../domain/money';
+import { daysBetween, fmtPLN, invoiceGross } from '../domain/money';
 import { latestRate } from '../domain/fx';
 import { forecast } from '../rules/cashflow';
 import { creditLine, paymentReminders } from '../rules/liquidity';
-import { FX_SHOCK_THRESHOLD_PLN, fxExposures, hasTrend, missingFxRates } from '../rules/fx';
+import { exposureAfterPaying, FX_SHOCK_THRESHOLD_PLN, fxExposures, hasTrend, missingFxRates, type FxExposure } from '../rules/fx';
 import { taxesDue } from '../rules/taxDue';
 import { topCost } from '../rules/expenses';
 import { labourGaps, lowMarkups, sumMissing } from '../rules/margin';
@@ -133,6 +133,10 @@ function kasia(): Built {
     );
     const hedge = e.shockPLN > FX_SHOCK_THRESHOLD_PLN;
     if (hedge) lines.push(`Proposal: a forward contract for ${amount} (simulated), the rate stays at ${rate}`);
+    // Live check on 8B: "Krause wants 1500 EUR, pay now or wait?" → "I'm not sure what Krause is". Name the invoices.
+    lines.push(...openFx(c).map(fxInvoiceText));
+    const early = payEarlyText(e);
+    if (early) lines.push(early);
     points.push(point(`fx-${c}`, `You have ${amount} ${weOwe ? 'to pay' : 'to receive'}. If ${c} ${weOwe ? 'rises' : 'falls'} 5%, you lose ${fmtPLN(e.shockPLN)}${to > from && weOwe ? `, and the rate is going up (from ${fmtNum(from, 4)} zł to ${rate})` : ''}.`, true, hedge));
     if (hedge) points.push(point(`hedge-${c}`, `I suggest locking the rate with a forward contract for ${amount}.`));
   }
@@ -151,7 +155,40 @@ function kasia(): Built {
     const { from, weeksUp } = e.trend;
     points.push(point(`rate-${e.currency}`, `The NBP ${e.currency} rate is ${fmtNum(latestRate(e.currency), 4)} zł today; 4 weeks ago it was ${fmtNum(from, 4)} zł${weeksUp > 0 ? ` (up ${weeksUp} weeks in a row)` : ''}.`, false));
   }
+  // "Should I pay Krause now?": the early-payment point first (it wins a tie in fallbackFor), then each invoice.
+  for (const e of exposures) {
+    const early = payEarlyText(e);
+    if (early) points.push(point(`early-${e.currency}`, `${early}.`, false));
+    for (const i of openFx(e.currency)) points.push(point(`invoice-${i.id}`, `${fxInvoiceText(i)}.`, false));
+  }
   return { lines: [...lines, ...noRate], points };
+}
+
+/** Unpaid invoices in one foreign currency, the biggest first. */
+const openFx = (c: string) =>
+  db.invoices.filter((i) => !i.paid && i.currency === c).sort((a, b) => invoiceGross(b) - invoiceGross(a));
+
+/** "Autoteile Krause GmbH, your supplier: you owe them 3600 EUR, due December 15, 2026". */
+const fxInvoiceText = (i: Invoice) => i.direction === 'purchase'
+  ? `${noDemo(i.counterparty.name)}, your supplier: you owe them ${fmtNum(invoiceGross(i))} ${i.currency}, due ${fmtDateEn(i.dueDate)}`
+  : `${noDemo(i.counterparty.name)}, your customer: they owe you ${fmtNum(invoiceGross(i))} ${i.currency}, due ${fmtDateEn(i.dueDate)}`;
+
+/**
+ * What paying the biggest foreign supplier invoice in full today does to the risk: the same rule as Kasia's
+ * "Pay … early" card (rules/fx.ts exposureAfterPaying). In the demo it makes the risk BIGGER, because the 2100 EUR from
+ * Spedition Weber GmbH then stays open on its own; the 8B chair recommended that card anyway.
+ */
+function payEarlyText(e: FxExposure): string | undefined {
+  const c = e.currency;
+  const supplier = openFx(c).find((i) => i.direction === 'purchase');
+  if (e.net <= 0 || !supplier) return undefined;
+  const after = exposureAfterPaying(e, supplier);
+  const pay = `Paying your supplier ${noDemo(supplier.counterparty.name)} all ${fmtNum(invoiceGross(supplier))} ${c} early`;
+  if (after.shockPLN > e.shockPLN) {
+    return `${pay} makes your ${c} risk BIGGER: a 5% move would then cost ${fmtPLN(after.shockPLN)} instead of ${fmtPLN(e.shockPLN)}, because you would still have ${fmtNum(Math.abs(after.net))} ${c} to receive. Locking the rate for ${fmtNum(e.net)} ${c} is the safer step`;
+  }
+  if (after.shockPLN < e.shockPLN) return `${pay} makes your ${c} risk smaller: ${fmtPLN(e.shockPLN)} → ${fmtPLN(after.shockPLN)}`;
+  return `${pay} leaves your ${c} risk the same: ${fmtPLN(e.shockPLN)}`;
 }
 
 /**

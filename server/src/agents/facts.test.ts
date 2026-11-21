@@ -5,7 +5,7 @@ import type { CfoId } from '@cfo/shared';
 import { db, resetDb } from '../domain/store';
 import { settlePayment } from '../domain/settle';
 import { explain } from './explain';
-import { cfoFacts, summaryOf } from './facts';
+import { cfoFacts, fallbackFor, summaryOf } from './facts';
 
 const CFOS: CfoId[] = ['anna', 'kasia', 'marek', 'tomasz'];
 const sp = (s: string) => s.replace(/ /g, ' '); // fmtPLN uses no-break spaces
@@ -51,6 +51,26 @@ describe('facts as points (seed, 2026-11-20)', () => {
       'Ford Transit 2018: 600,00 zł of labour is missing.',
       'Opel Astra 2016: 300,00 zł of labour is missing.',
     ]);
+  });
+
+  it('Kasia names the EUR invoices and says what paying Krause early does (live check: "I\'m not sure what Krause is")', () => {
+    const lines = cfoFacts('kasia').lines.map(sp);
+    expect(lines).toContain('Autoteile Krause GmbH, your supplier: you owe them 3600 EUR, due December 15, 2026');
+    expect(lines).toContain('Spedition Weber GmbH, your customer: they owe you 2100 EUR, due December 5, 2026');
+    // The same numbers as the "Pay … early (EUR risk 320,25 zł → 448,35 zł)" card: paying early makes the risk BIGGER.
+    expect(text('kasia', 'early-EUR')).toBe('Paying your supplier Autoteile Krause GmbH all 3600 EUR early makes your EUR risk BIGGER: '
+      + 'a 5% move would then cost 448,35 zł instead of 320,25 zł, because you would still have 2100 EUR to receive. '
+      + 'Locking the rate for 1500 EUR is the safer step.');
+    expect(ids('kasia', false)).toEqual(['net-EUR', 'rate-EUR', 'early-EUR', 'invoice-inv-p-002', 'invoice-inv-s-005']);
+    // Model down → the fallback for the Krause question is the main point, then the early-payment point.
+    const f = cfoFacts('kasia');
+    expect(sp(fallbackFor(f, 'Should I pay Krause early or wait?'))).toBe(sp(`${f.points[0].text} ${text('kasia', 'early-EUR')}`));
+  });
+
+  it('Krause paid: no early-payment point, and the invoice is gone from the facts', () => {
+    db.invoices.find((i) => i.id === 'inv-p-002')!.paid = true;
+    expect(cfoFacts('kasia').points.some((p) => p.id.startsWith('early-'))).toBe(false);
+    expect(cfoFacts('kasia').lines.join(' ')).not.toContain('Krause');
   });
 
   it('critical = a real risk now: the cash gap, the FX loss above the threshold, VAT in 5 days', () => {
