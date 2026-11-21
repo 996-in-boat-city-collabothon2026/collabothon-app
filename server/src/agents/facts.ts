@@ -87,11 +87,14 @@ function anna(): Built {
     }
   }
   points.push(point('balance', `Your bank balance today is ${fmtPLN(db.bank.balancePLN)}.`, false));
+  // Before the single customers: "Who owes me money?" matches both, and the earlier point wins a tie (fallbackFor).
+  if (late.length > 1) {
+    points.push(point('owed', `Your late customers ${list(late.map((i) => noDemo(i.counterparty.name)))} owe you ${fmtPLN(owedTotal())} in total.`, false));
+  }
   for (const r of paymentReminders()) {
     const i = late.find((x) => x.id === r.refId)!;
     points.push(point(`late-${i.id}`, `${noDemo(i.counterparty.name)} owes you ${fmtPLN(r.amountPLN!)} and is ${inDays(i.dueDate)}.`, false));
   }
-  if (late.length > 1) points.push(point('owed', `Your late customers owe you ${fmtPLN(owedTotal())} in total.`, false));
   return { lines, points };
 }
 
@@ -239,6 +242,38 @@ function tomasz(): Built {
 }
 
 const BUILDERS: Record<CfoId, () => Built> = { anna, kasia, marek, tomasz };
+
+/** Words that say nothing about the topic ("what is my…"). */
+const STOP_WORDS = new Set(['the', 'and', 'what', 'when', 'how', 'much', 'many', 'does', 'did', 'can', 'could', 'should',
+  'would', 'will', 'are', 'was', 'were', 'has', 'have', 'you', 'your', 'about', 'with', 'for', 'this', 'that', 'there',
+  'any', 'all', 'now', 'please', 'tell', 'need', 'one', 'sentence', 'why', 'who', 'which', 'not']);
+
+/** The words of the question that can point at a topic: 3+ letters, not a stop word, lower case, without a final
+ * "s" ("owes" also finds "owe", "taxes" also finds "tax"). */
+const topicWords = (question: string) =>
+  (question.toLowerCase().match(/\p{L}{3,}/gu) ?? []).filter((w) => !STOP_WORDS.has(w)).map((w) => w.replace(/(?<=\p{L}{3})s$/u, ''));
+
+/**
+ * The rule text shown when the model's reply cannot be shown (model down, or the guard said no).
+ * It fits the question: the point sharing the most words with it wins (ties: the earlier point).
+ * - The best point is a detail ("What is the EUR rate today?" → the rate) → the first core point, then that detail,
+ *   so the main advice never vanishes.
+ * - The best point is part of the conclusion, or nothing matches → the whole summary, as before.
+ * Deterministic: no model, the same question always gives the same text.
+ */
+export function fallbackFor(facts: CfoFacts, question: string): string {
+  const words = topicWords(question);
+  let best: CfoPoint | undefined;
+  let bestScore = 0;
+  for (const p of facts.points) {
+    const text = p.text.toLowerCase();
+    const score = words.filter((w) => text.includes(w)).length;
+    if (score > bestScore) [best, bestScore] = [p, score];
+  }
+  if (!best || best.core) return facts.summary;
+  const main = facts.points.find((p) => p.core);
+  return main ? `${main.text} ${best.text}` : best.text;
+}
 
 /** Facts + conclusion for one CFO. Today's date is always included. */
 export function cfoFacts(cfo: CfoId): CfoFacts {

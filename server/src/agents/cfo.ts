@@ -3,7 +3,7 @@
 // reply; if it fails (a made-up number, Polish, too long) or the model is down, the owner gets the rule summary.
 import { CFOS, type CfoId } from '@cfo/shared';
 import { chatOr } from '../llm/provider';
-import { cfoFacts, type CfoFacts } from './facts';
+import { cfoFacts, fallbackFor, type CfoFacts } from './facts';
 import { checkReply } from './guard';
 import { PERSONAS } from './personas';
 
@@ -54,5 +54,6 @@ export async function askCfo(cfo: CfoId, question: string, opts: AskOptions = {}
   if (check.ok) return { text: reply.trim(), fromModel: true, note: '' };
 
   console.info(`[guard] ask:${cfo} ${check.reason}`);
-  return { text: facts.summary, fromModel: false, note: check.reason };
+  // Rule text that fits the question (a detail point after the main point), or the whole summary.
+  return { text: fallbackFor(facts, question), fromModel: false, note: check.reason };
 }

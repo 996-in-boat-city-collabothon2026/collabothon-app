@@ -17,7 +17,7 @@ import { db, resetDb } from '../domain/store';
 import { cleanReply, runWithLlmBudget, setModelCallForTests, type ChatMessage, type ChatOptions } from '../llm/provider';
 import boardroom from '../routes/boardroom';
 import { isCurrentCard, runAutopilot } from './autopilot';
-import { cfoFacts, type CfoFacts } from './facts';
+import { cfoFacts, fallbackFor, type CfoFacts } from './facts';
 import { checkReply, numbersIn } from './guard';
 
 const BASE = process.env.LIVE_LLM_BASE_URL?.replace(/\/$/, '');
@@ -154,8 +154,8 @@ describe.skipIf(!BASE && !APP)(`Rebuild 2 live check, ${MODEL} (${BASE ? `vLLM $
         expect(r.status, question).toBe(200);
         const facts = cfoFacts(r.body.cfo);
         expectOnlyRuleNumbers(r.body.text, factText(facts), `ask ${r.body.cfo}: ${question}`);
-        // The model's text is shown only when the guard accepts it; otherwise the screen shows the rule summary.
-        const fromModel = r.body.text !== facts.summary;
+        // The model's text is shown only when the guard accepts it; otherwise the rule text that fits the question.
+        const fromModel = r.body.text !== fallbackFor(facts, question);
         const raw = BASE ? cleanReply(calls.slice(before).at(-1)?.raw ?? '') : undefined;
         const reason = fromModel ? undefined : raw === undefined ? 'unknown (app mode)' : checkReply(raw, facts).reason || 'guard OK but rule text shown';
         asks.push({ cfo, answeredBy: r.body.cfo, question, ms: r.ms, text: r.body.text, fromModel, reason, raw });
@@ -173,7 +173,7 @@ describe.skipIf(!BASE && !APP)(`Rebuild 2 live check, ${MODEL} (${BASE ? `vLLM $
       expectOnlyRuleNumbers(r.body.summary, [...all.map(factText), ...cardTitles()].join(' '), `meeting "${topic}", chair`);
       meetings.push({
         topic, expected, first: r.body.turns[0]?.cfo, speakers: r.body.turns.map((t) => t.cfo), ms: r.ms,
-        turnsFromModel: r.body.turns.filter((t) => t.text !== cfoFacts(t.cfo).summary).length,
+        turnsFromModel: r.body.turns.filter((t) => t.text !== fallbackFor(cfoFacts(t.cfo), topic)).length,
         summaryFromModel: !/^For your decision: |^Nothing is waiting|^Pick a topic/.test(r.body.summary),
         summary: r.body.summary,
       });

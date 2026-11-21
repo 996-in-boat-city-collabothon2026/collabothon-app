@@ -71,6 +71,38 @@ describe('askCfo: the reply is shown only when the guard accepts it', () => {
   });
 });
 
+describe('askCfo: the fallback fits the question (live run on 8B: every fallback was the same summary)', () => {
+  const down = () => { reply = async () => { throw new Error('connection refused'); }; };
+
+  it('a detail question → the main point, then that detail (not the whole summary)', async () => {
+    down();
+    const kasia = cfoFacts('kasia');
+    const r = await askCfo('kasia', 'What is the EUR rate today?');
+    expect(r.fromModel).toBe(false);
+    expect(r.text).not.toBe(kasia.summary);
+    expect(r.text.startsWith(kasia.points.find((p) => p.core)!.text)).toBe(true); // the main advice never vanishes
+    expect(r.text).toContain('4,27 zł');
+
+    const anna = await askCfo('anna', 'How much do my customers owe me?');
+    expect(anna.text).toContain('owe you 19');
+    expect(anna.text.startsWith(cfoFacts('anna').points[0].text)).toBe(true);
+  });
+
+  it('a question about the conclusion, or one that matches nothing → the whole summary', async () => {
+    down();
+    expect((await askCfo('anna', 'Will we survive December?')).text).toBe(cfoFacts('anna').summary);
+    expect((await askCfo('marek', 'Hmm, interesting?')).text).toBe(cfoFacts('marek').summary);
+  });
+
+  it('the same question always gives the same fallback (no model involved)', async () => {
+    down();
+    const a = await askCfo('marek', 'When do I pay ZUS?');
+    const b = await askCfo('marek', 'When do I pay ZUS?');
+    expect(a.text).toBe(b.text);
+    expect(a.text).toContain('ZUS');
+  });
+});
+
 describe('askCfo: the prompt', () => {
   it('holds the persona, every fact line, the conclusion and the question', async () => {
     await askCfo('kasia', 'Should we lock the EUR rate?');

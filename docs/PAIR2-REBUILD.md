@@ -416,3 +416,15 @@ Every fallback showed the same `facts.summary`, whatever was asked (step A2 fixe
 - Marek adds the KSeF fix to almost every answer (14 of 17): true, but repetitive.
 
 **Full report:** every question, shown text and time, written by `live.test.ts` to `LIVE_REPORT` (not committed).
+
+**What changed after this run (branch `agents8b-quality`):**
+- The facts now give the **total owed by late customers** (19 680,00 zł) and the **total of taxes due** (22 130,00 zł),
+  so the model can copy them instead of adding them up (2 of the 5 fallbacks).
+- The guard no longer reads digits **inside a name** (`JPK_V7M` is not 7). Digits next to a word on one side only
+  (`200zł`, `EUR1500`) are still checked.
+- **The fallback fits the question** (`fallbackFor` in `agents/facts.ts`): a question about a detail gets the main
+  point, then that detail ("When do I pay ZUS?" → the VAT deadline, then ZUS). A question about the conclusion, or
+  one that matches nothing, still gets the whole summary. Over the 80 live questions: 11 different fallback texts instead of 4.
+- **No retry (A3 skipped):** at 94% it would help about 1 question in 80 and add 2–3 s to a failing answer.
+- **Not touched (outside this branch's files):** the chair's English money format and its off-topic plan
+  (`agents/boardroom.ts`). Agree on it with Person B before changing it.
