@@ -99,7 +99,7 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
 
 - [ ] **Project card:** fill in `docs/Collabothon_2026_Project_Card_Fillable 1.pdf` and send it the way the organisers
   ask.
-- [ ] **Demo script (3–5 min):**
+- [ ] **Demo script (3–5 min):** draft with clicks, lines and timings in [`docs/DEMO.md`](DEMO.md) (checked on the live app).
   1. the problem (a Polish car repair shop, no CFO);
   2. login → dashboard;
   3. run the check → the agents find things;
