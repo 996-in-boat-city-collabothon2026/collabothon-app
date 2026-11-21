@@ -368,3 +368,63 @@ npm run build
 - **Fake model replies:** `setModelCallForTests` in `server/src/llm/provider.ts` feeds any reply into the routes
   (see `server/src/routes/ask.test.ts`).
 - **Live model:** `LLM_MODE=openai_compat` with the vLLM address from `deploy/README.md`.
+
+---
+
+## 7. Live run on 8B (rebuild 2, step A1 of [AGENTS-NEXT.md](AGENTS-NEXT.md))
+
+**When / where:** 2026-11-21, 16:25 CET, `warsztat-cfo-test` (health: `llama-31-8b-instruct`, ok). App mode
+(`LIVE_APP_URL`), so the test saw only what the owner sees: no raw replies and no guard reasons (`oc` was not logged
+in, so no port-forward and no `[guard]` log). The deployed build follows the topic in meetings (10/10 leads right), so
+it runs the 8B code. 80 questions + 10 meetings, 5 min 20 s.
+
+| Measure | Result | Goal |
+|---|---|---|
+| Guard pass rate `/api/ask` | **75/80 (94%)**: anna 18/20, kasia 20/20, marek 17/20, tomasz 20/20 | ≥ 80% ✅ |
+| Numbers on screen that are not rule numbers | **0** (asks, turns and chair) | 0 ✅ |
+| Routing without a named CFO | 16/16 | ✅ |
+| Answer time `/api/ask` | p50 2,4 s · p95 3,6 s · max 3,9 s | |
+| Meeting: right lead | 10/10 | ✅ |
+| Meeting turns from the model | 30/30 (100%); chair sentence 8/9 | |
+| Meeting time | margin 15,4 s · EUR 10,8 s · December 13,8 s · VAT 15,9 s · "Kasia, …" 9,6 s · cut costs 13,1 s · KSeF 12,8 s · loan 13,4 s · **Monthly review 20,8 s** · hello 0,1 s | < 22 s ✅ (review is close) |
+
+**The 5 fallbacks.** The reasons are not in the app response; each one was reproduced with `checkReply` on a likely
+reply, and each gives exactly this reason:
+
+| CFO | Question | Likely reason | What it tells us |
+|---|---|---|---|
+| anna | How much do my customers owe me? | `number not in facts: 19680` (model adds 12 300 + 7 380) | the total owed is not a fact |
+| marek | How much do I pay in taxes in total? | `number not in facts: 22130` (14 230 + 5 800 + 2 100) | the tax total is not a fact |
+| anna | Is a 5000 zł loan enough? | `number not in facts: 5000` (repeats the owner's number) | correct: the question is never a fact |
+| marek | What is JPK_V7M? | `number not in facts: 7` (`numbersIn("JPK_V7M")` → 7) | a guard false alarm on a form name |
+| marek | What happens if I miss the VAT deadline? | not reproduced | |
+
+Every fallback showed the same `facts.summary`, whatever was asked (step A2 fixes this).
+
+**Wrong meaning that passed the guard** (correct numbers, the known limit in [AGENTS-8B-GUARD.md](AGENTS-8B-GUARD.md)):
+- **Chair writes money the English way:** "14,230.00 zł", "36,000.00 zł" in 6 of 8 chair sentences (golden rule 6:
+  `14 230,00 zł`). The guard reads the value, so it lets it through.
+- **Chair ignores the topic and gives cash advice that hurts cash:** "How to improve the margin?" → VAT, reminders, EUR,
+  credit line (nothing about the margin); "Will we survive December?" → "pay 14,230 zł in VAT … to avoid a −20,275 zł
+  balance" (paying VAT makes the gap bigger).
+- **False comfort:** Anna, "Do I need a loan?" → "not yet a loan issue" (the reminders cover 19 680 of the 35 275 zł
+  gap). Kasia, "Should I worry about the złoty?" → "The złoty is currently stable" (not a fact).
+- **Wrong order:** Tomasz, "How can I cut costs?" → the parts markup first (237,50 zł) instead of labour (1700,00 zł).
+- **Dodges a question their area owns:** Kasia, "Should I pay Krause early?" → "discuss this with your accountant"
+  (there is a card for it); Anna, "Can I pay all my bills in December?" → "not bill payments".
+- **No labels mixed up** (no "ZUS of 14 230 zł"): A4 is not needed now.
+- Marek adds the KSeF fix to almost every answer (14 of 17): true, but repetitive.
+
+**Full report:** every question, shown text and time, written by `live.test.ts` to `LIVE_REPORT` (not committed).
+
+**What changed after this run (branch `agents8b-quality`):**
+- The facts now give the **total owed by late customers** (19 680,00 zł) and the **total of taxes due** (22 130,00 zł),
+  so the model can copy them instead of adding them up (2 of the 5 fallbacks).
+- The guard no longer reads digits **inside a name** (`JPK_V7M` is not 7). Digits next to a word on one side only
+  (`200zł`, `EUR1500`) are still checked.
+- **The fallback fits the question** (`fallbackFor` in `agents/facts.ts`): a question about a detail gets the main
+  point, then that detail ("When do I pay ZUS?" → the VAT deadline, then ZUS). A question about the conclusion, or
+  one that matches nothing, still gets the whole summary. Over the 80 live questions: 11 different fallback texts instead of 4.
+- **No retry (A3 skipped):** at 94% it would help about 1 question in 80 and add 2–3 s to a failing answer.
+- **Not touched (outside this branch's files):** the chair's English money format and its off-topic plan
+  (`agents/boardroom.ts`). Agree on it with Person B before changing it.
