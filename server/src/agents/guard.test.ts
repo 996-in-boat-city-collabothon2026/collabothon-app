@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { CfoId } from '@cfo/shared';
 import { resetDb } from '../domain/store';
 import { cfoFacts } from './facts';
-import { checkReply, MAX_CHARS, numbersIn } from './guard';
+import { checkReply, MAX_CHARS, numbersIn, tidyMoney } from './guard';
 import { REVIEW_REPLIES } from './review-corpus';
 
 const CFOS: CfoId[] = ['anna', 'kasia', 'marek', 'tomasz'];
@@ -121,5 +121,21 @@ describe('the review corpus: every real model reply from the reviews (agents/rev
     expect(wrong.length).toBe(75);
     const caught = wrong.filter((r) => !check(r.cfo, r.text).ok).length;
     expect(caught).toBeGreaterThanOrEqual(39);
+  });
+});
+
+describe('tidyMoney: money on screen in the app format (golden rule 6)', () => {
+  const sp = (s: string) => s.replace(/[  ]/g, ' '); // fmtPLN uses no-break spaces
+  it('rewrites English money before "zł" and keeps the value (live run on 8B: the chair wrote "14,230.00 zł")', () => {
+    expect(sp(tidyMoney('Pay 14,230.00 zł for VAT and open a credit line of 36,000 zł.'))).toBe('Pay 14 230,00 zł for VAT and open a credit line of 36 000,00 zł.');
+    expect(sp(tidyMoney('The rate is 4.27 zł.'))).toBe('The rate is 4,27 zł.');
+    expect(sp(tidyMoney('to avoid a -20,275 zł balance'))).toBe('to avoid a -20 275,00 zł balance');
+  });
+  it('leaves our format, other currencies and plain numbers alone', () => {
+    for (const s of ['VAT is 14 230,00 zł.', 'You owe 1,500 EUR.', 'It went up 4 weeks in a row, 5%.']) expect(tidyMoney(s)).toBe(s);
+  });
+  it('never changes a value: the guard reads the same numbers before and after', () => {
+    const s = 'Pay 14,230.00 zł, 36,000 zł and 4.27 zł.';
+    expect(numbersIn(tidyMoney(s))).toEqual(numbersIn(s));
   });
 });

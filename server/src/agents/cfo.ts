@@ -4,7 +4,7 @@
 import { CFOS, type ChatLine, type CfoId } from '@cfo/shared';
 import { chatOr } from '../llm/provider';
 import { cfoFacts, fallbackFor, type CfoFacts } from './facts';
-import { checkReply } from './guard';
+import { checkReply, tidyMoney } from './guard';
 import { PERSONAS } from './personas';
 
 /** Room for 2–3 sentences; a reaction is one sentence. */
@@ -45,7 +45,11 @@ export function askPrompt(facts: CfoFacts, question: string, opts: AskOptions = 
     parts.push('EARLIER IN THIS CHAT (context only, its numbers are not FACTS):', ...opts.history.map(chatLine), '');
   }
   parts.push(`OWNER ASKS: ${question}`);
-  if (opts.short) parts.push('', `WHAT THE LEAD SAID: ${opts.heard ?? ''}`, 'Reply in ONE sentence from your area.');
+  // Live run on 8B: reactions said "That's not my area" instead of adding something. Ask for the urgent point.
+  if (opts.short) {
+    parts.push('', `WHAT THE LEAD SAID: ${opts.heard ?? ''}`,
+      'Reply in ONE sentence from your area: what the owner must not forget from your area while deciding this. Never say it is not your area.');
+  }
   return parts.join('\n');
 }
 
@@ -62,7 +66,8 @@ export async function askCfo(cfo: CfoId, question: string, opts: AskOptions = {}
   });
 
   const check = reply.trim() ? checkReply(reply, facts) : { ok: false, reason: 'no reply' };
-  if (check.ok) return { text: reply.trim(), fromModel: true, note: '' };
+  // tidyMoney: "14,230.00 zł" → "14 230,00 zł" (golden rule 6), after the check, so the value is the checked one.
+  if (check.ok) return { text: tidyMoney(reply.trim()), fromModel: true, note: '' };
 
   console.info(`[guard] ask:${cfo} ${check.reason}`);
   // Rule text that fits the question (a detail point after the main point), or the whole summary.
