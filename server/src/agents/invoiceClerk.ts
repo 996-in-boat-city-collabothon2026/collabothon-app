@@ -154,18 +154,19 @@ const Ref = z.union([z.string(), z.number()]).nullish();
 export const ClerkReply = z.object({
   counterpartyName: z.string().nullish(),
   nip: Ref,
-  currency: z.enum(['PLN', 'EUR', 'USD']).nullish(),
-  paymentMethod: z.enum(['transfer', 'cash', 'card']).nullish(),
+  // .catch(null): live Llama 3.1 8B wrote "priceType": "plain"; one bad word must not throw away the whole reply.
+  currency: z.enum(['PLN', 'EUR', 'USD']).nullish().catch(null),
+  paymentMethod: z.enum(['transfer', 'cash', 'card']).nullish().catch(null),
   dueInDays: Ref,
   lines: z
     .array(
       z.object({
         line: z.union([z.number(), z.string()]).nullish(), // existing line number (1, 2…) or "new"
         name: z.string().nullish(),
-        kind: z.enum(['part', 'labour', 'other']).nullish(),
+        kind: z.enum(['part', 'labour', 'other']).nullish().catch(null),
         qty: Ref,
         unitPrice: Ref,
-        priceType: z.enum(['net', 'gross']).nullish(),
+        priceType: z.enum(['net', 'gross']).nullish().catch(null),
         vatRate: Ref,
       }),
     )
@@ -184,7 +185,8 @@ Each field takes only its own type. Never mix them:
 - lines[].vatRate: ONLY TYPE vat or plain, and only if the VAT rate was said.
 - paymentMethod: przelew = transfer, gotówka = cash, karta = card. currency: only if said (zł = PLN, euro = EUR).
 Write numbers as their id ("#3"), never the number itself. Use each id at most once. Not said = null.
-"line": the number of an EXISTING line when the text gives its missing data (e.g. its price), otherwise "new".
+"line": the number of an EXISTING line WITH A NAME when the text gives its missing data (e.g. its price), otherwise "new". A line whose name is EMPTY is not an item yet: use "new".
+One line per item: "wymiana oleju 200 zł, filtr 50 zł" is TWO lines.
 kind: labour (robocizna, wymiana, montaż, usługa, diagnostyka), part (części, klocki, olej, filtr, opony), other.
 Short line names in the language spoken. Do not calculate anything.
 Example. Numbers: #1 6792345679 (nip), #2 200 (money), #3 14 (days). Text: "Taxi Wawel NIP 679 234 56 79 wymiana oleju 200 zł przelew za 14 dni"
@@ -244,8 +246,22 @@ function cleanName(s: string | null | undefined, max: number): string | null {
 
 const toNum = (v: unknown) => (empty(v) ? null : Number(String(v).replace(/\s/g, '').replace(',', '.')));
 
+/**
+ * True when another item's word stands between this item's name and the amount picked for it, so the amount most
+ * likely belongs to that other item. No check when the name is not found before the amount (e.g. "200 zł za olej").
+ */
+function otherItemBetween(text: string, name: string, price: SpokenNumber): boolean {
+  const before = text.slice(0, price.at).toLowerCase();
+  const full = before.lastIndexOf(name.toLowerCase());
+  const lastWord = name.toLowerCase().split(/\s+/).at(-1)?.slice(0, 4) ?? '';
+  const at = full >= 0 ? full + name.length : lastWord.length >= 3 ? before.lastIndexOf(lastWord) : -1;
+  if (at < 0) return false;
+  const between = ` ${before.slice(full >= 0 ? at : at + lastWord.length)}`;
+  return LABOUR.test(between) || PART.test(between);
+}
+
 /** Turns the model's (or the rules') picks into a checked fill. All maths is here. Exported for tests. */
-export function buildFill(reply: ClerkReply, form: InvoiceForm, numbers: SpokenNumber[], today: string, source: InvoiceFill['source']): InvoiceFill {
+export function buildFill(reply: ClerkReply, form: InvoiceForm, numbers: SpokenNumber[], today: string, source: InvoiceFill['source'], text = ''): InvoiceFill {
   const used = new Set<string>();
   const skipped: InvoiceFill['skipped'] = [];
   const set: InvoiceFill['set'] = {};
@@ -261,6 +277,7 @@ export function buildFill(reply: ClerkReply, form: InvoiceForm, numbers: SpokenN
       const same = numbers.filter((x) => x.value === v || (x.nip && x.nip === normalizeNip(s)));
       n = same.length === 1 ? same[0] : undefined;
     }
+    if (!n && field === 'qty' && s === '1') return null; // the model's own default, not a claim that "1" was said
     if (!n) { skipped.push({ field: label, value: s, reason: 'not_said' }); return null; }
     if (!FIELD_ROLES[field].includes(n.role)) { skipped.push({ field: label, value: n.raw, reason: 'wrong_type' }); return null; }
     if (n.role === 'nip' && !n.nipValid) { skipped.push({ field: label, value: n.raw, reason: 'invalid_nip' }); return null; }
@@ -268,15 +285,19 @@ export function buildFill(reply: ClerkReply, form: InvoiceForm, numbers: SpokenN
     used.add(n.id);
     return n;
   };
-  const alreadyFilled = (field: string, value: string) => skipped.push({ field, value, reason: 'already_filled' });
+  /** A value for a field that is already filled. The model often repeats the form back: the same value is not news. */
+  const alreadyFilled = (field: string, value: string, current?: unknown) => {
+    const same = (a: unknown, b: unknown) => String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+    if (current === undefined || !same(value, current)) skipped.push({ field, value, reason: 'already_filled' });
+  };
 
   // Header fields: only fill gaps.
   const name = cleanName(reply.counterpartyName, 120);
   if (reply.counterpartyName && !name) skipped.push({ field: 'name', value: reply.counterpartyName, reason: 'bad_value' });
-  if (name) empty(form.counterparty?.name) ? (set.name = name) : alreadyFilled('name', name);
+  if (name) empty(form.counterparty?.name) ? (set.name = name) : alreadyFilled('name', name, form.counterparty?.name);
 
   const nip = pick(reply.nip, 'nip', 'nip');
-  if (nip?.nip) empty(form.counterparty?.nip) ? (set.nip = nip.nip) : alreadyFilled('nip', nip.nip);
+  if (nip?.nip) empty(form.counterparty?.nip) ? (set.nip = nip.nip) : alreadyFilled('nip', nip.nip, normalizeNip(form.counterparty?.nip ?? ''));
 
   const days = pick(reply.dueInDays, 'dueInDays', 'dueDate');
   if (days) {
@@ -285,7 +306,7 @@ export function buildFill(reply: ClerkReply, form: InvoiceForm, numbers: SpokenN
     else alreadyFilled('dueDate', days.raw);
   }
 
-  if (reply.paymentMethod) empty(form.paymentMethod) ? (set.paymentMethod = reply.paymentMethod) : alreadyFilled('paymentMethod', reply.paymentMethod);
+  if (reply.paymentMethod) empty(form.paymentMethod) ? (set.paymentMethod = reply.paymentMethod) : alreadyFilled('paymentMethod', reply.paymentMethod, form.paymentMethod);
 
   // Currency changes the meaning of every price: only while no price is on the form yet.
   const lines = form.lines ?? [];
@@ -302,7 +323,12 @@ export function buildFill(reply: ClerkReply, form: InvoiceForm, numbers: SpokenN
   for (const [i, l] of reply.lines.entries()) {
     const label = (f: string) => `line ${i + 1} ${f}`;
     const qty = pick(l.qty, 'qty', label('qty'));
-    const price = pick(l.unitPrice, 'unitPrice', label('price'));
+    let price = pick(l.unitPrice, 'unitPrice', label('price'));
+    if (price && l.name && otherItemBetween(text, l.name, price)) {
+      // Live test 21.11: "diagnostyka … sto pięćdziesiąt i geometria kół 120" → the model gave diagnostics the 120.
+      skipped.push({ field: label('price'), value: price.raw, reason: 'bad_value' });
+      price = null;
+    }
     const vatPick = pick(l.vatRate, 'vatRate', label('vat'));
     const vat = vatPick && VAT_RATES.includes(vatPick.value as VatRate) ? (vatPick.value as VatRate) : null;
     if (vatPick && vat == null) skipped.push({ field: label('vat'), value: vatPick.raw, reason: 'bad_value' });
@@ -465,15 +491,34 @@ export function ruleReply(text: string, form: InvoiceForm, numbers: SpokenNumber
   };
 }
 
+/**
+ * Code first, model second. Live test with Llama 3.1 8B (21.11): for "wymiana oleju 200 zł netto filtr oleju
+ * 2 sztuki po 61,50 brutto" it merged both items into one line and gave it the filter's price. Types were right
+ * (money → price), so the checks could not see it. Which amount belongs to which item is a fact of the word ORDER,
+ * so the rules decide it whenever they found items; the model fills what code cannot read (the buyer's name in
+ * messy speech, items without "zł"). NIP and days also come from the rules when they found exactly one.
+ */
+export function mergeWithRules(model: ClerkReply, rules: ClerkReply): ClerkReply {
+  return {
+    counterpartyName: model.counterpartyName || rules.counterpartyName,
+    nip: rules.nip ?? model.nip,
+    dueInDays: rules.dueInDays ?? model.dueInDays,
+    paymentMethod: model.paymentMethod ?? rules.paymentMethod,
+    currency: model.currency ?? rules.currency,
+    lines: rules.lines.length ? rules.lines : model.lines,
+  };
+}
+
 /** Dictated text + current form → a checked fill of the gaps. Never throws. */
 export async function fillInvoiceGaps(text: string, form: InvoiceForm, today: string): Promise<InvoiceFill> {
   const numbers = tagNumbers(text);
   const reply = await chatOr('', clerkPrompt(text, form, numbers), { temperature: 0, maxTokens: 600, mockKey: 'invoice-clerk' });
   // extractJson digs out and repairs the JSON; ClerkReply then checks its shape.
   const parsed = ClerkReply.safeParse(reply ? extractJson(reply, z.unknown()) : null);
+  const rules = ruleReply(text, form, numbers);
   if (!parsed.success) {
     if (reply) console.warn('[clerk] model reply was not valid JSON, using rules only');
-    return buildFill(ruleReply(text, form, numbers), form, numbers, today, 'fallback');
+    return buildFill(rules, form, numbers, today, 'fallback', text);
   }
-  return buildFill(parsed.data, form, numbers, today, 'llm');
+  return buildFill(mergeWithRules(parsed.data, rules), form, numbers, today, 'llm', text);
 }

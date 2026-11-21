@@ -122,6 +122,11 @@ describe('buildFill: only the gaps are filled', () => {
     expect(priced.skipped).toEqual([{ field: 'currency', value: 'EUR', reason: 'already_filled' }]);
   });
 
+  it('the model repeating the form back is not reported as "not filled"', () => {
+    const f = fill({ counterpartyName: 'Taxi Wawel', paymentMethod: 'transfer' }, 'olej', { counterparty: { name: 'Taxi Wawel' }, paymentMethod: 'transfer' });
+    expect(f.skipped).toEqual([]);
+  });
+
   it('an assumed qty may be replaced; a typed qty may not', () => {
     const assumed: InvoiceForm = { lines: [{ name: 'Olej', qty: 1, unitNet: 30, vatRate: 23, assumed: ['qty'] }] };
     expect(fill({ lines: [{ line: 1, qty: '#1' }] }, 'olej 4 litry', assumed).lineUpdates).toEqual([{ index: 0, qty: 4 }]);
@@ -229,6 +234,33 @@ describe('POST /api/invoices/parse-voice', () => {
     const f = (await post({ text: 'Kurier Express NIP 6781234560 klocki hamulcowe 350 zł gotówka' })).json<InvoiceFill>();
     expect(f.set).toMatchObject({ name: 'Kurier Express', paymentMethod: 'cash' });
     expect(f.newLines.map((l) => [l.name, l.unitNet, l.kind])).toEqual([['Klocki hamulcowe', 350, 'part']]);
+  });
+
+  it('live-model mistake (21.11): items merged and the wrong amount picked → the rules decide the items by word order', async () => {
+    // What Llama 3.1 8B answered for this text: one line, on the empty starter line, with the filter's price.
+    modelAnswer = async () => '{"counterpartyName":"Taxi Wawel","nip":"#1","paymentMethod":"transfer","dueInDays":"#5","lines":[{"line":1,"name":"Wymiana oleju","kind":"labour","qty":"#3","unitPrice":"#4","priceType":null,"vatRate":"vat"}]}';
+    const f = (await post({ text: SPOKEN, form: { currency: 'PLN', lines: [{ name: '', qty: '1', unitNet: '', vatRate: 23 }] } })).json<InvoiceFill>();
+    expect(f.source).toBe('llm');
+    expect(f.set).toEqual({ name: 'Taxi Wawel', nip: '6792345679', dueDate: '2026-12-04', paymentMethod: 'transfer' });
+    expect(f.newLines.map((l) => [l.name, l.qty, l.unitNet])).toEqual([['Wymiana oleju', 1, 200], ['Filtr oleju', 2, 50]]);
+    expect(f.lineUpdates).toEqual([]);
+  });
+
+  it('the model still fills items when the rules find none (no "zł" said)', async () => {
+    modelAnswer = async () => '{"lines":[{"line":"new","name":"Diagnostyka","kind":"labour","unitPrice":"#1"}]}';
+    const f = (await post({ text: 'diagnostyka komputerowa 150' })).json<InvoiceFill>();
+    expect(f.newLines.map((l) => [l.name, l.unitNet])).toEqual([['Diagnostyka', 150]]);
+  });
+
+  it('live-model reply with "priceType": "plain" is not thrown away; a price that belongs to the next item is refused', async () => {
+    // Llama 3.1 8B, 21.11: "sto piecdziesiat" was words, so #1 (120) is the price of "geometria kol", not of diagnostics.
+    modelAnswer = async () => '{"counterpartyName":"Pana Kowalskiego","nip":null,"currency":"PLN","paymentMethod":"cash","dueInDays":null,"lines":[{"line":"new","name":"Diagnostyka komputerowa","kind":"labour","qty":1,"unitPrice":"#1","priceType":"plain","vatRate":null}]}';
+    const f = (await post({ text: 'dla pana Kowalskiego diagnostyka komputerowa sto piecdziesiat i geometria kol 120 gotowka' })).json<InvoiceFill>();
+    expect(f.source).toBe('llm');
+    expect(f.set).toMatchObject({ name: 'Pana Kowalskiego', paymentMethod: 'cash' });
+    expect(f.newLines).toEqual([{ name: 'Diagnostyka komputerowa', kind: 'labour', qty: 1, unitNet: null, vatRate: 23, assumed: ['qty', 'vatRate'] }]);
+    expect(f.skipped).toEqual([{ field: 'line 1 price', value: '120', reason: 'bad_value' }]);
+    expect(f.missing).toContainEqual({ field: 'line.unitNet', line: 0 });
   });
 
   it('model down → rules, no crash', async () => {
