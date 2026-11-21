@@ -174,7 +174,7 @@ describe.skipIf(!BASE && !APP)(`Rebuild 2 live check, ${MODEL} (${BASE ? `vLLM $
       meetings.push({
         topic, expected, first: r.body.turns[0]?.cfo, speakers: r.body.turns.map((t) => t.cfo), ms: r.ms,
         turnsFromModel: r.body.turns.filter((t) => t.text !== fallbackFor(cfoFacts(t.cfo), topic)).length,
-        summaryFromModel: !/^For your decision: |^Nothing is waiting|^Pick a topic/.test(r.body.summary),
+        summaryFromModel: !/^For your decision: |^Nothing is waiting|^Nothing to approve|^Pick a topic/.test(r.body.summary),
         summary: r.body.summary,
       });
     }

@@ -7,7 +7,7 @@ import { config } from '../config';
 import { setModelCallForTests } from '../llm/provider';
 import { db, resetDb } from '../domain/store';
 import { isCurrentCard, runAutopilot } from './autopilot';
-import { CHAIR_MAX_TOKENS, ORDER, ruleSummary, runBoardroom, SMALL_TALK_SUMMARY } from './boardroom';
+import { CHAIR_MAX_TOKENS, NOTHING_ON_TOPIC, ORDER, ruleSummary, runBoardroom, SMALL_TALK_SUMMARY } from './boardroom';
 import { cfoFacts } from './facts';
 
 const saved = { ...config.llm };
@@ -73,6 +73,18 @@ describe('the lead follows the topic', () => {
     expect(speakers(r)).toContain('tomasz');
   });
 
+  it('a reaction that only says "not my area" passes (live run on 8B: Marek and Anna in the EUR meeting)', async () => {
+    reply = (m) => (isChair(m) ? '' : isShort(m) && m[0].content.includes('You are Marek') ? "That's not my area, I handle taxes." : MODEL_TEXT);
+    const r = await runBoardroom('Should we lock the EUR rate?');
+    expect(speakers(r)).toEqual(['kasia', 'anna']);
+  });
+
+  it('the reaction prompt asks for the urgent point, never "not my area"', async () => {
+    await runBoardroom('Should we lock the EUR rate?');
+    const short = sent.find((c) => isShort(c.m))!;
+    expect(short.m[1].content).toContain('Never say it is not your area.');
+  });
+
   it('two different topics give different turns', async () => {
     const margin = await runBoardroom('How to improve the margin?');
     const eur = await runBoardroom('Should we lock the EUR rate?');
@@ -102,11 +114,11 @@ describe('general topic and small talk', () => {
 describe('cards and the chair', () => {
   it('the chair gets "[id] CFO: title" for each card, the topic and the turns; 160 tokens, temperature 0.1', async () => {
     await runAutopilot();
-    await runBoardroom('How to improve the margin?');
+    await runBoardroom('Monthly review');
     const chair = sent.find((c) => isChair(c.m))!;
     for (const a of current()) expect(chair.m[1].content).toContain(`[${a.id}] `);
     expect(chair.m[1].content).toContain(`Tomasz: ${MODEL_TEXT}`);
-    expect(chair.m[1].content).toContain('MEETING TOPIC: How to improve the margin?');
+    expect(chair.m[1].content).toContain('MEETING TOPIC: Monthly review');
     expect(chair.o).toMatchObject({ maxTokens: CHAIR_MAX_TOKENS, temperature: 0.1 });
   });
 
@@ -114,29 +126,54 @@ describe('cards and the chair', () => {
     await runAutopilot();
     const [a, b] = current();
     reply = (m) => (isChair(m) ? chairJson(['a-made-up', b.id, b.id, a.id]) : MODEL_TEXT);
-    const r = await runBoardroom('How to improve the margin?');
+    const r = await runBoardroom('Monthly review');
     expect(r.decisionActionIds).toEqual([b.id, a.id]);
   });
 
-  it('no valid id → every current card, the lead\'s cards first', async () => {
+  it('a topic meeting decides only the lead\'s cards (live run on 8B: the EUR meeting listed VAT and the credit line)', async () => {
     await runAutopilot();
-    reply = (m) => (isChair(m) ? chairJson(['a-made-up']) : MODEL_TEXT);
     const r = await runBoardroom('Should we lock the EUR rate?');
     const kasias = current().filter((a) => a.cfo === 'kasia').map((a) => a.id);
     expect(kasias.length).toBeGreaterThan(0);
-    expect(r.decisionActionIds.slice(0, kasias.length)).toEqual(kasias);
-    expect([...r.decisionActionIds].sort()).toEqual(current().map((a) => a.id).sort());
+    expect(r.decisionActionIds).toEqual(kasias); // no valid id from the chair → every card of this meeting
+    const chair = sent.find((c) => isChair(c.m))!;
+    for (const a of current().filter((x) => x.cfo !== 'kasia')) expect(chair.m[1].content).not.toContain(`[${a.id}] `);
+    // the other cards stay open in the approval queue
+    expect(current().length).toBeGreaterThan(kasias.length);
+  });
+
+  it('a topic meeting drops a card id of another CFO, even if the chair picks it', async () => {
+    await runAutopilot();
+    const vat = current().find((a) => a.cfo === 'marek')!;
+    reply = (m) => (isChair(m) ? chairJson([vat.id]) : MODEL_TEXT);
+    const r = await runBoardroom('Should we lock the EUR rate?');
+    expect(r.decisionActionIds).not.toContain(vat.id);
+  });
+
+  it('a lead with no cards (Tomasz) → no chair call, no decisions, a plain sentence', async () => {
+    await runAutopilot();
+    const r = await runBoardroom('How to improve the margin?');
+    expect(r.decisionActionIds).toEqual([]);
+    expect(r.summary).toBe(NOTHING_ON_TOPIC);
+    expect(sent.some((c) => isChair(c.m))).toBe(false);
   });
 
   it('a summary without made-up numbers is shown; one with a made-up number → the rule summary', async () => {
     await runAutopilot();
     reply = (m) => (isChair(m) ? chairJson([], 'Fix the labour prices first, then talk to the bank.') : MODEL_TEXT);
-    expect((await runBoardroom('How to improve the margin?')).summary).toBe('Fix the labour prices first, then talk to the bank.');
+    expect((await runBoardroom('Monthly review')).summary).toBe('Fix the labour prices first, then talk to the bank.');
 
     reply = (m) => (isChair(m) ? chairJson([], 'You will save 99 999,00 zł this month.') : MODEL_TEXT);
-    const r = await runBoardroom('How to improve the margin?');
+    const r = await runBoardroom('Monthly review');
     expect(r.summary).toBe(ruleSummary(current()));
     expect(r.summary).not.toContain('99 999');
+  });
+
+  it('the chair\'s English money is shown in the app format (live run on 8B: "36,000.00 zł")', async () => {
+    await runAutopilot();
+    reply = (m) => (isChair(m) ? chairJson([], 'Open the credit line of 36,000.00 zł only after the reminders.') : MODEL_TEXT);
+    const r = await runBoardroom('Will we survive December?');
+    expect(r.summary.replace(/[  ]/g, ' ')).toBe('Open the credit line of 36 000,00 zł only after the reminders.');
   });
 
   it('no open cards → the meeting runs the check, the chair offers the new cards, and every card stays open', async () => {
