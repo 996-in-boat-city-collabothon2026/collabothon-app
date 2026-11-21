@@ -68,6 +68,9 @@ function anna(): Built {
     ...(gap > 0 ? [`Missing to the buffer: ${fmtPLN(gap)}`] : []),
     ...(credit ? [`Proposed credit line (simulated): ${fmtPLN(credit)}`] : []),
     ...(lateText.length ? [`Customers who owe you money and are late: ${list(lateText)}`] : []),
+    // Live run on 8B: "How much do my customers owe me?" made the model add the amounts itself (19 680), and the
+    // guard rejected the sum. The rules give the total, so the model can copy it.
+    ...(late.length > 1 ? [`Late customers owe you in total: ${fmtPLN(owedTotal())}`] : []),
   ];
 
   const points: CfoPoint[] = [];
@@ -88,8 +91,12 @@ function anna(): Built {
     const i = late.find((x) => x.id === r.refId)!;
     points.push(point(`late-${i.id}`, `${noDemo(i.counterparty.name)} owes you ${fmtPLN(r.amountPLN!)} and is ${inDays(i.dueDate)}.`, false));
   }
+  if (late.length > 1) points.push(point('owed', `Your late customers owe you ${fmtPLN(owedTotal())} in total.`, false));
   return { lines, points };
 }
+
+/** What the late customers owe together (the sum of the reminder amounts). */
+const owedTotal = () => paymentReminders().reduce((sum, r) => sum + (r.amountPLN ?? 0), 0);
 
 function kasia(): Built {
   const exposures = fxExposures();
@@ -168,6 +175,9 @@ function marek(): Built {
       (i) => `Invoice ${i.number} for ${noDemo(i.counterparty.name)} was rejected by KSeF (e-invoice system). Reason: ${reasonEn(i.ksef.rejectionReason)}`,
     ),
   ];
+  // Live run on 8B: "How much do I pay in taxes in total?" made the model add the taxes itself (22 130).
+  const total = taxes.reduce((sum, o) => sum + o.amountPLN, 0);
+  if (taxes.length > 1) lines.push(`All taxes due in 30 days together: ${fmtPLN(total)}`);
   if (lines.length === 0) lines.push('No taxes due in 30 days and no KSeF problems');
 
   const next = taxes[0];
@@ -184,6 +194,7 @@ function marek(): Built {
   for (const o of taxes) {
     points.push(point(`tax-${o.id}`, `${o.kind}: ${fmtPLN(o.amountPLN)}, due ${fmtDateEn(o.dueDate)} (${inDays(o.dueDate)}), still unpaid.`, false));
   }
+  if (taxes.length > 1) points.push(point('taxes-total', `All your taxes due in the next 30 days come to ${fmtPLN(total)} in total.`, false));
   // The reason was only in the old prompt lines (found in M8): "why was it rejected?" needs its own point.
   for (const i of rejected) {
     const why = i.ksef.rejectionReason ? ` because ${reasonEn(i.ksef.rejectionReason)}` : ', no reason given';
