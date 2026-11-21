@@ -13,9 +13,8 @@ import { cfoFacts, type CfoFacts } from './facts';
 import { CHAIR_PERSONA } from './personas';
 import { allDrafts, isCurrentCard, runAutopilot } from './autopilot';
 import { checkReply } from './guard';
-// TODO stub: after Person B's merge, import askCfo from './cfo' and isSmallTalk / leadFor (and a keyword-match
-// helper) from './topic', then delete './stubs'.
-import { askCfo, isSmallTalk, leadFor, matchesTopic } from './stubs';
+import { askCfo } from './cfo';
+import { isSmallTalk, leadFor, matchesTopic } from './topic';
 
 /** The order of a general meeting: White → Black → Green → Red. The Blue chair sums up. */
 export const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];
