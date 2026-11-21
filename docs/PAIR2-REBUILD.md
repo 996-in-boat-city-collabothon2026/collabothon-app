@@ -326,7 +326,7 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
     3. **Comments copy the previous speaker in the conference.** Kasia repeated Tomasz word for word: "Address the labour and VAT issues first…". The chair's comment was never shown; why is in Pair 1's logs.
   - **Still open:** the valid-JSON rate and the refused comments by reason. The test deploy logs only the `[guard]` reason, so they come from Pair 1's logs of the run.
 
-  - **Found without the model:** with no CFO given, 3 of 16 questions go to the wrong CFO. "What rate would you lock?" and "Should I worry about the złoty?" go to Anna instead of Kasia; "What is the cheapest quick win?" goes to Anna instead of Tomasz. `pickCfo` has no "złoty" or "lock". This is minor, because the web always sends the chosen CFO.
+  - **Found without the model:** with no CFO given, 3 of 16 questions go to the wrong CFO. "What rate would you lock?" and "Should I worry about the złoty?" go to Anna instead of Kasia; "What is the cheapest quick win?" goes to Anna instead of Tomasz. `pickCfo` had no "złoty" or "lock". This is **not** minor: the bubble (`web/src/components/AskBubble.tsx`) sends no CFO, so `pickCfo` decides every bubble question. Fixed in F4.
 - [x] **M10 Fixes from live run 1** (`agents/facts.ts`, `agents/answer.ts`, `agents/boardroom.ts`)
   Result: **527/527 tests in 22 files** (3 new), typecheck clean, build OK. Not yet re-run on the real model.
   - **The main conclusion is always shown:** the first core point is added like a critical one (finding 1: Tomasz's car list without "Bill the full hours").

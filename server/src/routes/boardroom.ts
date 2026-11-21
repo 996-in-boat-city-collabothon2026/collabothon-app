@@ -11,7 +11,8 @@ import { chatOr } from '../llm/provider';
 /** A JSON reply with a few point ids and one comment id fits easily (a free-text answer needed 160). */
 export const ASK_MAX_TOKENS = 120;
 
-// Quick-advice bubble: pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
+// Quick-advice bubble: the web sends no CFO (web/src/components/AskBubble.tsx), so this picks one for every bubble question.
+// Pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
 // score wins. Ties and no match → Anna. Short words use \b so "pit" doesn't match "hospital", "vat" not "private".
 const TOPICS: Record<CfoId, RegExp[]> = {
   anna: [
@@ -24,6 +25,8 @@ const TOPICS: Record<CfoId, RegExp[]> = {
     /\beur|euro|\busd\b|dollar|currenc|\bfx\b|\bnbp\b/i,
     /exchange rate|hedg|forward/i,
     /german|krause|weber|foreign|import/i,
+    // Live run 1: "What rate would you lock?", "Should I worry about the złoty?" went to Anna.
+    /zł?oty|zloty|\block\b|exchange/i,
   ],
   marek: [
     /\bvat\b|\bzus\b|\bpit\b|\bcit\b|\btax|jpk/i,
@@ -35,6 +38,7 @@ const TOPICS: Record<CfoId, RegExp[]> = {
     /margin|profit|markup/i,
     /price|pricing|rate per hour|hourly rate|labou?r/i,
     /parts|wholesal|supplier|utilities|electricity/i,
+    /quick win|cheap|save money|waste/i, // live run 1: "What is the cheapest quick win?" went to Anna
     // Setting a price (review of bc24564: both went to Anna). "charge" alone is too broad ("will the bank charge me"),
     // and "ask" only with customers (review of f5f7df5: "How much should I ask the bank to lend me?" is a loan).
     /\b(?:how much|what)\s+(?:should|do|can|must)\s+(?:i|we)\s+(?:charge|bill|ask\s+(?:my\s+)?(?:customers?|clients?))\b|\bcharge\s+(?:per\s+hour|an?\s+hour|by\s+the\s+hour|for\s+(?:an?|the|my|this)\s+\w+|customers|clients)\b/i,

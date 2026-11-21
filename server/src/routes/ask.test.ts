@@ -12,7 +12,7 @@ import { runAutopilot } from '../agents/autopilot';
 import { cfoFacts } from '../agents/facts';
 import { agentModel } from '../agents/answer';
 import { COMMENTS } from '../agents/comments';
-import boardroom, { ruleAnswer } from './boardroom';
+import boardroom, { pickCfo, ruleAnswer } from './boardroom';
 
 let modelReply = '';
 const sp = (s: string) => s.replace(/ /g, ' '); // fmtPLN uses no-break spaces
@@ -141,6 +141,17 @@ describe('boardroom routes: body checks, address, current cards', () => {
     expect(r.summary).not.toContain('Lock the rate');
     expect(r.decisionActionIds.length).toBeGreaterThan(0);
   });
+});
+
+describe('pickCfo: the bubble sends no CFO (F4)', () => {
+  it.each([
+    ['What rate would you lock?', 'kasia'],
+    ['Should I worry about the złoty?', 'kasia'],
+    ['Should I worry about the zloty?', 'kasia'],
+    ['What is the cheapest quick win?', 'tomasz'],
+    ['What do I waste the most on?', 'tomasz'],
+    ['Will I have enough cash in December?', 'anna'], // unchanged
+  ])('%s → %s', (q, cfo) => expect(pickCfo(q)).toBe(cfo));
 });
 
 // ---------- Rebuild M4: the model picks rule points and may add one checked comment ----------
