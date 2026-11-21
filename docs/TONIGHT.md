@@ -55,13 +55,16 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
   ./scripts/smoke.ps1 -Base https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com -RequireModel
   ```
   **Done when:** it is green after the last merge. (Green after PR #10, 10:05: conference 5.2 s. Green after PR #11,
-  build 10: conference 5.5 s.)
+  build 10: conference 5.5 s. Green after PR #12, build 11: conference 6.3 s.)
 - [ ] **Redeploy from zero** (step 4.1): the other Pair 1 member follows `deploy/README.md` in a fresh terminal,
   dry run only (read each command and check it against the cluster, run nothing that changes anything).
   **Done when:** nothing in the README is wrong or missing.
 - [ ] **Demo duty kit** (step 6.4): one terminal with `oc get pods -w`, the mock switch and the rollback commands ready.
   The other member has the RHOAI model page open for the jury. `./scripts/demo-duty.ps1` prints the status and the
   ready commands (changes nothing); `-Mock` / `-Real` switch the model and wait until `/api/llm/health` shows it.
+- [x] **Pre-merge check of `pair3-ui`** (73efdd7, Red Hat restyle) on the test instance: smoke `-RequireModel` green,
+  no overflow at 375 px or 1366 px, no console errors. Findings sent to Pair 3. The test instance now builds from
+  `pair3-ui`; to test another branch: `oc patch bc warsztat-cfo-test -n my-first-model --type=merge -p '{"spec":{"source":{"git":{"ref":"<branch>"}}}}'`
 - [ ] **Delete the test instance at H42** (code freeze), not before: until then it is where last fixes are tried on the
   real model. It reserves no CPU or memory (1m CPU, 83 Mi used), so this is tidiness, and nobody demos the wrong URL:
   ```powershell
@@ -105,8 +108,8 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
   6. "runs on OpenShift + OpenShift AI" (show the pod and the model page).
 - [ ] **Rehearse 3 times.** Before each run, reset the demo and check the model:
   ```powershell
-  Invoke-RestMethod -Method Post https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com/api/demo/reset
+  Invoke-RestMethod -Method Post -ContentType 'application/json' -Body '{}' https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com/api/demo/reset
   ```
-  Then check that `/api/llm/health` says `openai_compat`.
+  Then check that `/api/llm/health` says `openai_compat`. (Without `-ContentType` and `-Body` the reset fails with 415.)
 - [ ] **Plan B:** if the model dies during the demo, Pair 1 switches to mock mode (`oc set env deploy/warsztat-cfo LLM_MODE=mock`).
   The demo keeps working with rule text.
