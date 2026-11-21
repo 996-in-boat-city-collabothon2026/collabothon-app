@@ -117,6 +117,17 @@ describe('followUpCfo: a follow-up in a chat stays with the CFO who answered', (
     const later: ChatLine[] = [...kasiaAnswered, { from: 'cfo', cfo: 'anna', text: 'Cash is tight.' }, { from: 'owner', text: 'Hmm' }];
     expect(followUpCfo('Why?', later)).toBe('anna');
   });
+  it('after a meeting the lead stays, not the last CFO who reacted', () => {
+    const meeting: ChatLine[] = [
+      { from: 'owner', text: 'Should we lock the EUR rate?' },
+      { from: 'cfo', cfo: 'kasia', text: 'Lead answer.' },
+      { from: 'cfo', cfo: 'anna', text: 'Reaction.' },
+      { from: 'cfo', cfo: 'marek', text: 'Reaction.' },
+      { from: 'cfo', text: 'Joint recommendation.' },
+    ];
+    expect(followUpCfo('Why?', meeting)).toBe('kasia');
+  });
+
   it('no history (or no CFO in it) → pickCfo (Anna)', () => {
     expect(followUpCfo('Why?')).toBe('anna');
     expect(followUpCfo('Why?', [{ from: 'owner', text: 'hi' }])).toBe('anna');

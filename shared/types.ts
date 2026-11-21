@@ -225,7 +225,7 @@ export interface ChatLine {
 export interface AskRequest {
   question: string;
   cfo?: CfoId; // without it the server picks one by topic (or keeps the CFO from the history)
-  history?: ChatLine[]; // at most 6 lines; the server keeps the last 4
+  history?: ChatLine[]; // at most 6 lines; all pick the CFO, the last 4 go into the prompt
 }
 
 export interface AskResult {

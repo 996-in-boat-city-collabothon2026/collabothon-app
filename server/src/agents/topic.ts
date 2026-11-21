@@ -69,13 +69,17 @@ export function pickCfo(question: string): CfoId {
 
 /**
  * Who answers a follow-up in a chat ("Why?", "And next month?"). A named CFO or a keyword match wins, so
- * "When is VAT due?" still goes to Marek. Otherwise the CFO who answered last stays. No history → pickCfo (Anna).
+ * "When is VAT due?" still goes to Marek. Otherwise the CFO who answered the owner's last question stays: the FIRST
+ * one after it, because after a meeting the lead speaks first and the others only react. No CFO in the history →
+ * pickCfo (Anna).
  */
 export function followUpCfo(question: string, history: ChatLine[] = []): CfoId {
   const byTopic = leadFor(question);
   if (byTopic) return byTopic;
-  const last = [...history].reverse().find((line) => line.from === 'cfo' && line.cfo);
-  return last?.cfo ?? pickCfo(question);
+  const isCfo = (line: ChatLine) => line.from === 'cfo' && line.cfo;
+  const lastOwner = history.map((line) => line.from).lastIndexOf('owner');
+  const answer = history.slice(lastOwner + 1).find(isCfo) ?? [...history].reverse().find(isCfo);
+  return answer?.cfo ?? pickCfo(question);
 }
 
 // Greetings and thanks (English and Polish, with or without Polish letters).

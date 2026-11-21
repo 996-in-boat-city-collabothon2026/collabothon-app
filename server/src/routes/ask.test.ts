@@ -136,6 +136,33 @@ describe('POST /api/ask: follow-ups use the history', () => {
     expect(lastPrompt[1].content).toContain('Owner: six');
   });
 
+  it('after a full meeting (6 lines) "Why?" goes to the lead, and only the last 4 lines reach the prompt', async () => {
+    const history = [
+      { from: 'owner', text: 'Should we lock the EUR rate?' },
+      { from: 'cfo', cfo: 'kasia', text: 'Lock the rate with a forward contract.' },
+      { from: 'cfo', cfo: 'anna', text: 'Cash is tight.' },
+      { from: 'cfo', cfo: 'tomasz', text: 'Margins are thin.' },
+      { from: 'cfo', cfo: 'marek', text: 'VAT is due on the 25th.' },
+      { from: 'cfo', text: 'Joint recommendation: lock the rate first.' },
+    ];
+    expect((await ask({ question: 'Why?', history })).cfo).toBe('kasia');
+    expect(lastPrompt[1].content).not.toContain('Owner: Should we lock');
+    expect(lastPrompt[1].content).toContain('Anna: Cash is tight.');
+  });
+
+  it('a chat as the web sends it (chair line without a CFO, a long turn cut to 500) → 200, stays with the last CFO', async () => {
+    const history = [
+      { from: 'cfo', cfo: 'kasia', text: 'k'.repeat(500) },
+      { from: 'cfo', cfo: 'anna', text: 'Cash is tight in December.' },
+      { from: 'cfo', text: 'Joint recommendation: lock the rate first.' },
+      { from: 'owner', text: 'OK' },
+    ];
+    const r = await post({ question: 'Why?', history });
+    expect(r.statusCode).toBe(200);
+    expect(r.json<AskResult>().cfo).toBe('anna');
+    expect(lastPrompt[1].content).toContain('CFO: Joint recommendation: lock the rate first.');
+  });
+
   it('a history with "99 999 zł" and a model that repeats it → the answer never contains 99 999', async () => {
     modelReply = 'Because your VAT is 99 999 zł.';
     const r = await ask({ question: 'Why?', history: [

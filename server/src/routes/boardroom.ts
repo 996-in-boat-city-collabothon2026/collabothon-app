@@ -38,7 +38,7 @@ const ASK_BODY = {
   },
 } as const;
 /** The prompt gets only the last few lines: enough for "Why?", and the prompt stays small. */
-export const HISTORY_LINES = 4;
+export const PROMPT_HISTORY_LINES = 4;
 
 const routes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { topic?: string } }>('/boardroom', { schema: { body: BOARDROOM_BODY } }, async (req) =>
@@ -58,11 +58,12 @@ const routes: FastifyPluginAsync = async (app) => {
     if (!question) return reply.code(400).send({ error: 'question is required' });
     // Own keys only: "toString" or "constructor" are not CFOs.
     const named = req.body.cfo && Object.hasOwn(CFOS, req.body.cfo) ? (req.body.cfo as CfoId) : undefined;
-    const history = (req.body.history ?? []).slice(-HISTORY_LINES);
-    // No CFO named: by topic, or the CFO who answered last in the chat ("Why?" stays with Kasia).
+    const history = req.body.history ?? [];
+    // No CFO named: by topic, or the CFO who answered the last question in the chat ("Why?" stays with Kasia).
+    // It looks at all lines (up to 6), so after a meeting it still sees the lead before the others' reactions.
     const cfo = named ?? followUpCfo(question, history);
     // askCfo never throws: the model's reply if the guard accepts it, otherwise the rule summary.
-    const { text } = await askCfo(cfo, question, { history });
+    const { text } = await askCfo(cfo, question, { history: history.slice(-PROMPT_HISTORY_LINES) });
     return { cfo, text } satisfies AskResult;
   });
 };
