@@ -22,6 +22,16 @@ export const config = {
     /** Max total model time for ONE API request (the conference makes 5 calls). Keep under the 25 s demo target. */
     budgetMs: Number(process.env.LLM_BUDGET_MS ?? 22000),
   },
+  /** Speech → text for questions to the agents (llm/speech.ts). Any OpenAI-compatible Whisper endpoint:
+   *  in the cluster (no key) or an external service (key from an OpenShift secret). Empty = not set up. */
+  speech: {
+    baseUrl: (process.env.WHISPER_BASE_URL ?? '').trim().replace(/\/$/, ''),
+    model: process.env.WHISPER_MODEL || 'whisper-1',
+    apiKey: process.env.WHISPER_API_KEY ?? '',
+    // A typo like "20s" would give NaN (and abort every request at once): fall back to 20 s.
+    timeoutMs: Number.isFinite(Number(process.env.WHISPER_TIMEOUT_MS)) && Number(process.env.WHISPER_TIMEOUT_MS) > 0
+      ? Number(process.env.WHISPER_TIMEOUT_MS) : 20000,
+  },
 };
 
 // Catch the most common deploy mistake early: real-model mode but no model address.

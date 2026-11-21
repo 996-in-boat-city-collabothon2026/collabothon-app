@@ -1,6 +1,6 @@
 // KSeF invoices (simulated gateway): currency column, Fix & resend with NIP checksum, XML / UPO viewer.
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import type { Invoice, KsefStatus } from '@cfo/shared';
+import { ksefReasonEn, type Invoice, type KsefStatus } from '@cfo/shared';
 import { api, useApi, type KsefInvoiceRow } from '../api/client';
 import { Card, Sheet, Status, fmtDay, fmtMoney, fmtPLN, useToast } from '../components/ui';
 import { useT } from '../i18n';
@@ -20,8 +20,15 @@ const ROW = 'grid gap-x-3 gap-y-2 md:grid-cols-[1.2fr_1.7fr_1.1fr_0.6fr_1.5fr_au
 
 type Viewer = { kind: 'XML' | 'UPO'; inv: KsefInvoiceRow };
 
+/** KSeF answers in Polish: show its rejection reason in English when the UI is in English. */
+function useReasonText() {
+  const { lang } = useT();
+  return (reason: string) => (lang === 'en' ? ksefReasonEn(reason) : reason);
+}
+
 export default function Ksef() {
   const { t } = useT();
+  const reasonText = useReasonText();
   const { data, loading, error, reload } = useApi(api.invoices);
   const [fixing, setFixing] = useState<KsefInvoiceRow | null>(null);
   const [viewer, setViewer] = useState<Viewer | null>(null);
@@ -38,7 +45,7 @@ export default function Ksef() {
       watching.current.delete(inv.id);
       showToast(inv.ksef.status === 'accepted'
         ? `${t('sent_accepted')} ${inv.number} · ${t('upo_number')} ${inv.ksef.ksefNumber ?? ''}`
-        : `${t('sent_rejected')} ${inv.ksef.rejectionReason ?? inv.number}`);
+        : `${t('sent_rejected')} ${inv.ksef.rejectionReason ? reasonText(inv.ksef.rejectionReason) : inv.number}`);
     }
     if (!processing) return;
     const id = window.setTimeout(reload, 1000);
@@ -123,6 +130,7 @@ function InvoiceTable({ rows, onSend, onFix, onView }: {
   onView: (v: Viewer) => void;
 }) {
   const { t } = useT();
+  const reasonText = useReasonText();
   return (
     <div className="space-y-2 md:space-y-0 md:divide-y md:divide-slate-200">
       <div className={`${ROW} hidden pb-2 text-sm font-semibold uppercase text-stone-600 md:grid`}>
@@ -163,7 +171,7 @@ function InvoiceTable({ rows, onSend, onFix, onView }: {
                   {t('upo_number')}: <span className="break-all font-mono">{inv.ksef.ksefNumber}</span>
                 </p>
               )}
-              {inv.ksef.rejectionReason && <p className="mt-1 text-sm text-accent-ink">KSeF: „{inv.ksef.rejectionReason}”</p>}
+              {inv.ksef.rejectionReason && <p className="mt-1 text-sm text-accent-ink">KSeF: „{reasonText(inv.ksef.rejectionReason)}”</p>}
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => onView({ kind: 'XML', inv })} className={`${BTN} border border-zinc-300 bg-white`}>XML</button>
@@ -194,6 +202,7 @@ function FixSheet({ inv, onClose, onSubmit }: {
   onSubmit: (counterparty: Invoice['counterparty']) => void;
 }) {
   const { t } = useT();
+  const reasonText = useReasonText();
   const [name, setName] = useState(inv.counterparty.name);
   const [nip, setNip] = useState(inv.counterparty.nip);
   const nipErr = nipProblem(nip);
@@ -208,7 +217,7 @@ function FixSheet({ inv, onClose, onSubmit }: {
 
   return (
     <Sheet title={`${t('fix_resend')} · ${inv.number}`} onClose={onClose}>
-      {inv.ksef.rejectionReason && <p className="rounded-2xl bg-accent-soft p-3 text-accent-ink">KSeF: {inv.ksef.rejectionReason}</p>}
+      {inv.ksef.rejectionReason && <p className="rounded-2xl bg-accent-soft p-3 text-accent-ink">KSeF: {reasonText(inv.ksef.rejectionReason)}</p>}
       <form onSubmit={submit} noValidate className="space-y-4">
         <label className="block space-y-1 font-semibold">
           <span>{t('buyer_name')}</span>

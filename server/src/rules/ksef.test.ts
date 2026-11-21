@@ -16,7 +16,7 @@ describe('ksef rule (Marek)', () => {
     expect(analysed.title).toContain('FV/2026/11/009');
     expect(fix).toMatchObject({ kind: 'ksef_fix', tier: 'RECOMMENDED', refId: 'inv-s-003' });
     expect(fix.title).toBe('Fix and resend KSeF invoice FV/2026/11/009');
-    expect(fix.why[0]).toContain('Nieprawidłowy NIP nabywcy (Podmiot2): wymagane 10 cyfr');
+    expect(fix.why[0]).toContain('Invalid buyer NIP (Podmiot2): it must have 10 digits');
   });
 
   it('accepted sales invoice without UPO → one "Download the UPO" card', () => {

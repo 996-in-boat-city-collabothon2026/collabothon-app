@@ -26,7 +26,7 @@ Hackathon (48h). Must run on Red Hat OpenShift and call a model served by OpenSh
 
 ## Folder ownership (edit ONLY your pair's files)
 - Pair 1 (`pair1-openshift`): Dockerfile, root + server package.json, server/src/index.ts, server/src/config.ts,
-  server/src/llm/**, server/src/routes/{health,auth}.ts, deploy/**, scripts/**
+  server/src/llm/**, server/src/routes/{health,auth,voice}.ts, deploy/**, scripts/**
 - Pair 2 (`pair2-agents`): shared/types.ts, server/src/domain/**, server/src/rules/**, server/src/agents/**,
   server/src/routes/{finance,actions,boardroom}.ts
 - Pair 3 (`pair3-ui`): web/**, server/src/ksef/**, server/src/routes/{ksef,demo,settings}.ts, server/src/seed/**

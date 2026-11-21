@@ -6,6 +6,7 @@ import { db, resetDb } from '../domain/store';
 import { settlePayment } from '../domain/settle';
 import { explain } from './explain';
 import { cfoFacts, fallbackFor, summaryOf } from './facts';
+import { nipError } from '../ksef/nip';
 
 const CFOS: CfoId[] = ['anna', 'kasia', 'marek', 'tomasz'];
 const sp = (s: string) => s.replace(/ /g, ' '); // fmtPLN uses no-break spaces
@@ -159,5 +160,22 @@ describe('facts as points in other data states', () => {
     expect(text('tomasz', 'markup')).toMatch(/^A parts markup below/);
     resetDb();
     expect(text('tomasz', 'markup')).toMatch(/^Also, a parts markup below/);
+  });
+});
+
+describe('KSeF reason in the facts (review of PR #36)', () => {
+  beforeEach(() => resetDb());
+  const reasonFor = (nip: string) => {
+    db.invoices.find((i) => i.id === 'inv-s-003')!.ksef = { status: 'rejected', rejectionReason: nipError(nip)! };
+    return text('marek', 'ksef-inv-s-003');
+  };
+
+  it('a German buyer is not told "it must have 9 digits"', () => {
+    expect(reasonFor('DE12345')).toContain('is wrong, a German VAT ID is DE and 9 digits.');
+  });
+
+  it('checksum and country prefix keep their detail', () => {
+    expect(reasonFor('1234567890')).toContain('is wrong, the checksum does not match.');
+    expect(reasonFor('TE123456789')).toContain('is wrong, the country prefix "TE" is not supported.');
   });
 });
