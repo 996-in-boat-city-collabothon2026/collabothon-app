@@ -1,6 +1,6 @@
 // Dashboard: one warning sentence, 4 money tiles, the cash forecast, where the money goes, and what the agents found.
 // Golden rule 1: the UI computes nothing. Every number comes from the API (server/src/rules); no demo numbers here.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Area, AreaChart, Cell, Label, Pie, PieChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Sector, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Action, ExpenseCategory, Forecast, Tier } from '@cfo/shared';
@@ -49,6 +49,16 @@ export default function Dashboard() {
       setRunning(false);
     }
   }
+
+  // The agents check on their own when the page opens, so problems show up without clicking.
+  // The server ignores proposals it already has, so running it again is safe.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
+    void runCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function decide(a: Action, approve: boolean) {
     try {
@@ -252,9 +262,6 @@ export default function Dashboard() {
           </div>
         </div>
         {running && <p className="flex items-center gap-3 text-stone-700" aria-live="polite"><TypingDots /> <span className="ai-shimmer font-semibold">{t('agents_working')}</span></p>}
-        {log.length > 0 && (
-          <div className="surface p-6"><ul className="space-y-1 text-stone-700">{log.map((l, i) => <li key={i}>{l}</li>)}</ul></div>
-        )}
         <Status loading={actions.loading && !actions.data} error={actions.error} />
         {actions.data && open.length === 0 && <p className="surface p-6 text-center text-lg text-stone-700">{t('all_quiet')}</p>}
         <div className="grid gap-5 lg:grid-cols-3">
@@ -264,6 +271,13 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+        {/* The rest of what the agents found (the top 3 are the cards above): approvals first, one line each, appearing one by one */}
+        {(open.length > 0 || log.length > 0) && (
+          <AgentLog lines={[
+            ...log.filter((l) => !/^(✋|💡|🔍)/u.test(l)),
+            ...open.slice(3).map((a) => `${a.tier === 'NEEDS_APPROVAL' ? '✋' : a.tier === 'RECOMMENDED' ? '💡' : '🔍'} ${a.title}`),
+          ]} />
+        )}
       </section>
       {toast}
     </div>
@@ -271,6 +285,35 @@ export default function Dashboard() {
 }
 
 // ---------- small pieces ----------
+/** What the check found: needs-your-OK first, then advice, then checks. Plain tags instead of emoji; lines appear one by one. */
+function AgentLog({ lines }: { lines: string[] }) {
+  const { t } = useT();
+  const kind = (l: string) => (l.startsWith('✋') ? 0 : l.startsWith('💡') ? 1 : l.startsWith('🔍') ? 2 : l.startsWith('↩') ? 3 : 4);
+  const TAG = ['log_needs_ok', 'log_advice', 'log_checked', 'log_withdrawn', ''];
+  const items = lines.map((l) => ({ k: kind(l), text: l.replace(/^(✋|💡|🔍|↩)️?\s*/u, '') }))
+    .sort((a, b) => a.k - b.k);
+  return (
+    <ul className="agent-log space-y-2" aria-label={t('agents_found')}>
+      {items.map((it, i) => (
+        <li key={i} className="log-in flex items-start gap-3 rounded-xl bg-[#1f1f1f] px-4 py-3 text-[17px] leading-snug text-white"
+          style={{ animationDelay: `${i * 90}ms` }}>
+          {it.k < 4 && (
+            <span className={`mt-0.5 shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-sm font-bold ${it.k === 0 ? 'bg-accent text-white' : it.k === 1 ? 'bg-white text-ink' : 'border border-white/40 text-white'}`}>
+              {t(TAG[it.k])}
+            </span>
+          )}
+          <span className={`flex-1 ${it.k === 4 ? 'text-[#d4d4d4]' : ''}`}>{it.text}</span>
+          {it.k === 0 && (
+            <Link to="/approvals" className="shrink-0 whitespace-nowrap rounded-full bg-white px-4 py-1 text-[15px] font-bold text-ink hover:bg-zinc-200">
+              {t('decide_now')} <span aria-hidden="true">→</span>
+            </Link>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** Chart dot that slides in from the left edge to the lowest day (display only; ends exactly on the data point). */
 function TravelDot(props: { cx?: number; cy?: number; r?: number; fill?: string; stroke?: string; strokeWidth?: number }) {
   const { cx = 0, cy = 0, r = 8, fill, stroke, strokeWidth } = props;

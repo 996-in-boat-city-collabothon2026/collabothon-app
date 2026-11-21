@@ -100,20 +100,18 @@ export default function PeriodView({ view }: { view: 'week' | 'month' }) {
             </section>
           </div>
 
-          {/* 3. Profit – details after a click */}
-          <Details title={t('row_profit')}>
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {/* 3. Profit – same layout as rows 1 and 2 */}
+          <h2 className="pt-2 text-lg font-semibold uppercase tracking-wide text-stone-700">{t('row_profit')}</h2>
+          <div className="grid gap-5 md:grid-cols-3">
               {DEMO_WEEK.map((d) => (
                 <KpiCard key={d.id} term={d.id} owner={d.owner} source={d.source} demo
                   label={t(d.id === 'cars' ? 'kpi_cars_week' : d.id === 'avg_job' ? 'kpi_avg_job' : 'kpi_margin_parts')}
                   value={d.unit === 'pln' ? fmtPLN(d.value) : d.unit === 'pct' ? `${String(d.value).replace('.', ',')}%` : String(d.value)}
                   target={d.target[L]} compare={{ label: '', text: d.delta.text[L], good: d.delta.good }} trend={d.trend[L]} why={d.why[L]} stress={d.stress[L]}
-                  warn={d.id === 'margin_parts' && DEMO_RULES[2].hit ? DEMO_RULES[2].text[L] : undefined}
                   todo={t(d.id === 'cars' ? 'todo_cars' : d.id === 'avg_job' ? 'todo_avg' : 'todo_margin')}
                   action={{ label: t(d.id === 'cars' ? 'act_cars' : d.id === 'avg_job' ? 'act_avg' : 'act_margin'), to: '/boardroom' }} />
               ))}
-            </div>
-          </Details>
+          </div>
 
           <Details title={t('details_forecast')}>
             {verdict && (
@@ -417,7 +415,7 @@ function KpiCard({ owner, label, value, valueKind = 'actual', target, compare, t
         {target && <span className="text-lg font-semibold text-stone-700">{t('target')} {target}</span>}
       </p>
       {deviation && compare && !stale && (
-        <p className={`mt-2 flex flex-wrap items-center gap-x-2 text-lg font-bold leading-snug ${compare.good ? 'text-accent-ink' : 'text-warn'}`}>
+        <p className={`mt-2 flex flex-wrap items-center gap-x-2 text-lg font-bold leading-snug ${compare.good ? 'text-ink' : 'text-warn'}`}>
           {!compare.good && <WarnMark arrow={false} />}
           {!hasArrow && <span aria-hidden="true">{up ? '▲' : '▼'}</span>}
           <span className="tabular-nums">{text}</span>
@@ -433,16 +431,17 @@ function KpiCard({ owner, label, value, valueKind = 'actual', target, compare, t
       {stale && <p className="mt-2 text-[17px] text-warn">{stale}</p>}
 
       {/* the action sits right next to the number it is about */}
-      <Link to={action.to} className="no-print mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-ink px-5 text-center font-semibold text-white hover:bg-zinc-800">
+      <div className="min-h-4 flex-1" aria-hidden="true" />{/* pushes the button down so buttons line up across cards */}
+      <Link to={action.to} className="no-print inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-ink px-5 text-center font-semibold text-white hover:bg-zinc-800">
         {action.label} <span aria-hidden="true">→</span>
       </Link>
 
       {/* everything else only after a click */}
       {hasMore && !stale && (
         <details className="no-print group mt-3 text-[17px]">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg font-semibold text-accent-ink">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-lg font-semibold text-ink">
             {t('more')}
-            <span aria-hidden="true" className="text-xl transition-transform group-open:rotate-45">+</span>
+            <span aria-hidden="true" className="text-xl text-stone-600 transition-transform group-open:rotate-45">+</span>
           </summary>
           <div className="mt-1 space-y-2 leading-snug text-stone-800">
             {why && <p><span className="font-semibold">{t('why_changed')}</span> {why} <KindTag kind="ai" /></p>}
