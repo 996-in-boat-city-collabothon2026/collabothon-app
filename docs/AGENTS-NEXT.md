@@ -9,7 +9,7 @@ lets the owner keep talking, but `/api/ask` gets no history: "Why?" or "And next
 
 | | Person A: quality of one answer | Person B: chat memory |
 |---|---|---|
-| Branch (from `origin/main`) | `agents8b-quality` | `agents8b-chat` |
+| Branch | `agents8b-quality` (exists, holds this plan) | `agents8b-chat` (new, from `origin/main`) |
 | Files | `agents/cfo.ts` (only `askCfo`'s body after the model call), `agents/guard.ts`, `agents/facts.ts`, `agents/live.test.ts`, tests, docs | `shared/types.ts`, `routes/boardroom.ts` (`/ask`), `agents/topic.ts`, `agents/cfo.ts` (only `askPrompt` + `AskOptions`), tests. Web: `web/src/api/client.ts` + `ChatThread.tsx` only with Nara's (Pair 3) OK |
 | Step 1 | Live run on 8B, write the numbers down | Add `history` to the ask API |
 | Step 2 | Fallback that fits the question | History in the prompt + "stay with the same CFO" |
@@ -26,7 +26,7 @@ Before every PR: `npm test`, `npm run typecheck`, `npm run build`. Never commit 
 
 ```text
 Read CLAUDE.md, docs/AGENTS-NEXT.md, docs/AGENTS-8B-PLAN.md and docs/AGENTS-8B-GUARD.md first.
-Create branch agents8b-quality from origin/main. Edit only: server/src/agents/{cfo,guard,facts,live.test}.ts, their
+Work on branch agents8b-quality (it already exists and holds this plan; git pull first). Edit only: server/src/agents/{cfo,guard,facts,live.test}.ts, their
 *.test.ts files and docs/. In agents/cfo.ts change only askCfo's body after the model call, plus one new field
 `retry?: boolean` in AskOptions (Person B edits askPrompt and AskOptions on agents8b-chat; their PR merges first).
 Keep code small and readable for beginners. No new dependencies. One commit per step, each with a vitest test.
