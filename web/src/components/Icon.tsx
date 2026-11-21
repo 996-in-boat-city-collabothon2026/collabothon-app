@@ -4,9 +4,11 @@ import type { ReactNode } from 'react';
 export type IconName =
   | 'home' | 'check-hand' | 'users' | 'receipt' | 'settings' | 'chat' | 'close' | 'search' | 'bulb'
   | 'flask' | 'bolt' | 'alert' | 'arrow' | 'arrow-up-right' | 'check' | 'x' | 'clock' | 'pen' | 'mail'
-  | 'bank' | 'truck' | 'building' | 'user' | 'sparkle';
+  | 'bank' | 'truck' | 'building' | 'user' | 'sparkle' | 'mic' | 'camera';
 
 const P: Record<IconName, ReactNode> = {
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" /></>,
+  camera: <><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13" r="3.5" /></>,
   home: <path d="M4 11.5 12 5l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z" />,
   'check-hand': <><path d="M9 11V5.5a1.5 1.5 0 0 1 3 0V10" /><path d="M12 10V4.5a1.5 1.5 0 0 1 3 0V10" /><path d="M15 10V6.5a1.5 1.5 0 0 1 3 0V14a6 6 0 0 1-6 6h-.5a6 6 0 0 1-4.6-2.2L5 15.5a1.6 1.6 0 0 1 2.4-2L9 15" /></>,
   users: <><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><circle cx="17" cy="9" r="2.6" /><path d="M16 14.2a4.5 4.5 0 0 1 5 4.8" /></>,

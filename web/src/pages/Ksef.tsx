@@ -6,6 +6,7 @@ import { Card, Sheet, Status, fmtDay, fmtMoney, fmtPLN, useToast } from '../comp
 import { useT } from '../i18n';
 import Icon, { type IconName } from '../components/Icon';
 import { normalizeNip, nipProblem } from '../lib/nip';
+import AddInvoice from '../components/AddInvoice';
 
 const CHIP: Record<KsefStatus, { icon: IconName; cls: string }> = {
   draft: { icon: 'pen' as IconName, cls: 'bg-zinc-200 text-ink' },
@@ -25,6 +26,7 @@ export default function Ksef() {
   const { data, loading, error, reload } = useApi(api.invoices);
   const [fixing, setFixing] = useState<KsefInvoiceRow | null>(null);
   const [viewer, setViewer] = useState<Viewer | null>(null);
+  const [adding, setAdding] = useState(false);
   const { toast, showToast } = useToast();
   const watching = useRef(new Set<string>()); // invoices we sent and wait for KSeF's answer
 
@@ -72,6 +74,10 @@ export default function Ksef() {
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">{t('ksef_title')}</h1>
         <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-sm font-medium text-ink">{t('ksef_sim_badge')}</span>
+        <button onClick={() => setAdding(true)}
+          className="ml-auto inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-6 text-lg font-bold text-white hover:brightness-95">
+          <span aria-hidden="true" className="text-2xl leading-none">+</span> {t('inv_add_btn')}
+        </button>
       </div>
       <p className="rounded-xl bg-zinc-100 px-4 py-3 text-ink">{t('ksef_sim_notice')}</p>
 
@@ -99,6 +105,10 @@ export default function Ksef() {
           onSubmit={(counterparty) => { const inv = fixing; setFixing(null); void send(inv, { counterparty }); }} />
       )}
       {viewer && <DocSheet viewer={viewer} onClose={() => setViewer(null)} />}
+      {adding && (
+        <AddInvoice onClose={() => setAdding(false)}
+          onCreated={(inv) => { setAdding(false); void send(inv as KsefInvoiceRow); }} />
+      )}
       {flight && (
         <div role="status" className="pop-in fixed inset-x-4 bottom-28 z-50 mx-auto flex max-w-md items-center gap-3 rounded-full border border-black/10 bg-white px-4 py-3 shadow-lg md:bottom-8">
           <Icon name="receipt" size={22} />

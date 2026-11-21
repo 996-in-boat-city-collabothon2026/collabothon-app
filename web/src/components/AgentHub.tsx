@@ -21,8 +21,8 @@ export default function AgentHub({ className = '' }: { className?: string }) {
       aria-label={AGENTS.map((a) => `${CFOS[a].name} – ${lang === 'pl' ? CFOS[a].rolePl : CFOS[a].role}`).join(', ')}>
       <defs>
         <radialGradient id="hubGlow">
-          <stop offset="0%" stopColor="#D40000" stopOpacity="0.28" />
-          <stop offset="100%" stopColor="#D40000" stopOpacity="0" />
+          <stop offset="0%" stopColor="#262626" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#262626" stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -35,8 +35,8 @@ export default function AgentHub({ className = '' }: { className?: string }) {
         const d = `M${cx},${cy} L${x},${y}`;
         return (
           <g key={i}>
-            <path d={d} stroke="#D40000" strokeOpacity="0.35" strokeWidth="1.5" fill="none" />
-            <circle r="3.5" fill="#D40000" className="hub-dot">
+            <path d={d} stroke="#262626" strokeOpacity="0.35" strokeWidth="1.5" fill="none" />
+            <circle r="3.5" fill="#262626" className="hub-dot">
               <animateMotion dur={`${2.4 + (i % 3) * 0.6}s`} repeatCount="indefinite" path={d} keyPoints={i % 2 ? '1;0' : '0;1'} keyTimes="0;1" />
             </circle>
           </g>
@@ -78,8 +78,8 @@ export default function AgentHub({ className = '' }: { className?: string }) {
       })}
 
       {/* the core */}
-      <circle cx={cx} cy={cy} r="38" fill="#D40000" fillOpacity="0.18" className="hub-pulse" style={{ transformOrigin: `${cx}px ${cy}px` }} />
-      <circle cx={cx} cy={cy} r="28" fill="#D40000" />
+      <circle cx={cx} cy={cy} r="38" fill="#262626" fillOpacity="0.18" className="hub-pulse" style={{ transformOrigin: `${cx}px ${cy}px` }} />
+      <circle cx={cx} cy={cy} r="28" fill="#262626" />
       <path d={`M${cx + 3},${cy - 15} L${cx - 9},${cy + 3} L${cx - 1},${cy + 3} L${cx - 3},${cy + 15} L${cx + 9},${cy - 3} L${cx + 1},${cy - 3} Z`} fill="#fff" />
     </svg>
   );

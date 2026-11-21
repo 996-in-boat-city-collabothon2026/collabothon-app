@@ -20,6 +20,12 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 const post = <T>(path: string, body?: unknown) =>
   call<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 
+/** POST /ksef/parse: a draft read from one sentence (Pair 3 route). Dates and number come from the server. */
+export interface ParsedInvoice {
+  buyerName: string; nip: string; nipError: string | null; lines: Invoice['lines']; source: 'model' | 'rules';
+  number: string; issueDate: string; dueDate: string;
+}
+
 export const api = {
   llmHealth: () => call<LlmHealth>('/llm/health'),
   me: () => call<{ user: User | null }>('/auth/me'),
@@ -38,6 +44,17 @@ export const api = {
   /** Quick advice: leave cfo out and the server picks the right CFO by topic. */
   ask: (question: string, cfo?: CfoId) => post<AskResult>('/ask', { question, cfo }),
   invoices: () => call<KsefInvoiceRow[]>('/ksef/invoices'),
+  transcribeStatus: () => call<{ ready: boolean }>('/ksef/transcribe/status'),
+  /** Raw recording -> our server -> Whisper on OpenShift AI. The audio never goes to a public cloud. */
+  transcribe: async (audio: Blob, lang: string) => {
+    const res = await fetch(`/api/ksef/transcribe?lang=${lang === 'en' ? 'en' : 'pl'}`, {
+      method: 'POST', headers: { 'Content-Type': audio.type || 'audio/webm' }, body: audio,
+    });
+    if (!res.ok) throw new Error(String(res.status));
+    return (await res.json()) as { text: string };
+  },
+  parseInvoice: (text: string) => post<ParsedInvoice>('/ksef/parse', { text }),
+  createInvoice: (inv: Omit<Invoice, 'id' | 'ksef' | 'paid'>) => post<Invoice>('/ksef/invoices', inv),
   sendInvoice: (id: string, fix?: Pick<Invoice, 'counterparty'>) => post<Invoice>(`/ksef/invoices/${id}/send`, fix ?? {}),
   invoiceXml: (id: string) => call<string>(`/ksef/invoices/${id}/xml`),
   invoiceUpo: (id: string) => call<Upo>(`/ksef/invoices/${id}/upo`),

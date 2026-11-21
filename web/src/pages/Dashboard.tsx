@@ -1,6 +1,6 @@
 // Dashboard: one warning sentence, 4 money tiles, the cash forecast, where the money goes, and what the agents found.
 // Golden rule 1: the UI computes nothing. Every number comes from the API (server/src/rules); no demo numbers here.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Area, AreaChart, Cell, Label, Pie, PieChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Sector, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Action, ExpenseCategory, Forecast, Tier } from '@cfo/shared';
@@ -12,14 +12,15 @@ import { GLOSSARY } from '../lib/glossary';
 import Icon from '../components/Icon';
 import PeriodView from './PeriodView';
 import CountUp from '../components/CountUp';
+import HeroCash from '../components/HeroCash';
 import { useSweep } from '../components/useSweep';
 
 const RANGES = [30, 60, 90] as const;
 const PRIORITY: Record<Tier, number> = { NEEDS_APPROVAL: 0, RECOMMENDED: 1, ANALYSED: 2 };
 // One accent in tints + greys: the biggest costs are the strongest colour.
 const CAT_COLOR: Record<ExpenseCategory, string> = {
-  payroll: '#D40000', taxes: '#141414', parts: '#1D4ED8', rent: '#6b6b6b',
-  leasing: '#F2B8C0', utilities: '#a3a3a3', other: '#d4d4d4',
+  payroll: '#2b2620', taxes: '#8c5a2b', parts: '#c9a06a', rent: '#e8d9bf',
+  leasing: '#a3a3a3', utilities: '#bdbdbd', other: '#d4d4d4',
 };
 
 export default function Dashboard() {
@@ -50,6 +51,16 @@ export default function Dashboard() {
     }
   }
 
+  // The agents check on their own when the page opens, so problems show up without clicking.
+  // The server ignores proposals it already has, so running it again is safe.
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (autoRan.current) return;
+    autoRan.current = true;
+    void runCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function decide(a: Action, approve: boolean) {
     try {
       await (approve ? api.approve(a.id) : api.reject(a.id));
@@ -71,17 +82,17 @@ export default function Dashboard() {
     <div className="space-y-5">
       <PageHeader title={t('dashboard')}>
         <span className="flex flex-wrap items-center gap-2">
-          <Link to="/report" className="no-print inline-flex min-h-12 items-center gap-2 rounded-full border border-black/15 bg-white px-5 font-semibold hover:bg-zinc-100">
-            <Icon name="receipt" size={18} /> {t('print_a4')}
+          <Link to="/report" className="no-print inline-flex min-h-10 items-center gap-2 rounded-full border border-black/15 bg-white px-4 text-[15px] font-semibold hover:bg-zinc-100">
+            <Icon name="receipt" size={16} /> {t('print_a4')}
           </Link>
-          <Link to="/ksef" className="no-print inline-flex min-h-12 items-center gap-3 rounded-full bg-accent px-6 text-lg font-bold text-white hover:brightness-95">
-            <Icon name="receipt" /> {t('invoices')} <Icon name="arrow-up-right" size={18} />
+          <Link to="/ksef" className="no-print inline-flex min-h-10 items-center gap-2 rounded-full bg-accent px-5 text-[15px] font-bold text-white hover:brightness-110">
+            <Icon name="receipt" size={16} /> {t('invoices')} <Icon name="arrow-up-right" size={16} />
           </Link>
           {/* Tabs: Overview = this page as it was; Week and Month = KPI cards (PeriodView.tsx) */}
           <span className="no-print grid w-full grid-cols-3 items-center gap-1 rounded-2xl border border-black/10 bg-white p-1 sm:flex sm:w-auto sm:rounded-full" role="group" aria-label={t('kpi_view')}>
             {(['review', 'week', 'month'] as const).map((p) => (
               <button key={p} onClick={() => setView(p)} aria-pressed={view === p}
-                className={`min-h-12 rounded-full px-3 text-base font-semibold sm:px-5 ${view === p ? 'bg-ink text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
+                className={`min-h-10 rounded-full px-3 text-[15px] font-semibold sm:px-4 ${view === p ? 'bg-ink text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
                 <span className="sm:hidden">{t(p === 'review' ? 'view_review_short' : p === 'week' ? 'view_week' : 'view_month')}</span>
                 <span className="hidden sm:inline">{t(p === 'review' ? 'view_review' : p === 'week' ? 'view_week' : 'view_month')}</span>
               </button>
@@ -95,45 +106,8 @@ export default function Dashboard() {
       {view !== 'review' && <div key={view} className="page-in"><PeriodView view={view} /></div>}
       {view === 'review' && (<div key="review" className="page-in space-y-5">
 
-      {/* 1. The headline in one line: money today → lowest point of the 13-week forecast (numbers from the rules engine) */}
-      <section className={`alert-first surface grp p-6 sm:p-7 grp-alert`} aria-live="polite">
-        {state.data?.shop.today && <p className="hero-date mb-4">{t('refreshed_at')} {fmtDay(state.data.shop.today)}</p>}
-        {k && f90 ? (
-          <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
-            <div>
-              <p className="text-base font-semibold text-stone-700">{t('available_today')}</p>
-              <p className="text-3xl font-bold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none"><CountUp text={fmtPLN(k.balancePLN)} /></p>
-            </div>
-            <span aria-hidden="true" className="hidden pb-2 text-3xl text-stone-400 sm:inline">→</span>
-            <div>
-              <p className="text-base font-semibold text-stone-700">{t('forecast_word')} · {fmtDay(f90.lowest.date)}</p>
-              <p className={`text-3xl font-bold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none ${f90.lowest.balancePLN < 0 ? 'text-warn' : 'text-accent-ink'}`}>
-                <CountUp text={fmtPLN(f90.lowest.balancePLN)} />
-              </p>
-            </div>
-            {f90.lowest.balancePLN < 0
-              ? <span className="mb-1 inline-flex flex-wrap items-center gap-1 text-lg font-semibold text-warn"><WarnMark arrow={false} />{t('projected_shortfall')}</span>
-              : f90.lowest.balancePLN < f90.bufferPLN
-                ? <span className="mb-1"><WarnMark />{t('verdict_low')}</span>
-                : <span className="mb-1 rounded-full bg-accent-soft px-3 py-1 font-semibold text-accent-ink">{t('status_ok_13w')}</span>}
-          </div>
-        ) : <div className="skeleton h-12 w-2/3" />}
-        {open[0] && (
-          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
-            <p className="min-w-0 flex-1 text-lg"><span className="font-semibold text-stone-700">{t('next_step')}</span> <strong>{open[0].title}</strong></p>
-            <Link to="/approvals" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-6 text-lg font-bold text-white hover:brightness-95">
-              {t('decide_now')} <span aria-hidden="true">→</span>
-            </Link>
-          </div>
-        )}
-        {k?.nextDeadline && (
-          <p className="mt-5 flex flex-wrap items-center gap-2 border-t border-black/10 pt-4 text-[17px] text-stone-700">
-            <span className="h-2.5 w-2.5 rounded-full bg-ink" aria-hidden="true" />
-            <strong className="text-ink">{k.nextDeadline.label}</strong> · {fmtDay(k.nextDeadline.date)} · <span className="tabular-nums">{fmtPLN(k.nextDeadline.amountPLN)}</span>
-          </p>
-        )}
-        <p className="mt-2 text-sm text-stone-600">{t('status_sub')}</p>
-      </section>
+      {/* 1. Hero: the cash situation in one dark card (components/HeroCash.tsx) */}
+      <HeroCash k={k ?? undefined} f90={f90 ?? undefined} next={open[0]} today={state.data?.shop.today} />
 
       {/* 2. Four money tiles – all straight from GET /api/state (kpis) */}
       <div className="grid gap-4 sm:grid-cols-3">
@@ -229,9 +203,6 @@ export default function Dashboard() {
           </div>
         </div>
         {running && <p className="flex items-center gap-3 text-stone-700" aria-live="polite"><TypingDots /> <span className="ai-shimmer font-semibold">{t('agents_working')}</span></p>}
-        {log.length > 0 && (
-          <div className="surface p-6"><ul className="space-y-1 text-stone-700">{log.map((l, i) => <li key={i}>{l}</li>)}</ul></div>
-        )}
         <Status loading={actions.loading && !actions.data} error={actions.error} />
         {actions.data && open.length === 0 && <p className="surface p-6 text-center text-lg text-stone-700">{t('all_quiet')}</p>}
         <div className="grid gap-5 lg:grid-cols-3">
@@ -241,6 +212,13 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+        {/* The rest of what the agents found (the top 3 are the cards above): approvals first, one line each */}
+        {(open.length > 3 || log.length > 0) && (
+          <AgentLog lines={[
+            ...log.filter((l) => !/^(✋|💡|🔍)/u.test(l)),
+            ...open.slice(3).map((a) => `${a.tier === 'NEEDS_APPROVAL' ? '✋' : a.tier === 'RECOMMENDED' ? '💡' : '🔍'} ${a.title}`),
+          ]} />
+        )}
       </section>
       {toast}
     </div>
@@ -248,6 +226,34 @@ export default function Dashboard() {
 }
 
 // ---------- small pieces ----------
+/** What the agents found: needs-your-OK first, then advice, then checks. Word tags instead of emoji; lines appear one by one. */
+function AgentLog({ lines }: { lines: string[] }) {
+  const { t } = useT();
+  const kind = (l: string) => (l.startsWith('✋') ? 0 : l.startsWith('💡') ? 1 : l.startsWith('🔍') ? 2 : l.startsWith('↩') ? 3 : 4);
+  const TAG = ['log_needs_ok', 'log_advice', 'log_checked', 'log_withdrawn', ''];
+  const items = lines.map((l) => ({ k: kind(l), text: l.replace(/^(✋|💡|🔍|↩)\uFE0F?\s*/u, '') })).sort((a, b) => a.k - b.k);
+  return (
+    <ul className="agent-log space-y-2" aria-label={t('agents_found')}>
+      {items.map((it, i) => (
+        <li key={i} className="log-in flex items-start gap-3 rounded-xl border border-black/10 bg-white px-4 py-3 text-[17px] leading-snug text-ink"
+          style={{ animationDelay: `${i * 90}ms` }}>
+          {it.k < 4 && (
+            <span className={`mt-0.5 shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-sm font-bold ${it.k === 0 ? 'bg-ink text-white' : it.k === 1 ? 'bg-zinc-100 text-ink' : 'border border-black/20 text-ink'}`}>
+              {t(TAG[it.k])}
+            </span>
+          )}
+          <span className={`flex-1 ${it.k === 4 ? 'text-stone-600' : ''}`}>{it.text}</span>
+          {it.k === 0 && (
+            <Link to="/approvals" className="shrink-0 whitespace-nowrap rounded-full bg-ink px-4 py-1 text-[15px] font-bold text-white hover:brightness-110">
+              {t('decide_now')} <span aria-hidden="true">→</span>
+            </Link>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** Chart dot that slides in from the left edge to the lowest day (display only; ends exactly on the data point). */
 function TravelDot(props: { cx?: number; cy?: number; r?: number; fill?: string; stroke?: string; strokeWidth?: number }) {
   const { cx = 0, cy = 0, r = 8, fill, stroke, strokeWidth } = props;
@@ -318,8 +324,8 @@ function CashChart({ f }: { f: Forecast }) {
           <Tooltip formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
             contentStyle={{ borderRadius: 16, border: '1px solid rgb(0 0 0 / 0.1)', fontSize: 16 }} />
           <ReferenceLine y={0} stroke="#1d1d1f" strokeWidth={2} />
-          <ReferenceLine y={f.bufferPLN} stroke="#D40000" strokeDasharray="8 6" strokeWidth={2}>
-            <Label value={`${t('buffer')} ${short(f.bufferPLN)}`} position="insideTopRight" fontSize={14} fontWeight={600} fill="#D40000" />
+          <ReferenceLine y={f.bufferPLN} stroke="#78716C" strokeDasharray="8 6" strokeWidth={2}>
+            <Label value={`${t('buffer')} ${short(f.bufferPLN)}`} position="insideTopRight" fontSize={14} fontWeight={600} fill="#78716C" />
           </ReferenceLine>
           <Area type="stepAfter" dataKey="balancePLN" stroke="url(#cashLine)" strokeWidth={4} fill="url(#cashFill)" isAnimationActive={false} />
           <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={8} fill="#CC0000" stroke="#fff" strokeWidth={3} shape={TravelDot}>
