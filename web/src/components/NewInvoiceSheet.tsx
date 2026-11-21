@@ -19,6 +19,8 @@ const VAT_RATES: VatRate[] = [23, 8, 5, 0];
 const KINDS: InvoiceLine['kind'][] = ['part', 'labour', 'other'];
 let nextKey = 1;
 const blankLine = (): FormLine => ({ key: nextKey++, name: '', kind: 'part', qty: '1', unitNet: '', vatRate: 23 });
+/** "Net price (Filtr oleju)", or just "Net price" for a line without a name yet (no empty "()"). */
+const withName = (label: string, name: string) => (name.trim() ? `${label} (${name.trim()})` : label);
 const isBlank = (l: FormLine) => !l.name.trim() && !l.unitNet.trim();
 /** "61,50" → 61.5. null when it is not a number ≥ 0. */
 const toNumber = (s: string) => {
@@ -50,6 +52,9 @@ export default function NewInvoiceSheet({ number: defaultNumber, today, onClose,
   const [badge, setBadge] = useState<{ filled: string; missing: string[]; skipped: string[] } | null>(null);
   const [checked, setChecked] = useState(false); // show yellow "still missing" marks
   const [saving, setSaving] = useState(false);
+  // While the clerk reads (a few seconds with a live model) the form is locked: the answer is built from the form
+  // as it was sent, so an edit made meanwhile would be overwritten and line indexes could move (PR #34 review).
+  const [reading, setReading] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
   const nipErr = nipProblem(nip);
@@ -89,9 +94,9 @@ export default function NewInvoiceSheet({ number: defaultNumber, today, onClose,
       const next = { ...l };
       if (u.name != null) { next.name = u.name; mark(`${k}:name`, u.name); }
       if (u.kind != null) next.kind = u.kind;
-      if (u.qty != null) { next.qty = String(u.qty); mark(`${k}:qty`, `${t('line_qty')} (${next.name})`); }
-      if (u.unitNet != null) { next.unitNet = String(u.unitNet).replace('.', ','); mark(`${k}:net`, `${t('line_net')} (${next.name})`); }
-      if (u.vatRate != null) { next.vatRate = u.vatRate; mark(`${k}:vat`, `VAT (${next.name})`); }
+      if (u.qty != null) { next.qty = String(u.qty); mark(`${k}:qty`, withName(t('line_qty'), next.name)); }
+      if (u.unitNet != null) { next.unitNet = String(u.unitNet).replace('.', ','); mark(`${k}:net`, withName(t('line_net'), next.name)); }
+      if (u.vatRate != null) { next.vatRate = u.vatRate; mark(`${k}:vat`, withName('VAT', next.name)); }
       return next;
     });
     // 2. Add new lines.
@@ -153,7 +158,7 @@ export default function NewInvoiceSheet({ number: defaultNumber, today, onClose,
 
   return (
     <Sheet title={t('new_invoice')} onClose={onClose}>
-      <VoicePanel form={clerkForm} onFill={applyFill} />
+      <VoicePanel form={clerkForm} onFill={applyFill} onBusy={setReading} />
       {badge && (
         <div role="status" className="pop-in space-y-2">
           <p className="flex items-start gap-2 rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-900">
@@ -176,7 +181,8 @@ export default function NewInvoiceSheet({ number: defaultNumber, today, onClose,
         </div>
       )}
 
-      <form onSubmit={submit} noValidate className="space-y-4">
+      <form onSubmit={submit} noValidate>
+        <fieldset disabled={reading} aria-busy={reading} className="space-y-4 disabled:opacity-60">
         <label className="block space-y-1 font-semibold">
           <span>{t('inv_number')}</span>
           <input value={number} onChange={(e) => setNumber(e.target.value)} className={`${INPUT} ${cls('number', !number.trim())}`} />
@@ -276,13 +282,14 @@ export default function NewInvoiceSheet({ number: defaultNumber, today, onClose,
         <button disabled={saving} className="min-h-12 w-full rounded-full bg-ink font-semibold text-white disabled:opacity-40">
           {saving ? t('loading') : t('inv_save')}
         </button>
+        </fieldset>
       </form>
     </Sheet>
   );
 }
 
 /** Mic toggle + live transcript + editable text. Works without a mic too: just type and press "Fill the form". */
-function VoicePanel({ form, onFill }: { form: ClerkForm; onFill: (f: InvoiceFill) => void }) {
+function VoicePanel({ form, onFill, onBusy }: { form: ClerkForm; onFill: (f: InvoiceFill) => void; onBusy: (busy: boolean) => void }) {
   const { t } = useT();
   const [lang, setLang] = useState<ListenLang>('pl-PL');
   const [text, setText] = useState('');
@@ -295,6 +302,7 @@ function VoicePanel({ form, onFill }: { form: ClerkForm; onFill: (f: InvoiceFill
     const said = `${text} ${interim}`.trim();
     if (!said) return;
     setBusy(true);
+    onBusy(true);
     setFailed(false);
     try {
       onFill(await api.fillInvoiceGaps(said, form));
@@ -303,6 +311,7 @@ function VoicePanel({ form, onFill }: { form: ClerkForm; onFill: (f: InvoiceFill
       setFailed(true);
     } finally {
       setBusy(false);
+      onBusy(false);
     }
   }
 

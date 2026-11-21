@@ -282,6 +282,7 @@ export function useToast() {
 
 /** Bottom sheet on phones, centred dialog on desktop. Esc / backdrop click closes it. */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const { t } = useT();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -295,7 +296,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
         className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl bg-white md:rounded-3xl">
         <header className="flex items-center gap-2 border-b border-stone-200 py-2 pl-4 pr-2">
           <h2 className="flex-1 text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} aria-label="Close" className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-stone-100"><Icon name="close" /></button>
+          <button onClick={onClose} aria-label={t('close')} className="flex h-12 w-12 items-center justify-center rounded-full hover:bg-stone-100"><Icon name="close" /></button>
         </header>
         <div className="space-y-3 overflow-y-auto p-4">{children}</div>
       </div>
