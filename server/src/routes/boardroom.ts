@@ -3,10 +3,11 @@ import type { FastifyPluginAsync } from 'fastify';
 import { CFOS, type AskRequest, type AskResult, type CfoId } from '@cfo/shared';
 import { runBoardroom } from '../agents/boardroom';
 import { askCfo } from '../agents/cfo';
-import { pickCfo } from '../agents/topic';
+import { followUpCfo, pickCfo } from '../agents/topic';
 
-// Quick-advice bubble: the web sends no CFO (web/src/components/AskBubble.tsx), so pickCfo picks one for every
-// bubble question. The keyword routing lives in agents/topic.ts; re-exported here for routes/boardroom.test.ts.
+// Quick-advice bubble: the web sends no CFO (web/src/components/AskBubble.tsx), so the server picks one for every
+// bubble question (followUpCfo: by keywords, or the CFO from the chat history). The keyword routing lives in
+// agents/topic.ts; pickCfo is re-exported here for routes/boardroom.test.ts.
 export { pickCfo };
 
 // Body checks (review of PR #6: {"topic":123}, {"question":123} and {"cfo":"toString"} gave 500).
@@ -57,9 +58,11 @@ const routes: FastifyPluginAsync = async (app) => {
     if (!question) return reply.code(400).send({ error: 'question is required' });
     // Own keys only: "toString" or "constructor" are not CFOs.
     const named = req.body.cfo && Object.hasOwn(CFOS, req.body.cfo) ? (req.body.cfo as CfoId) : undefined;
-    const cfo = named ?? pickCfo(question);
+    const history = (req.body.history ?? []).slice(-HISTORY_LINES);
+    // No CFO named: by topic, or the CFO who answered last in the chat ("Why?" stays with Kasia).
+    const cfo = named ?? followUpCfo(question, history);
     // askCfo never throws: the model's reply if the guard accepts it, otherwise the rule summary.
-    const { text } = await askCfo(cfo, question);
+    const { text } = await askCfo(cfo, question, { history });
     return { cfo, text } satisfies AskResult;
   });
 };

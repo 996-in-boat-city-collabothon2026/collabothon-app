@@ -112,6 +112,42 @@ describe('POST /api/ask: history (a chat after a meeting)', () => {
   });
 });
 
+describe('POST /api/ask: follow-ups use the history', () => {
+  const afterKasia = [
+    { from: 'owner', text: 'Should we lock the EUR rate?' },
+    { from: 'cfo', cfo: 'kasia', text: 'Yes, a forward contract would protect the Krause invoice.' },
+  ];
+
+  it('"Why?" after Kasia → kasia answers, and the prompt holds the chat', async () => {
+    const r = await ask({ question: 'Why?', history: afterKasia });
+    expect(r.cfo).toBe('kasia');
+    expect(lastPrompt[1].content).toContain('Kasia: Yes, a forward contract would protect the Krause invoice.');
+  });
+
+  it('"When is VAT due?" after Kasia → marek', async () => {
+    expect((await ask({ question: 'When is VAT due?', history: afterKasia })).cfo).toBe('marek');
+  });
+
+  it('only the last 4 lines reach the prompt', async () => {
+    const history = ['one', 'two', 'three', 'four', 'five', 'six'].map((text) => ({ from: 'owner', text }));
+    await ask({ question: 'Why?', history });
+    expect(lastPrompt[1].content).not.toContain('Owner: two');
+    expect(lastPrompt[1].content).toContain('Owner: three');
+    expect(lastPrompt[1].content).toContain('Owner: six');
+  });
+
+  it('a history with "99 999 zł" and a model that repeats it → the answer never contains 99 999', async () => {
+    modelReply = 'Because your VAT is 99 999 zł.';
+    const r = await ask({ question: 'Why?', history: [
+      { from: 'owner', text: 'Is my VAT 99 999 zł?' },
+      { from: 'cfo', cfo: 'marek', text: 'Your VAT is 99 999 zł.' },
+    ] });
+    expect(r.cfo).toBe('marek');
+    expect(r.text).not.toContain('99 999');
+    expect(r.text).toBe(cfoFacts('marek').summary);
+  });
+});
+
 describe('POST /api/ask: numbers come only from the rules', () => {
   it('"Is my VAT 99 999 zł?" with a model that repeats 99 999 → the answer never contains 99 999', async () => {
     modelReply = 'Yes, your VAT is 99 999 zł.';
