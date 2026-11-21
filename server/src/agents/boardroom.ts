@@ -1,44 +1,28 @@
-// Owner: Pair 2 (Person A). Four CFOs speak in turn, then a "chair" call turns the debate into decisions.
-// Rebuild M5 (docs/PAIR2-REBUILD.md): no free model text on stage. Each CFO picks points of its own rule facts and may
-// pick one pre-written comment (agents/comments.ts); the chair picks card ids and may pick one comment too.
+// Owner: Pair 2 (Person C). The meeting ("hat conference"): it follows the topic (docs/AGENTS-8B-PLAN.md, C1).
+// - small talk ("hello")  → "Pick a topic", no model call
+// - a topic with a lead   → the lead answers in full, the others react in one sentence (in parallel) or pass
+// - a general topic       → all 4 answer in full: Marek → Anna → Tomasz → Kasia
+// - the chair (blue hat)  → picks the open cards and writes one summary sentence, checked by the number guard
+// Every text on screen is the model's text only if the guard accepts it; otherwise it is rule text.
 import { z } from 'zod';
 import { CFOS, type Action, type BoardroomResult, type BoardroomTurn, type CfoId } from '@cfo/shared';
 import { db } from '../domain/store';
 import { chatOr } from '../llm/provider';
 import { extractJson } from '../llm/json';
 import { cfoFacts, type CfoFacts } from './facts';
-import { agentModel, CHOICE_FORMAT, commentBlock, parseChoice, pointList, renderAnswer } from './answer';
-import { commentsFor, pickComment, type CannedComment } from './comments';
-import { CHAIR_PERSONA, PERSONAS } from './personas';
-import { allDrafts, isCurrentCard } from './autopilot';
+import { CHAIR_PERSONA } from './personas';
+import { allDrafts, isCurrentCard, runAutopilot } from './autopilot';
+// TODO stub: after Person A's and B's merges, import checkReply from './guard', askCfo from './cfo',
+// isSmallTalk / leadFor (and a keyword-match helper) from './topic', then delete './stubs'.
+import { askCfo, checkReply, isSmallTalk, leadFor, matchesTopic } from './stubs';
 
-const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia']; // White → Black → Green → Red, the Blue chair sums up
+/** The order of a general meeting: White → Black → Green → Red. The Blue chair sums up. */
+export const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];
+export const SMALL_TALK_SUMMARY = 'Pick a topic: cash, taxes, margin or the euro rate.';
 
-// Live: ~36 tokens/s and a 22 s budget for 5 calls. A JSON choice (a few point ids + one comment id) fits in 120 tokens.
-export const TURN_MAX_TOKENS = 120;
+// The chair returns a few ids and one sentence. Low temperature: we want valid JSON more than variety.
 export const CHAIR_MAX_TOKENS = 160;
-// The model returns only ids, so a higher temperature cannot put a wrong fact on screen; it only varies the picks.
-// If live JSON validity drops below 80%, go back to 0.2 (docs/PAIR2-REBUILD.md, live run 2).
-export const TURN_TEMPERATURE = 0.4;
 export const CHAIR_TEMPERATURE = 0.1;
-
-const transcriptOf = (turns: BoardroomTurn[]) => turns.map((t) => `${CFOS[t.cfo].name}: ${t.text}`).join('\n');
-
-/**
- * One CFO's turn prompt: what the others said, then this CFO's own points and comments. `heard` holds only rule text:
- * live run 1, Kasia copied Tomasz's comment word for word.
- */
-function turnPrompt(cfo: CfoId, facts: CfoFacts, subject: string, heard: BoardroomTurn[], comments: CannedComment[]): string {
-  return [
-    `MEETING TOPIC: ${subject}`,
-    `WHAT THE OTHERS SAID:\n${transcriptOf(heard) || '(nobody has spoken yet)'}`, '',
-    `YOUR POINTS, ${CFOS[cfo].name} (ready-made from the rules, each with its id):`,
-    pointList(facts), '',
-    commentBlock(comments), '',
-    'Pick the points that matter most for the topic, and the id of one comment that fits (or none).',
-    CHOICE_FORMAT,
-  ].join('\n');
-}
 
 /**
  * Summary from the rules: the first 3 decisions, or, with no cards, nothing about the money (review of PR #6:
@@ -49,61 +33,85 @@ export function ruleSummary(approvals: Action[]): string {
   return `For your decision: ${approvals.slice(0, 3).map((a) => a.title).join('; ')}. All proposals are in the approval queue.`;
 }
 
-/** The chair returns card ids and may pick one comment id. A missing field counts as empty. */
-const ChairSchema = z.object({ decisionActionIds: z.array(z.string()).optional(), comment: z.string().optional() });
+/** What the chair must return. A missing field counts as empty. */
+const ChairSchema = z.object({ decisionActionIds: z.array(z.string()).optional(), summary: z.string().optional() });
 export const CHAIR_FORMAT =
-  'Reply ONLY with JSON: {"decisionActionIds": ["ids from the list, most important first"], ' +
-  '"comment": "the id of one comment from COMMENTS that fits, or an empty string"}';
+  'Reply ONLY with JSON: {"decisionActionIds": ["ids from the list, most important first"], "summary": "one sentence"}';
+
+/** A CFO who is not the lead speaks only with a real risk right now, or when the topic touches its area. */
+const hasSomethingToSay = (cfo: CfoId, topic: string) =>
+  cfoFacts(cfo).points.some((p) => p.critical) || matchesTopic(cfo, topic);
+
+/** The CFOs' turns for this topic (no chair yet). */
+async function debate(topic: string, lead: CfoId | null): Promise<BoardroomTurn[]> {
+  if (!lead) {
+    // General topic: everyone, full answers, one after another (a hanging model then uses the time budget only once).
+    const turns: BoardroomTurn[] = [];
+    for (const cfo of ORDER) turns.push({ cfo, text: (await askCfo(cfo, topic)).text });
+    return turns;
+  }
+  const first = await askCfo(lead, topic);
+  const others = ORDER.filter((c) => c !== lead && hasSomethingToSay(c, topic));
+  // The others react to the lead at the same time; the order on screen stays fixed.
+  const replies = await Promise.all(others.map((c) => askCfo(c, topic, { short: true, heard: first.text })));
+  return [{ cfo: lead, text: first.text }, ...others.map((cfo, i) => ({ cfo, text: replies[i].text }))];
+}
+
+/** Open cards waiting for the owner that the rules still propose (a stale card is refused with 409 anyway). */
+function currentCards(): Action[] {
+  const drafts = allDrafts();
+  return db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL' && isCurrentCard(a, drafts));
+}
+
+/** The facts the chair's sentence is checked against: everything the speakers know, plus the card titles. */
+function chairFacts(turns: BoardroomTurn[], cards: Action[]): CfoFacts {
+  const facts = turns.map((t) => cfoFacts(t.cfo));
+  return {
+    lines: [...facts.flatMap((f) => f.lines), ...cards.map((a) => a.title)],
+    points: facts.flatMap((f) => f.points),
+    summary: facts.map((f) => f.summary).join(' '),
+  };
+}
 
 export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   const subject = topic?.trim() || 'Monthly review';
-  const turns: BoardroomTurn[] = []; // what the owner sees
-  const heard: BoardroomTurn[] = []; // the same turns without comments: what the next speakers and the chair read
-  const used = new Set<string>(); // comment ids already said: never twice in one meeting
-  let critical = false; // any CFO with a real risk: the chair may not pick a calm comment
+  // 1. "hello", "thanks", "?": nothing to discuss, and no GPU time spent.
+  if (isSmallTalk(subject)) return { turns: [], summary: SMALL_TALK_SUMMARY, decisionActionIds: [] };
 
-  for (const cfo of ORDER) {
-    const facts = cfoFacts(cfo);
-    critical ||= facts.points.some((p) => p.critical);
-    if (!agentModel.enabled) {
-      turns.push({ cfo, text: facts.summary });
-      continue;
-    }
-    // chatOr never throws: a dead, slow or empty model gives '' → no JSON → this CFO's conclusion (core points).
-    const comments = commentsFor(cfo, facts.points.some((p) => p.critical), used);
-    const raw = await chatOr('', [
-      { role: 'system', content: PERSONAS[cfo] },
-      { role: 'user', content: turnPrompt(cfo, facts, subject, heard, comments) },
-    ], { maxTokens: TURN_MAX_TOKENS, temperature: TURN_TEMPERATURE, mockKey: `boardroom:${cfo}` });
-    const answer = renderAnswer(facts, parseChoice(raw), comments);
-    if (answer.note) console.info(`[guard] boardroom:${cfo} ${answer.note}`);
-    turns.push({ cfo, text: answer.text });
-    heard.push({ cfo, text: answer.ruleText });
-    if (answer.commentId) used.add(answer.commentId);
-  }
+  // 2. The CFOs speak.
+  const lead = leadFor(subject);
+  const turns = await debate(subject, lead);
 
-  // Only cards the rules still propose: approving a stale card is refused with 409 (review of PR #6: after paying
-  // Krause early the chair still offered the old forward).
-  const drafts = allDrafts();
-  const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL' && isCurrentCard(a, drafts));
-  if (!agentModel.enabled) return { turns, summary: ruleSummary(approvals), decisionActionIds: approvals.map((a) => a.id) };
+  // 3. Cards. Nothing waiting → run the check first (like the "Run check" button: it only creates cards).
+  if (!db.actions.some((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL')) await runAutopilot();
+  const cards = currentCards();
+  if (!cards.length) return { turns, summary: ruleSummary([]), decisionActionIds: [] };
+  // Fallback order: the lead's cards first, then the rest.
+  const byLead = [...cards.filter((a) => a.cfo === lead), ...cards.filter((a) => a.cfo !== lead)];
 
-  const items = approvals.map((a) => `- [${a.id}] ${CFOS[a.cfo].name}: ${a.title}`).join('\n') || '-';
-  const chairComments = commentsFor('chair', critical);
-  const chairRaw = await chatOr('', [
+  // 4. The chair. chatOr never throws: a dead model gives '' → no JSON → the rule summary.
+  const items = cards.map((a) => `- [${a.id}] ${CFOS[a.cfo].name}: ${a.title}`).join('\n');
+  const debateText = turns.map((t) => `${CFOS[t.cfo].name}: ${t.text}`).join('\n');
+  const raw = await chatOr('', [
     { role: 'system', content: `${CHAIR_PERSONA} ${CHAIR_FORMAT}` },
-    { role: 'user', content: `ITEMS TO APPROVE:\n${items}\n\nDEBATE:\n${transcriptOf(heard)}\n\n${commentBlock(chairComments)}` },
+    { role: 'user', content: `MEETING TOPIC: ${subject}\n\nITEMS TO APPROVE:\n${items}\n\nDEBATE:\n${debateText}` },
   ], { maxTokens: CHAIR_MAX_TOKENS, temperature: CHAIR_TEMPERATURE, mockKey: 'boardroom:chair' });
-
-  const chair = extractJson(chairRaw, ChairSchema);
-  // Cards in the chair's order, unknown ids and repeats dropped; none valid → every current card.
-  const picked = [...new Set(chair?.decisionActionIds ?? [])].map((id) => approvals.find((a) => a.id === id)).filter((a): a is Action => !!a);
-  const decisions = picked.length ? picked : approvals;
-  const comment = pickComment(chair?.comment, chairComments);
+  const chair = extractJson(raw, ChairSchema);
   if (!chair) console.info('[guard] boardroom:chair no valid JSON');
+
+  // Only ids of current cards, each once, in the chair's order. None valid → the lead's cards first.
+  const picked = [...new Set(chair?.decisionActionIds ?? [])]
+    .map((id) => cards.find((a) => a.id === id))
+    .filter((a): a is Action => !!a);
+  const decisions = picked.length ? picked : byLead;
+
+  // The chair's sentence must pass the same number guard as the CFOs; otherwise the rule summary.
+  const said = chair?.summary?.trim() ?? '';
+  const check = checkReply(said, chairFacts(turns, cards));
+  if (said && !check.ok) console.info(`[guard] boardroom:chair ${check.reason}`);
   return {
     turns,
-    summary: [ruleSummary(decisions), comment].filter(Boolean).join(' '),
+    summary: check.ok ? said : ruleSummary(decisions),
     decisionActionIds: decisions.map((a) => a.id),
   };
 }
