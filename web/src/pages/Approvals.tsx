@@ -48,7 +48,7 @@ export default function Approvals() {
         <div className="space-y-3">
           {queue.map((a) => (
             <div key={a.id} className={busy === a.id ? 'pointer-events-none opacity-60' : ''}>
-              <ActionCard action={a} onApprove={() => void decide(a, true)} onReject={() => void decide(a, false)} />
+              <ActionCard action={a} onApprove={() => decide(a, true)} onReject={() => decide(a, false)} />
             </div>
           ))}
         </div>
