@@ -131,6 +131,7 @@ describe('followUpCfo: a follow-up in a chat stays with the CFO who answered', (
   it('"it/that/this" + money words stay with the CFO (B4 live check: "How much would it cost?" went to Tomasz)', () => {
     expect(followUpCfo('How much would it cost?', kasiaAnswered)).toBe('kasia');
     expect(followUpCfo('Is that expensive?', kasiaAnswered)).toBe('kasia');
+    expect(followUpCfo('Is that a lot of money?', kasiaAnswered)).toBe('kasia'); // review of #30: went to Anna
     expect(followUpCfo('OK, what first?', kasiaAnswered)).toBe('kasia');
   });
   it('a real topic still switches, even with "it"', () => {
