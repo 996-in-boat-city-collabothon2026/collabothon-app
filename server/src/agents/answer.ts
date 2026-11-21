@@ -6,8 +6,13 @@ import { extractJson } from '../llm/json';
 import type { CfoFacts, CfoPoint } from './facts';
 import { commentProblem } from './safety';
 
-/** Emergency switch for the demo: `enabled = false` → no model call, every CFO shows its rule conclusion. */
-export const agentModel = { enabled: true };
+/**
+ * Switches for the demo:
+ * - `enabled = false` → no model call, every CFO shows its rule conclusion;
+ * - `comments = false` → the model's comment is never shown. Live run 1 (M9): about 12 of 49 shown comments were
+ *   wrong advice with no number in them ("consider paying early"), which no check can catch. Rule text only.
+ */
+export const agentModel = { enabled: true, comments: false };
 
 /** The model may pick this many points. Critical points are always added on top, so a risk is never left out. */
 export const MAX_POINTS = 3;
@@ -55,11 +60,19 @@ export function renderAnswer(facts: CfoFacts, choice: Choice | null): Answer {
   const chosen = new Set(picked.length ? picked : facts.points.filter((p) => p.core).map((p) => p.id));
   if (choice && !picked.length) notes.push('no valid point → core points');
   for (const p of facts.points) if (p.critical) chosen.add(p.id);
+  // The first core point is the CFO's main conclusion: always shown, so a bad pick never hides the advice.
+  const main = facts.points.find((p) => p.core);
+  if (main) chosen.add(main.id);
+  for (const p of facts.points) if (chosen.has(p.id) && p.needs) chosen.add(p.needs);
+  for (const p of facts.points) if (p.sameAs && chosen.has(p.sameAs)) chosen.delete(p.id);
   const shown: CfoPoint[] = facts.points.filter((p) => chosen.has(p.id));
 
   let comment = (choice?.comment ?? '').trim();
   const problem = comment ? commentProblem(comment, facts.points.some((p) => p.critical)) : '';
-  if (problem) {
+  if (comment && !agentModel.comments) {
+    notes.push('comments off');
+    comment = '';
+  } else if (problem) {
     notes.push(`comment refused: ${problem}`);
     comment = '';
   }

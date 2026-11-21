@@ -9,6 +9,7 @@ import { config } from '../config';
 import { db, resetDb } from '../domain/store';
 import { setModelCallForTests, type ChatMessage } from '../llm/provider';
 import boardroom from '../routes/boardroom';
+import { agentModel } from './answer';
 import { allDrafts, isCurrentCard, runAutopilot } from './autopilot';
 import { ruleSummary } from './boardroom';
 import { cfoFacts } from './facts';
@@ -22,10 +23,12 @@ let reply: (m: ChatMessage[]) => string = () => '';
 beforeAll(async () => {
   resetDb();
   await runAutopilot(); // the chair needs the open cards
+  agentModel.comments = true; // the stricter case: every corpus reply is also tried as a shown comment
   Object.assign(config.llm, { baseUrl: 'http://model.test/v1', timeoutMs: 20_000, budgetMs: 22_000 });
 });
 beforeEach(() => setModelCallForTests(async (m) => reply(m), 'openai_compat')); // also clears the last-answer cache
 afterAll(() => {
+  agentModel.comments = false;
   Object.assign(config.llm, saved);
   setModelCallForTests(null, 'mock');
 });

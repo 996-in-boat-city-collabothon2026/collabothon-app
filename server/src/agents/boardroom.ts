@@ -88,7 +88,7 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   let comment = (chair?.comment ?? '').trim();
   const problem = comment ? commentProblem(comment, critical) : '';
   if (problem || !chair) console.info(`[guard] boardroom:chair ${problem ? `comment refused: ${problem}` : 'no valid JSON'}`);
-  if (problem) comment = '';
+  if (problem || !agentModel.comments) comment = '';
   comment = asSentence(comment);
   return {
     turns,

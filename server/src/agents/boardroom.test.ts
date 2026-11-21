@@ -24,6 +24,7 @@ beforeEach(() => {
   resetDb();
   sent.length = 0;
   reply = () => '';
+  agentModel.comments = true; // most tests check the comment path; 'comments off' has its own test
   Object.assign(config.llm, { baseUrl: 'http://model.test/v1', timeoutMs: 20_000, budgetMs: 22_000 });
   setModelCallForTests(async (m, o) => {
     sent.push({ m, o });
@@ -31,6 +32,7 @@ beforeEach(() => {
   }, 'openai_compat');
 });
 afterAll(() => {
+  agentModel.comments = false;
   Object.assign(config.llm, saved);
   setModelCallForTests(null, 'mock');
 });
@@ -136,6 +138,15 @@ describe('conference turns: rule points + a checked comment', () => {
     await runAutopilot();
     reply = (m) => (persona(m, 'anna') ? choice(['reminders'], comment) : '');
     expect((await runBoardroom()).turns[1].text).toBe(`${pt('anna', 'gap')} ${pt('anna', 'reminders')}`);
+  });
+  it('comments off (the default for the demo): rule points only, in turns and in the chair summary', async () => {
+    await runAutopilot();
+    agentModel.comments = false;
+    reply = (m) => (isChair(m) ? JSON.stringify({ decisionActionIds: [], comment: 'Start with what is due first.' })
+      : choice(['ksef'], 'KSeF needs correct buyer data, so check the NIP carefully.'));
+    const r = await runBoardroom();
+    expect(r.turns[0].text).toBe(`${pt('marek', 'next-tax')} ${pt('marek', 'ksef')}`);
+    expect(r.summary).not.toContain('Start with');
   });
 });
 

@@ -152,7 +152,8 @@ describe('POST /api/ask: JSON choice (rebuild M4)', () => {
   }
   const point = (cfo: CfoId, id: string) => cfoFacts(cfo).points.find((p) => p.id === id)!.text;
   const choice = (points: string[], comment = '') => JSON.stringify({ points, comment });
-  afterEach(() => { agentModel.enabled = true; });
+  beforeEach(() => { agentModel.comments = true; }); // the comment path; 'comments off' has its own test
+  afterEach(() => { agentModel.enabled = true; agentModel.comments = false; });
 
   it('valid JSON: the chosen points in the facts\' order, then the comment', async () => {
     modelReply = choice(['tax-ob-zus-11', 'next-tax'], 'Taxes are not negotiable, so put that money aside first.');
@@ -161,10 +162,23 @@ describe('POST /api/ask: JSON choice (rebuild M4)', () => {
     expect(r.text).toBe(`${point('marek', 'next-tax')} ${point('marek', 'tax-ob-zus-11')} Taxes are not negotiable, so put that money aside first.`);
   });
 
-  it('a detail point is enough when nothing is critical (Tomasz: one car)', async () => {
+  it('the main conclusion is always shown: a car detail never hides Tomasz\'s advice', async () => {
     const id = cfoFacts('tomasz').points.find((p) => p.id.startsWith('car-'))!.id;
     modelReply = choice([id], 'bill every hour you work, your skill is worth it');
-    expect((await askAs('tomasz', 'What about the Passat?')).text).toBe(`${point('tomasz', id)} Bill every hour you work, your skill is worth it.`);
+    expect((await askAs('tomasz', 'What about the Passat?')).text).toBe(
+      `${point('tomasz', 'labour')} ${point('tomasz', id)} Bill every hour you work, your skill is worth it.`,
+    );
+  });
+
+  it('"If that is not enough, a credit line…" always comes with the reminders it follows', async () => {
+    modelReply = choice(['credit']);
+    expect((await askAs('anna', 'Can I borrow?')).text).toBe(`${point('anna', 'gap')} ${point('anna', 'reminders')} ${point('anna', 'credit')}`);
+  });
+
+  it('comments off (the default for the demo): the points only', async () => {
+    agentModel.comments = false;
+    modelReply = choice(['next-tax'], 'Taxes are not negotiable, so put that money aside first.');
+    expect((await askAs('marek', 'VAT?')).text).toBe(point('marek', 'next-tax'));
   });
 
   it('a critical point is always shown: "what is my balance?" never hides the cash gap', async () => {
@@ -176,8 +190,10 @@ describe('POST /api/ask: JSON choice (rebuild M4)', () => {
   it('unknown ids and repeats are dropped, at most 3 points; nothing valid → the conclusion (summary)', async () => {
     modelReply = choice(['nope', 'ksef', 'ksef', 'tax-ob-vat-10', 'tax-ob-zus-11', 'tax-ob-pit-11']);
     expect((await askAs('marek', 'Taxes?')).text).toBe(
-      [point('marek', 'next-tax'), point('marek', 'ksef'), point('marek', 'tax-ob-vat-10'), point('marek', 'tax-ob-zus-11')].join(' '),
-    ); // ksef, vat, zus picked (3); next-tax is critical (VAT in 5 days), so it is added
+      [point('marek', 'next-tax'), point('marek', 'ksef'), point('marek', 'tax-ob-zus-11')].join(' '),
+    ); // ksef, vat, zus picked (3); next-tax is critical (VAT in 5 days), so it is added, and the VAT detail says the same
+    modelReply = choice(['tax-ob-vat-10']);
+    expect((await askAs('marek', 'Is my VAT late?')).text).toBe(point('marek', 'next-tax')); // the same deadline never twice
     modelReply = choice(['nope', 'gap-fake']);
     expect((await askAs('anna', 'Cash?')).text).toBe(ruleAnswer('anna'));
   });

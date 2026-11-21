@@ -327,6 +327,12 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
   - **Still open:** the valid-JSON rate and the refused comments by reason. The test deploy logs only the `[guard]` reason, so they come from Pair 1's logs of the run.
 
   - **Found without the model:** with no CFO given, 3 of 16 questions go to the wrong CFO. "What rate would you lock?" and "Should I worry about the złoty?" go to Anna instead of Kasia; "What is the cheapest quick win?" goes to Anna instead of Tomasz. `pickCfo` has no "złoty" or "lock". This is minor, because the web always sends the chosen CFO.
+- [x] **M10 Fixes from live run 1** (`agents/facts.ts`, `agents/answer.ts`, `agents/boardroom.ts`)
+  Result: **527/527 tests in 22 files** (3 new), typecheck clean, build OK. Not yet re-run on the real model.
+  - **The main conclusion is always shown:** the first core point is added like a critical one (finding 1: Tomasz's car list without "Bill the full hours").
+  - **No repeated deadline:** a point can say `sameAs`, and is skipped when that point is shown. `tax-<next>` is the same as `next-tax`, so "Is my VAT late?" no longer shows the VAT line twice.
+  - **No dangling sentence:** a point can say `needs`. "If that is not enough, a credit line…" needs `reminders` and always comes with it.
+  - **Comments off by default:** `agentModel.comments = false`. About 12 of 49 shown comments were wrong advice with no number in them, which no check can catch (finding 2). The conference chair's comment is off too. Turn it back on to demo comments; the comment tests and the corpus run with it on.
 
 ---
 
