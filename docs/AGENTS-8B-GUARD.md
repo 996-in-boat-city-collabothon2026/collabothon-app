@@ -52,6 +52,11 @@ The other 36 wrong replies use **correct numbers with a wrong meaning**. A simpl
 | False comfort | "You are in good shape: your balance is 38 400,00 zł today." (a cash gap is coming) |
 | Wrong advice | "Pay FlotaTrans 12 300,00 zł." (FlotaTrans owes *you*) · "Take the credit line first, the reminders can wait." |
 
+**Rejected on purpose (safe side, watch in the live run):** a count written as a digit ("**2** customers owe you",
+where 2 isn't in the facts) and a dot as the thousands separator ("14.230 zł"). The owner then sees the rule summary:
+nothing is wrong, the answer is just less natural. If the live run shows these often, Person B tells the model in the
+persona to write counts in words.
+
 Most of these came from the old 3B model. How we limit them with 8B:
 1. The **personas** (Person B) say plainly which way each risk goes and who owes whom; this is already in the facts
    ("A rising EUR rate is bad for you").

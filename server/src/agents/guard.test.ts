@@ -76,6 +76,9 @@ describe('checkReply (seed, 2026-11-20)', () => {
     expect(check('marek', 'VAT of 14 230,00 zł is due tomorrow.')).toEqual({ ok: false, reason: 'time not in facts: tomorrow' });
     expect(check('marek', 'VAT of 14 230,00 zł is due this Friday.').reason).toBe('time not in facts: friday');
     expect(check('anna', 'Pay FlotaTrans 12 300,00 zł this week.').reason).toBe('time not in facts: this week');
+    expect(check('marek', 'VAT of 14 230,00 zł is already overdue.').reason).toBe('time not in facts: overdue');
+    // Anna's customers really are late (facts: "15 days late"), so "overdue" is true for her.
+    expect(check('anna', 'Two customers are overdue: FlotaTrans and Kurier Express. Send them a reminder first.').ok).toBe(true);
   });
 });
 

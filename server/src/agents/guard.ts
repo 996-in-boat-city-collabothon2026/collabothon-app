@@ -50,7 +50,8 @@ export function numbersIn(text: string): number[] {
 /** The numbers the facts allow, plus the month number of every month named there ("December 20" allows "20.12"). */
 function allowedNumbers(facts: CfoFacts): number[] {
   const text = [...facts.lines, facts.summary].join(' ');
-  const months = MONTHS.flatMap((m, i) => (new RegExp(`\\b${m}\\b`, 'i').test(text) ? [i + 1] : []));
+  // Only a month followed by a day: the verb "may" is not the month May.
+  const months = MONTHS.flatMap((m, i) => (new RegExp(`\\b${m} \\d`, 'i').test(text) ? [i + 1] : []));
   return [...numbersIn(text), ...months];
 }
 
@@ -87,7 +88,9 @@ export function checkReply(reply: string, facts: CfoFacts): { ok: boolean; reaso
   if (looksPolish(text)) return { ok: false, reason: 'polish' };
   if (CLAIMS_DONE.test(text)) return { ok: false, reason: 'claims it was done' };
   const factText = [...facts.lines, facts.summary].join(' ').toLowerCase();
-  const when = (text.match(WHEN) ?? []).find((w) => !factText.includes(w.toLowerCase()));
+  // "overdue" is fine where the facts say "late" (Anna's customers), never for a tax that is not late yet.
+  const inFacts = (w: string) => factText.includes(w) || (w === 'overdue' && factText.includes(' late'));
+  const when = (text.match(WHEN) ?? []).find((w) => !inFacts(w.toLowerCase()));
   if (when) return { ok: false, reason: `time not in facts: ${when.toLowerCase()}` };
   const allowed = allowedNumbers(facts);
   const wrong = numbersIn(text).find((n) => !allowed.some((a) => same(a, n)));
