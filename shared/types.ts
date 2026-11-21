@@ -254,3 +254,6 @@ export interface LlmHealth {
   latencyMs: number;
   error?: string;
 }
+
+// ---------- KSeF ----------
+export { ksefReasonEn } from './ksefReason';
