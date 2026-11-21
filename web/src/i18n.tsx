@@ -485,6 +485,7 @@ const DICT: Record<string, { pl: string; en: string }> = {
   comfort_contrast: { pl: 'Wysoki kontrast', en: 'High contrast' },
   comfort_contrast_hint: { pl: 'Szary tekst staje się czarny.', en: 'Grey text becomes black.' },
   // Speak a question to the agents (Pair 1, Nara)
+  meeting_play: { pl: 'Odsłuchaj naradę', en: 'Play the meeting' },
   mic_start: { pl: 'Powiedz pytanie', en: 'Speak your question' },
   mic_stop: { pl: 'Zakończ i zamień na tekst', en: 'Stop and turn into text' },
   mic_listening: { pl: 'Słucham… naciśnij jeszcze raz, gdy skończysz.', en: 'Listening… press again when you are done.' },

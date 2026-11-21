@@ -1,9 +1,9 @@
 // 🎤 Speak instead of typing (Pair 1, Nara). Press = start, press again = stop (or it stops by itself after 30 s).
 // The words appear in the question box: nothing is sent until the owner presses Send, so they can check what was heard.
-// Hidden when the browser cannot record or speech-to-text is not set up on the server (lib/voice.ts).
+// Whisper on our server when it is set up, otherwise the browser's own speech recognition; hidden if neither (lib/voice.ts).
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../i18n';
-import { canRecord, transcribeAudio, voiceReady } from '../lib/voice';
+import { BrowserRecognizer, transcribeAudio, voiceMode, type Recognizer, type VoiceMode } from '../lib/voice';
 
 const MAX_MS = 30_000;
 
@@ -18,19 +18,21 @@ function MicIcon() {
 
 export default function MicButton({ onText, disabled = false }: { onText: (text: string) => void; disabled?: boolean }) {
   const { t, lang } = useT();
-  const [ready, setReady] = useState(false);
+  const [mode, setMode] = useState<VoiceMode>(null);
   const [state, setState] = useState<'idle' | 'listening' | 'working'>('idle');
   const [error, setError] = useState<string | null>(null);
   const rec = useRef<MediaRecorder | null>(null);
+  const recognizer = useRef<Recognizer | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
-    if (canRecord) voiceReady().then((ok) => { if (alive) setReady(ok); });
+    voiceMode().then((m) => { if (alive) setMode(m); });
     return () => {
       alive = false;
       window.clearTimeout(timer.current);
       rec.current?.stream.getTracks().forEach((tr) => tr.stop()); // never leave the microphone on
+      recognizer.current?.stop();
     };
   }, []);
 
@@ -41,9 +43,43 @@ export default function MicButton({ onText, disabled = false }: { onText: (text:
     return () => window.clearTimeout(id);
   }, [error]);
 
-  if (!ready) return null;
+  if (!mode) return null;
+
+  /** No Whisper: the browser listens and gives back the words directly. */
+  function toggleBrowser() {
+    setError(null);
+    if (recognizer.current) { recognizer.current.stop(); return; }
+    if (!BrowserRecognizer) return;
+    const r = new BrowserRecognizer();
+    recognizer.current = r;
+    let heard = '';
+    r.lang = lang === 'pl' ? 'pl-PL' : 'en-GB';
+    r.interimResults = false;
+    r.continuous = false;
+    r.maxAlternatives = 1;
+    r.onresult = (e) => { heard = Array.from(e.results).map((res) => res[0]?.transcript ?? '').join(' ').trim(); };
+    r.onerror = (e) => {
+      setError(t(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'mic_denied' : e.error === 'no-speech' ? 'mic_nothing' : 'mic_failed'));
+    };
+    r.onend = () => {
+      window.clearTimeout(timer.current);
+      recognizer.current = null;
+      setState('idle');
+      if (heard) onText(heard);
+    };
+    try {
+      r.start();
+    } catch {
+      recognizer.current = null;
+      setError(t('mic_failed'));
+      return;
+    }
+    setState('listening');
+    timer.current = window.setTimeout(() => r.stop(), MAX_MS);
+  }
 
   async function toggle() {
+    if (mode === 'browser') { toggleBrowser(); return; }
     setError(null);
     if (rec.current?.state === 'recording') { rec.current.stop(); return; }
     let stream: MediaStream;

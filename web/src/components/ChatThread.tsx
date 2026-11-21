@@ -10,6 +10,7 @@ import { saveChat, type Chat, type ChatMsg } from '../lib/chats';
 import { TypingDots } from './AskBubble';
 import Icon from './Icon';
 import MicButton from './MicButton';
+import SpeakButton from './SpeakButton';
 import { CfoAvatar } from './ui';
 
 const AGENTS: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];
@@ -33,7 +34,7 @@ export function ChatMessage({ m }: { m: ChatMsg }) {
       <li className="flex items-start gap-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-white"><Icon name="sparkle" size={20} /></span>
         <div className="min-w-0 flex-1">
-          <p className="mb-1 font-semibold">{t('joint_recommendation')}</p>
+          <p className="mb-1 flex items-center justify-between gap-2 font-semibold">{t('joint_recommendation')} <SpeakButton text={m.text} compact /></p>
           <p className="rounded-3xl rounded-tl-md bg-accent-soft px-4 py-3 text-[17px] leading-relaxed">{m.text}</p>
         </div>
       </li>
@@ -44,7 +45,12 @@ export function ChatMessage({ m }: { m: ChatMsg }) {
     <li className="flex items-start gap-3">
       {m.cfo ? <CfoAvatar cfo={m.cfo} size={44} /> : <span className="ai-orb h-11 w-11 shrink-0" aria-hidden="true" />}
       <div className="min-w-0 flex-1">
-        {c && <p className="mb-1 font-semibold">{c.name} <span className="font-normal text-zinc-700">· {lang === 'pl' ? c.rolePl : c.role}</span></p>}
+        {c && (
+          <p className="mb-1 flex items-center justify-between gap-2 font-semibold">
+            <span>{c.name} <span className="font-normal text-zinc-700">· {lang === 'pl' ? c.rolePl : c.role}</span></span>
+            <SpeakButton text={m.text} cfo={m.cfo} compact />
+          </p>
+        )}
         <p className="rounded-3xl rounded-tl-md bg-zinc-100 px-4 py-3 text-[17px] leading-relaxed">{m.text}</p>
       </div>
     </li>

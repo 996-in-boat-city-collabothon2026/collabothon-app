@@ -14,13 +14,14 @@ import boardroom from './routes/boardroom';
 import ksef from './routes/ksef';
 import settings from './routes/settings';
 import demo from './routes/demo';
+import voice from './routes/voice';
 
 const app = Fastify({ logger: { level: 'info' } });
 
 // Every request gets ONE shared LLM time budget (LLM_BUDGET_MS), so a slow model can't make the conference hang.
 app.addHook('onRequest', llmBudgetHook);
 
-for (const plugin of [health, auth, finance, actions, boardroom, ksef, settings, demo]) {
+for (const plugin of [health, auth, finance, actions, boardroom, ksef, settings, demo, voice]) {
   await app.register(plugin, { prefix: '/api' });
 }
 

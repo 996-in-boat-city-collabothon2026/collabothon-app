@@ -75,7 +75,7 @@ export default function AskBubble() {
                 {m.cfo && <CfoAvatar cfo={m.cfo} size={30} />}
                 <div className="flex min-w-0 flex-col items-start gap-1.5">
                   <p className="rounded-2xl rounded-bl-sm bg-stone-100 px-3 py-2 text-base">{m.text}</p>
-                  <SpeakButton text={m.text} />
+                  <SpeakButton text={m.text} cfo={m.cfo} />
                 </div>
               </div>
             ))}
