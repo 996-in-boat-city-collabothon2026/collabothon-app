@@ -30,6 +30,9 @@ export const pointList = (facts: CfoFacts) => facts.points.map((p) => `- ${p.id}
 /** The model's JSON (fences, trailing commas and single quotes are repaired by extractJson), or null. */
 export const parseChoice = (raw: string): Choice | null => extractJson(raw, ChoiceSchema);
 
+/** "keep it simple" → "Keep it simple." ('' stays ''). */
+export const asSentence = (c: string) => (c ? c[0].toUpperCase() + c.slice(1) + (/[.!?]$/.test(c) ? '' : '.') : '');
+
 export interface Answer {
   text: string; // what the owner sees: rule text of the shown points, then the comment if it passed
   points: string[]; // ids of the shown points, in the facts' order
@@ -60,7 +63,7 @@ export function renderAnswer(facts: CfoFacts, choice: Choice | null): Answer {
     notes.push(`comment refused: ${problem}`);
     comment = '';
   }
-  if (comment) comment = comment[0].toUpperCase() + comment.slice(1) + (/[.!?]$/.test(comment) ? '' : '.');
+  comment = asSentence(comment);
   const text = [...shown.map((p) => p.text), comment].filter(Boolean).join(' ');
   return { text, points: shown.map((p) => p.id), comment, note: notes.join('; ') };
 }

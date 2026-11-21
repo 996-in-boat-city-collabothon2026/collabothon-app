@@ -1,12 +1,13 @@
-// Owner: Pair 2 (Person A). Conference: per-CFO facts, clean whole-sentence turns, number guard, PL/EN by topic.
+// Owner: Pair 2 (Person A). Conference: per-CFO points, a checked comment per turn, the chair's card ids.
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import type { CfoId } from '@cfo/shared';
 import type { ChatMessage, ChatOptions } from '../llm/provider';
 import { config } from '../config';
 import { setModelCallForTests } from '../llm/provider';
 import { db, resetDb } from '../domain/store';
-import { runAutopilot } from './autopilot';
-import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, TURN_MAX_TOKENS, TURN_MAX_WORDS } from './boardroom';
+import { isCurrentCard, runAutopilot } from './autopilot';
+import { agentModel } from './answer';
+import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, TURN_MAX_TOKENS } from './boardroom';
 import { cfoFacts } from './facts';
 import { explain } from './explain';
 import { claimsDone, falseCalm, myMoney, wholeSentences } from './text';
@@ -47,8 +48,15 @@ describe('wholeSentences', () => {
 const en = (c: CfoId) => cfoFacts(c).summary;
 const persona = (m: ChatMessage[], c: CfoId) => m[0].content.includes(`You are ${c[0].toUpperCase()}${c.slice(1)}`);
 
-describe('conference: English on stage, prompts and limits', () => {
-  it('each turn gets only its own English facts and must answer in English; 120 tokens, temperature 0.1', async () => {
+const current = () => db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL' && isCurrentCard(a));
+const pt = (c: CfoId, id: string) => cfoFacts(c).points.find((p) => p.id === id)!.text;
+const choice = (points: string[], comment = '') => JSON.stringify({ points, comment });
+const chairJson = (decisionActionIds: string[], comment = '') => JSON.stringify({ decisionActionIds, comment });
+
+// Rebuild M5 (docs/PAIR2-REBUILD.md): each CFO picks its own rule points and may add one checked comment; the chair
+// picks current card ids and may add one checked comment. No free model text reaches the stage.
+describe('conference: prompts and limits', () => {
+  it('each turn gets only its own points with ids and asks for the JSON choice; 120 tokens, temperature 0.1', async () => {
     await runAutopilot();
     sent.length = 0;
     await runBoardroom('Will the cash last through December?');
@@ -56,199 +64,152 @@ describe('conference: English on stage, prompts and limits', () => {
     expect(turns).toHaveLength(4);
     turns.forEach((c, i) => {
       expect(c.o).toMatchObject({ maxTokens: TURN_MAX_TOKENS, temperature: 0.1 });
-      expect(c.m[1].content).toContain(en(ORDER[i]));
-      expect(c.m[1].content).toContain('in English');
+      for (const p of cfoFacts(ORDER[i]).points) expect(c.m[1].content).toContain(`- ${p.id}: ${p.text}`);
+      expect(c.m[1].content).toContain('Reply ONLY with JSON');
+      expect(c.m[1].content).toContain('MEETING TOPIC: Will the cash last through December?');
     });
-    expect(turns[3].m[1].content).not.toMatch(/Bank balance today/); // Kasia does not get Anna's balance facts
+    expect(turns[3].m[1].content).not.toContain(pt('anna', 'balance')); // Kasia does not get Anna's points
     expect(turns[3].m[1].content).toMatch(/^Marek: .*$/m); // but she hears the earlier turns
+    expect(turns[3].m[1].content.indexOf('WHAT THE OTHERS SAID')).toBeLessThan(turns[3].m[1].content.indexOf('YOUR POINTS'));
     expect(sent.find((c) => isChair(c.m))!.o).toMatchObject({ maxTokens: CHAIR_MAX_TOKENS, temperature: 0.1 });
     expect(TURN_MAX_TOKENS).toBeLessThanOrEqual(130);
   });
 
-  it('no topic → "Monthly review", English rule fallbacks everywhere when the model is down', async () => {
+  it('no topic → "Monthly review"; model down → every turn is its conclusion, the chair lists the current cards', async () => {
     await runAutopilot();
     reply = (m) => (isChair(m) ? 'Sure! Here is the summary: {broken' : '');
     const r = await runBoardroom();
     expect(sent.find((c) => !isChair(c.m))!.m[1].content).toContain('MEETING TOPIC: Monthly review');
     expect(r.turns.map((t) => t.text)).toEqual(ORDER.map(en));
-    expect(r.summary).toMatch(/^For your decision: /);
-    expect(r.decisionActionIds).toHaveLength(db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL').length);
+    expect(r.summary).toBe(ruleSummary(current()));
+    expect(r.decisionActionIds).toEqual(current().map((a) => a.id));
   });
 
-  it('a long reply cut mid-word becomes whole sentences within the word limit; preamble and address dropped', async () => {
+  it('emergency switch off → no model call, conclusions and the rule summary', async () => {
     await runAutopilot();
-    const cfoIn = (m: ChatMessage[]) => ORDER.find((c) => persona(m, c))!;
-    const filler = Array.from({ length: 12 }, (_, i) => `This is sentence number ${i + 1}.`).join(' ') + ' And then it bre';
-    const first = (c: CfoId) => en(c).split(/(?<=\.)\s/)[0];
-    reply = (m) => (isChair(m) ? '{"summary":"Short and clear.","decisionActionIds":[]}' : `Here's my answer: ${first(cfoIn(m))} ${filler}`);
-    const r = await runBoardroom();
-    for (const t of r.turns) {
-      expect(t.text.startsWith(first(t.cfo).slice(0, 12))).toBe(true);
-      expect(t.text).not.toMatch(/^Here/);
-      expect(t.text.split(/\s+/).length).toBeLessThanOrEqual(TURN_MAX_WORDS);
-      expect(t.text).toMatch(/\.$/);
+    agentModel.enabled = false;
+    try {
+      const r = await runBoardroom();
+      expect(sent).toHaveLength(0);
+      expect(r.turns.map((t) => t.text)).toEqual(ORDER.map(en));
+      expect(r.summary).toBe(ruleSummary(current()));
+    } finally {
+      agentModel.enabled = true;
     }
-    expect(r.summary).toBe('Short and clear.');
-  });
-
-  it('own facts come last in the prompt, after what the others said', async () => {
-    await runAutopilot();
-    sent.length = 0;
-    await runBoardroom();
-    const kasia = sent.filter((c) => !isChair(c.m))[3].m[1].content;
-    expect(kasia.indexOf('WHAT THE OTHERS SAID')).toBeLessThan(kasia.indexOf('YOUR FACTS'));
   });
 });
 
-describe('conference: the same safeguards as /api/ask', () => {
-  it('invented numbers → that turn says the rule conclusion; chair summary → rule summary', async () => {
+describe('conference turns: rule points + a checked comment', () => {
+  it('valid choices: the picked points in the facts\' order, critical points always, then the comment', async () => {
     await runAutopilot();
-    reply = (m) => {
-      if (isChair(m)) return '{"summary":"A loss of 50 230,00 zł in December.","decisionActionIds":[]}';
-      if (persona(m, 'anna')) return '14 230 + 36 000 = 50 230,00 zł of losses.';
-      if (persona(m, 'kasia')) return 'EUR went up 4,5% this month. Lock the rate.';
-      if (persona(m, 'tomasz')) return 'You are missing 1700,00 zł on labour. Bill the full hours.';
-      return 'Nothing important.';
+    const said: Record<CfoId, string> = {
+      marek: choice(['ksef'], 'KSeF needs correct buyer data, so check the NIP carefully.'),
+      anna: choice(['reminders'], 'Chase the customers who owe you before you think about a loan.'),
+      tomasz: choice(['labour']),
+      kasia: choice(['hedge-EUR', 'rate-EUR'], 'Nobody can predict the rate, so locking it gives you peace of mind.'),
     };
-    const r = await runBoardroom();
-    const text = (c: CfoId) => r.turns.find((t) => t.cfo === c)!.text;
-    expect(text('anna')).toBe(en('anna'));
-    expect(text('kasia')).toBe(en('kasia')); // "4,5%" is not in Kasia's facts
-    expect(text('tomasz')).toBe('You are missing 1700,00 zł on labour. Bill the full hours.'); // real number, kept
-    const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
-    expect(r.summary).toBe(ruleSummary(approvals));
-  });
-
-  it('a Polish turn, a repeated colleague, a done-claim, false calm or a flipped sign → rule conclusion', async () => {
-    await runAutopilot();
-    reply = (m) => {
-      if (isChair(m)) return '{"summary":"The forward for 1500 EUR has been locked and the reminders were sent.","decisionActionIds":[]}';
-      if (persona(m, 'marek')) return 'VAT 14 230,00 zł trzeba zapłacić do 25.11.2026.'; // Polish
-      if (persona(m, 'tomasz')) return 'You should consider the credit line of 36 000,00 zł.'; // Anna's number
-      if (persona(m, 'kasia')) return 'If EUR rises 5%, you lose 320,25 zł, so you have nothing to lose.';
-      if (persona(m, 'anna')) return 'Your lowest balance will be 20 275,00 zł on December 20, 2026.'; // loss → positive
-      return '';
-    };
-    const r = await runBoardroom();
-    expect(r.turns.map((t) => t.text)).toEqual(ORDER.map(en));
-    expect(r.summary).toMatch(/^For your decision: /);
-  });
-
-  it('correct Marek and Anna replies are shown, not replaced (on stage both fell back to the rules)', async () => {
-    await runAutopilot();
-    const said = {
-      // "14,230 zł" without decimals, a year on its own, the KSeF reason in English
-      marek: "Your VAT of 14,230 zł for 2026 is due on November 25, 2026 and is still unpaid. Invoice FV/2026/11/009 was rejected because the buyer's NIP must have 10 digits.",
-      // repeats Marek's VAT number, says the loss in words, "hasn't paid you"
-      anna: "On top of the 14 230,00 zł VAT, a negative balance of 20 275,00 zł is coming on December 20, 2026. FlotaTrans Sp. z o.o. hasn't paid you yet, so send reminders first.",
-      tomasz: 'Bill the full hours at 200,00 zł: on 2 orders you are 1700,00 zł short.',
-      kasia: 'If EUR rises 5%, you lose 320,25 zł. I suggest a forward contract for 1500 EUR.',
-    } satisfies Record<CfoId, string>;
     reply = (m) => (isChair(m) ? '' : said[ORDER.find((c) => persona(m, c))!]);
     const r = await runBoardroom();
-    expect(r.turns.map((t) => t.text)).toEqual(ORDER.map((c) => said[c]));
+    expect(r.turns.map((t) => t.text)).toEqual([
+      `${pt('marek', 'next-tax')} ${pt('marek', 'ksef')} KSeF needs correct buyer data, so check the NIP carefully.`, // VAT in 5 days is critical
+      `${pt('anna', 'gap')} ${pt('anna', 'reminders')} Chase the customers who owe you before you think about a loan.`,
+      pt('tomasz', 'labour'),
+      `${pt('kasia', 'fx-EUR')} ${pt('kasia', 'hedge-EUR')} ${pt('kasia', 'rate-EUR')} Nobody can predict the rate, so locking it gives you peace of mind.`,
+    ]);
   });
 
-  it('the earlier turns make a number known, but a turn still needs its own amount', async () => {
+  it('free text never reaches the stage, true or false (it used to be judged by the number guard)', async () => {
     await runAutopilot();
-    reply = (m) => (persona(m, 'anna') ? 'Marek said VAT is 14 230,00 zł.' : '');
-    const r = await runBoardroom();
-    expect(r.turns[1].text).toBe(en('anna'));
+    const said: Record<CfoId, string> = {
+      marek: "Your VAT of 14,230 zł for 2026 is due on November 25, 2026 and is still unpaid.", // true
+      anna: 'Your bank balance today is -20 275,00 zł.', // wrong label (review of PR #6)
+      tomasz: 'Na 3 zleceniach brakuje 1700,00 zł.', // Polish
+      kasia: 'On your 1500 EUR, if EUR rises 5%, you lose 35 275,00 zł.', // Anna's number (review of PR #6)
+    };
+    reply = (m) => (isChair(m) ? '' : said[ORDER.find((c) => persona(m, c))!]);
+    expect((await runBoardroom()).turns.map((t) => t.text)).toEqual(ORDER.map(en));
   });
 
+  it('a CFO with nothing to report cannot say anything unchecked (review of PR #6: Kasia with no FX)', async () => {
+    db.invoices = db.invoices.filter((i) => !i.currency || i.currency === 'PLN');
+    reply = (m) => (persona(m, 'kasia') ? 'The euro is very dangerous right now, so lock a forward contract today.' : '');
+    expect((await runBoardroom()).turns[3].text).toBe('You have no currency risk right now: all open invoices are in złoty.');
+  });
+
+  it.each([
+    ['a number', 'Pay the 14 230 zł first.'],
+    ['a done claim', 'The reminders were sent this morning.'],
+    ['a name', 'Remind FlotaTrans first.'],
+    ['Polish', 'Zapłać VAT na czas, to ważne.'],
+    ['false calm next to the cash gap', 'You are in good shape, so take it easy.'],
+  ])('a comment with %s is dropped, the points stay', async (_, comment) => {
+    await runAutopilot();
+    reply = (m) => (persona(m, 'anna') ? choice(['reminders'], comment) : '');
+    expect((await runBoardroom()).turns[1].text).toBe(`${pt('anna', 'gap')} ${pt('anna', 'reminders')}`);
+  });
+});
+
+describe('conference chair: current card ids + a checked comment', () => {
+  it('picked ids in the chair\'s order, unknown and repeated ids dropped; the summary lists them, then the comment', async () => {
+    await runAutopilot();
+    const [a, b] = [current().find((x) => x.kind === 'payment_reminder')!, current().find((x) => x.kind === 'tax_payment')!];
+    reply = (m) => (isChair(m) ? chairJson(['nope', a.id, b.id, a.id], 'I would start with the reminders and keep the credit line as a backup.') : '');
+    const r = await runBoardroom();
+    expect(r.decisionActionIds).toEqual([a.id, b.id]);
+    expect(r.summary).toBe(`${ruleSummary([a, b])} I would start with the reminders and keep the credit line as a backup.`);
+  });
+
+  it('no valid id → every current card; a stale card is never offered', async () => {
+    await runAutopilot();
+    const hedge = db.actions.find((x) => x.kind === 'fx_hedge')!;
+    db.invoices.find((i) => i.id === 'inv-p-002')!.paid = true; // the forward goes stale
+    reply = (m) => (isChair(m) ? chairJson([hedge.id]) : '');
+    const r = await runBoardroom();
+    expect(r.decisionActionIds).not.toContain(hedge.id);
+    expect(r.decisionActionIds).toEqual(current().map((x) => x.id));
+    expect(r.summary).toBe(ruleSummary(current()));
+  });
+
+  it.each([
+    ['a done claim (live)', 'It was decided to send reminders to overdue customers.'],
+    ['false calm next to the cash gap', 'Cash looks healthy this month, nothing urgent for you.'],
+    ['a number', 'Pay VAT of 14 230 zł first.'],
+    ['Polish', 'Podatek VAT trzeba zapłacić na czas.'],
+    ['the advisor\'s money', 'I will pay the VAT so you do not have to.'],
+  ])('a chair comment with %s is dropped, the rule summary stays', async (_, comment) => {
+    await runAutopilot();
+    reply = (m) => (isChair(m) ? chairJson([], comment) : '');
+    const r = await runBoardroom();
+    expect(r.summary).toBe(ruleSummary(current()));
+    expect(sent).toHaveLength(5); // 4 turns + chair, no extra model call
+  });
+
+  it('the old free-text "summary" field is never shown', async () => {
+    await runAutopilot();
+    reply = (m) => (isChair(m) ? JSON.stringify({ summary: 'The advisors propose paying VAT of 14 230,00 zł.', decisionActionIds: [] }) : '');
+    expect((await runBoardroom()).summary).toBe(ruleSummary(current()));
+  });
+});
+
+describe('conference: rule texts and checks still used', () => {
   it('Marek\'s English facts carry the KSeF reason in English', () => {
     const lines = cfoFacts('marek').lines.join('\n');
     expect(lines).toContain("Reason: the buyer's tax number (NIP) is wrong, it must have 10 digits");
     expect(looksPolish(lines)).toBe(false);
   });
 
-  it('done-claim and false-calm checks do not fire on proposals', () => {
+  it('done-claim, false-calm and my-money checks (used by commentProblem)', () => {
     expect(claimsDone('I suggest sending reminders and locking the rate.')).toBe(false);
     expect(claimsDone('The invoice must be sent again.')).toBe(false);
     expect(claimsDone('The reminders have been sent.')).toBe(true);
-    expect(falseCalm('You have nothing to lose.')).toBe(true);
-    expect(falseCalm('You lose 320,25 zł if EUR rises.')).toBe(false);
-  });
-
-  it('only the owner decides: "it was decided" / "no decisions were made" are rejected, proposals pass', () => {
     expect(claimsDone('It was decided to send reminders to overdue customers.')).toBe(true);
     expect(claimsDone('However, no decisions were made, and no actions were assigned.')).toBe(true);
     expect(claimsDone("We've decided to lock the rate.")).toBe(true);
     expect(claimsDone('The owner decides whether to send reminders.')).toBe(false);
-    expect(claimsDone('Next steps for you to decide: send reminders and lock the EUR rate.')).toBe(false);
-  });
-
-  it('chair says "It was decided…" (live) → rule summary', async () => {
-    await runAutopilot();
-    reply = (m) =>
-      isChair(m)
-        ? '{"summary":"The meeting discussed the credit line and the EUR rate. It was decided to send reminders to overdue customers.","decisionActionIds":[]}'
-        : '';
-    const r = await runBoardroom();
-    const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
-    expect(r.summary).toBe(ruleSummary(approvals));
-  });
-
-  it('Kasia "EUR/USD rate" (live, only euro invoices) → "EUR rate", the rest of her turn is kept', async () => {
-    await runAutopilot();
-    reply = (m) =>
-      persona(m, 'kasia') ? 'The EUR/USD rate is going up. I suggest a forward contract for 1500 EUR, or you lose 320,25 zł if EUR rises 5%.' : '';
-    const r = await runBoardroom();
-    expect(r.turns[3].text).toBe('The EUR rate is going up. I suggest a forward contract for 1500 EUR, or you lose 320,25 zł if EUR rises 5%.');
-    const kasiaPrompt = sent.find((c) => persona(c.m, 'kasia'))!.m[0].content;
-    expect(kasiaPrompt).not.toContain('EUR/USD');
-  });
-
-  it('Kasia telling the owner\'s money as her own (live) → rule conclusion; "you lose" is fine', async () => {
-    await runAutopilot();
-    reply = (m) =>
-      persona(m, 'kasia')
-        ? "Owner, I have 1500 EUR to pay, and if the rate rises 5%, I'd lose 320,25 zł. I recommend locking the rate with a forward contract for 1500 EUR."
-        : '';
-    expect((await runBoardroom()).turns[3].text).toBe(en('kasia'));
+    expect(falseCalm('You have nothing to lose.')).toBe(true);
+    expect(falseCalm('You lose 320,25 zł if EUR rises.')).toBe(false);
     expect(myMoney("I'll lose 320,25 zł.")).toBe(true);
-    expect(myMoney('You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł.')).toBe(false);
     expect(myMoney('I suggest you pay VAT by November 25, 2026.')).toBe(false);
-  });
-
-  it('"Owner," at the start is dropped, the turn is kept', async () => {
-    await runAutopilot();
-    reply = (m) => (persona(m, 'kasia') ? 'Owner, you have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł.' : '');
-    expect((await runBoardroom()).turns[3].text).toBe('You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł.');
-  });
-
-  it('review of fc04703: bad conference turns (done, small fee, wrong FX direction, Polish) → rule conclusions', async () => {
-    await runAutopilot();
-    reply = (m) => {
-      if (isChair(m)) return '';
-      if (persona(m, 'marek')) return 'VAT of 14,230 zł was paid yesterday.';
-      if (persona(m, 'anna')) return 'The balance drops to -20 275,00 zł on December 20, 2026, and the bank fee is 17 zł.';
-      if (persona(m, 'tomasz')) return 'Na 3 zleceniach brakuje 1700,00 zł.';
-      if (persona(m, 'kasia')) return 'A -5% change would cost you 320,25 zł.';
-      return '';
-    };
-    expect((await runBoardroom()).turns.map((t) => t.text)).toEqual(ORDER.map(en));
-  });
-
-  it.each([
-    ['done', '{"summary":"VAT of 14 230,00 zł was paid and the reminders were sent.","decisionActionIds":[]}'],
-    ['Polish', '{"summary":"Podatek VAT wynosi 14 230,00 zł, kurs euro rośnie.","decisionActionIds":[]}'],
-    ['small invented fee', '{"summary":"Pay VAT of 14 230,00 zł and a late fee of 17 zł.","decisionActionIds":[]}'],
-    ['my money', '{"summary":"I would lose 320,25 zł if EUR rises 5%.","decisionActionIds":[]}'],
-  ])('review of fc04703: chair summary with %s → rule summary', async (_, chair) => {
-    await runAutopilot();
-    reply = (m) => (isChair(m) ? chair : '');
-    const r = await runBoardroom();
-    const approvals = db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL');
-    expect(r.summary).toBe(ruleSummary(approvals));
-    expect(sent).toHaveLength(5); // 4 turns + chair, no extra model call
-  });
-
-  it('a correct chair summary is still shown', async () => {
-    await runAutopilot();
-    const good = 'The advisors propose paying VAT of 14 230,00 zł and sending reminders. The owner decides.';
-    reply = (m) => (isChair(m) ? JSON.stringify({ summary: good, decisionActionIds: [] }) : '');
-    expect((await runBoardroom()).summary).toBe(good);
   });
 
   it('a currency pair the facts really have stays', () => {

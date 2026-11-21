@@ -206,8 +206,24 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
     - free-text `/ask` assertions in `ask.test.ts` and `safety.routes.test.ts` now expect the rule text. The same free texts are still checked on the conference turn until M5.
   - **Mock mode:** the canned replies in `llm/mock.ts` (Pair 1) are not JSON, so `/ask` shows the conclusion. Curl on the mock server: 5 questions → 200 with the right CFO's conclusion. To demo comments without the model, Pair 1 could add canned JSON for `ask:*` / `advice:*`.
 
-- [ ] **M5 Conference in the new format** (`agents/boardroom.ts`): turns and chair.
+- [x] **M5 Conference in the new format** (`agents/boardroom.ts`): turns and chair.
   Done when: route tests as in M4. The chair never offers a stale card. The conference stays under 24 s with a hanging model.
+
+  Result: **590/590 tests in 24 files**, typecheck clean, build OK.
+  - **Turns:**
+    - each CFO gets the meeting topic, what the others said (rule text plus their comments) and its own points as `- id: text`, then returns the JSON choice;
+    - `renderAnswer` from M4 builds the turn, so critical points are always shown and comments go through `commentProblem`.
+  - **Chair:**
+    - returns `{"decisionActionIds": [...], "comment": "..."}`, and only current cards (`isCurrentCard`) are in its list;
+    - its ids are kept in its order, unknown or repeated ids dropped; none valid → every current card;
+    - the summary is `ruleSummary(decisions)` plus the comment, which is checked as critical when any CFO has a critical point. The old free-text `summary` field is never shown.
+  - **Switch:** `agentModel.enabled = false` → no model call, conclusions and the rule summary.
+  - **Constants:** `TURN_MAX_WORDS` and `SUMMARY_MAX_WORDS` are gone (rule text is never cut). `CHAIR_MAX_TOKENS` 160 (was 200).
+  - **Tests:**
+    - `agents/boardroom.test.ts`: the conference sections are rewritten (prompts, model down, switch, valid choices, true and false free text, a CFO with no FX facts, 5 bad turn comments, chair ids and stale card, 5 bad chair comments, the old `summary` field);
+    - `routes/safety.routes.test.ts`: every corpus reply on every route (ask, turn, chair) now gives rule text.
+  - **Timing at the real 22 s budget:** hanging model → 22 013 ms; 6 s per call → 22 010 ms. Both under 24 s, 4 turns and a rule summary.
+  - **For M8:** `replyProblem`, `textProblem`, `citesOwnFact`, `fixCurrencyPair`, `findInventedNumbers` and `mentionsKeyFact`, plus `tidyReply`, `wholeSentences` and `stripAddress`, are no longer called by any route; only their own tests use them.
 
 - [ ] **M6 Prompts** (`agents/personas.ts`)
   Done when: the personas describe the JSON format, and Kasia no longer suggests paying early (or her facts gain the
