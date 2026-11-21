@@ -170,16 +170,25 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
   );
 }
 
-export function ActionCard({ action, onApprove, onReject }: { action: Action; onApprove?: () => void; onReject?: () => void }) {
+export function ActionCard({ action, onApprove, onReject }: {
+  action: Action; onApprove?: () => void | Promise<unknown>; onReject?: () => void | Promise<unknown>;
+}) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState<'approve' | 'reject' | null>(null);
-  const finish = (kind: 'approve' | 'reject', fn?: () => void) => { if (done) return; setDone(kind); setTimeout(() => fn?.(), 750); };
+  // On success the parent reloads and this card goes away. If the card is still here afterwards (the call failed),
+  // drop the "Approved" state so the buttons work again.
+  const finish = (kind: 'approve' | 'reject', fn?: () => void | Promise<unknown>) => {
+    if (done) return;
+    setDone(kind);
+    setTimeout(() => void Promise.resolve(fn?.()).finally(() => setDone(null)), 750);
+  };
   const canDecide = action.tier === 'NEEDS_APPROVAL' && action.status === 'open';
   return (
-    <article className="rounded-3xl bg-white p-4">
+    <article className="flex h-full flex-col rounded-3xl bg-white p-4">
       {/* Phone: the agent sits in a row above the text, so big text (Settings → A++) still has the full width. */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+      {/* flex-1 + h-full (Olek): the Approve/Reject buttons line up at the bottom of every card. */}
+      <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
         <span className="flex shrink-0 items-center gap-2 sm:w-20 sm:flex-col sm:gap-0 sm:pt-3 sm:text-center">
           <span className="agent-hello"><CfoAvatar cfo={action.cfo} size={36} live /></span>
           <span className="flex flex-col sm:items-center">
@@ -219,7 +228,8 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
         </div>
       </div>
       {canDecide && (
-        <div className="mt-3 flex gap-2">
+        // mt-auto: the buttons stay on the card's bottom edge, so they line up in a row of cards
+        <div className="mt-auto flex gap-2 pt-3">
           <button onClick={() => finish('approve', onApprove)} disabled={!!done} aria-live="polite"
             className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-accent py-2 text-lg font-bold text-white">
             {done === 'approve'

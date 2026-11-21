@@ -51,7 +51,7 @@ describe('approve "Pay Krause early" (Kasia)', () => {
 
     // Approving again is refused and cannot deduct twice.
     const again = await app.inject({ method: 'POST', url: `/api/actions/${card.id}/approve` });
-    expect(again.statusCode).toBe(404);
+    expect(again.statusCode).toBe(409); // already handled (golden rule 3)
     expect(db.bank.balancePLN).toBe(38400 - card.amountPLN!);
   });
 });
@@ -141,6 +141,11 @@ describe('stale cards are withdrawn for every agent', () => {
     const open = (kind: string) => db.actions.filter((a) => a.kind === kind && a.status === 'open');
     expect(open('credit_line').map((a) => a.amountPLN)).toEqual([29000]);
     expect(db.actions.find((a) => a.id === oldCredit.id)!.status).toBe('rejected');
+    // F5: a withdrawn card says why, not "already rejected" (the owner did not reject it).
+    for (const res of [await approve(app, oldCredit.id), await app.inject({ method: 'POST', url: `/api/actions/${oldCredit.id}/reject` })]) {
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error).toBe('This card was withdrawn: its numbers changed. Run the check for a fresh one.');
+    }
     expect(open('pricing').filter((a) => a.title.startsWith('Labour billed under your rate'))).toHaveLength(1);
     expect(open('pricing').filter((a) => a.title.startsWith('Parts markup'))).toHaveLength(1);
 
@@ -180,7 +185,7 @@ describe('approve credit line (Anna)', () => {
     expect(db.actions.filter((a) => a.kind === 'credit_line' && a.status === 'open')).toHaveLength(0);
 
     // Approving again cannot add the money twice.
-    expect((await approve(app, credit.id)).statusCode).toBe(404);
+    expect((await approve(app, credit.id)).statusCode).toBe(409); // already handled (golden rule 3)
     expect(db.bank.balancePLN).toBe(38400 + 36000);
   });
 });
@@ -206,9 +211,9 @@ describe('approve: VAT and credit line through domain/settle', () => {
     expect(db.bank.balancePLN).toBe(60170);
     expect(entriesFor(credit.id)).toEqual([expect.objectContaining({ actor: 'user', simulated: true })]);
 
-    // Approving a closed card again: 404, the balance and history do not move a second time.
-    expect((await approve(app, vat.id)).statusCode).toBe(404);
-    expect((await approve(app, credit.id)).statusCode).toBe(404);
+    // Approving a closed card again: 409 (golden rule 3), the balance and history do not move a second time.
+    expect((await approve(app, vat.id)).statusCode).toBe(409);
+    expect((await approve(app, credit.id)).statusCode).toBe(409);
     expect(db.bank.balancePLN).toBe(60170);
     expect(entriesFor(vat.id)).toHaveLength(1);
     expect(entriesFor(credit.id)).toHaveLength(1);
@@ -280,7 +285,7 @@ describe('autonomy "auto" never skips approval for money or customer contact', (
     expect(db.bank.balancePLN).toBe(38400 - pay.amountPLN!);
     const entries = db.activity.filter((e) => e.actionId === pay.id);
     expect(entries).toEqual([expect.objectContaining({ actor: 'user', simulated: true })]);
-    expect((await approve(app, pay.id)).statusCode).toBe(404);
+    expect((await approve(app, pay.id)).statusCode).toBe(409);
     expect(db.bank.balancePLN).toBe(38400 - pay.amountPLN!);
   });
 
@@ -288,5 +293,60 @@ describe('autonomy "auto" never skips approval for money or customer contact', (
     const app = await makeApp();
     const cards = await run(app);
     expect(cards.find((a) => a.kind === 'ksef_revalidate')!.status).toBe('auto_done');
+  });
+});
+
+// ---------- Rebuild M1: handled cards → 409, the owner's "no" sticks ----------
+describe('handled cards and the owner\'s rejection', () => {
+  beforeEach(() => resetDb());
+  const reject = (app: Awaited<ReturnType<typeof makeApp>>, id: string) =>
+    app.inject({ method: 'POST', url: `/api/actions/${id}/reject` });
+
+  it('approve or reject a card that was already approved, rejected or auto-done → 409; unknown id → 404', async () => {
+    const app = await makeApp();
+    const cards = await run(app);
+    const vat = cards.find((a) => a.kind === 'tax_payment')!;
+    const reminder = cards.find((a) => a.kind === 'payment_reminder')!;
+    const auto = cards.find((a) => a.status === 'auto_done')!;
+
+    expect((await approve(app, vat.id)).statusCode).toBe(200);
+    expect((await reject(app, vat.id)).statusCode).toBe(409);
+    expect((await reject(app, reminder.id)).statusCode).toBe(200);
+    expect((await reject(app, reminder.id)).statusCode).toBe(409);
+    const again = await approve(app, reminder.id);
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toEqual({ error: 'This card is already rejected.' });
+    expect((await approve(app, auto.id)).statusCode).toBe(409);
+    expect((await approve(app, 'a-nope')).statusCode).toBe(404);
+    expect((await reject(app, 'a-nope')).statusCode).toBe(404);
+    expect(db.bank.balancePLN).toBe(38400 - vat.amountPLN!); // only the first approval moved money
+  });
+
+  it('a reminder the owner rejected does not come back on the next check (review of PR #6)', async () => {
+    const app = await makeApp();
+    const reminder = (await run(app)).find((a) => a.kind === 'payment_reminder')!;
+    expect((await reject(app, reminder.id)).statusCode).toBe(200);
+
+    expect(await run(app)).toEqual([]);
+    expect(db.actions.filter((a) => a.kind === 'payment_reminder' && a.refId === reminder.refId)).toHaveLength(1);
+  });
+
+  it('a card withdrawn by the watchdog still makes room for the fresh one', async () => {
+    const app = await makeApp();
+    const oldCredit = (await run(app)).find((a) => a.kind === 'credit_line')!;
+    db.obligations = db.obligations.filter((o) => o.kind !== 'RENT'); // numbers change → the card goes stale
+    await run(app);
+    expect(db.actions.find((a) => a.id === oldCredit.id)!.status).toBe('rejected'); // run() returns copies
+    expect(db.actions.filter((a) => a.kind === 'credit_line' && a.status === 'open')).toHaveLength(1);
+  });
+
+  it('the owner rejected a card, then its numbers changed → one fresh proposal', async () => {
+    const app = await makeApp();
+    const oldCredit = (await run(app)).find((a) => a.kind === 'credit_line')!;
+    expect((await reject(app, oldCredit.id)).statusCode).toBe(200);
+    db.obligations = db.obligations.filter((o) => o.kind !== 'RENT');
+    const fresh = (await run(app)).filter((a) => a.kind === 'credit_line');
+    expect(fresh).toHaveLength(1);
+    expect(fresh[0].amountPLN).not.toBe(oldCredit.amountPLN);
   });
 });

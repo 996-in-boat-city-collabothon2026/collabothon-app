@@ -345,6 +345,7 @@ const DICT: Record<string, { pl: string; en: string }> = {
   all_done: { pl: 'Nic nie czeka na Twoją decyzję.', en: 'Nothing waits for your decision.' },
   recent_decisions: { pl: 'Ostatnie decyzje', en: 'Recent decisions' },
   waiting: { pl: 'czeka', en: 'waiting' },
+  nothing_waiting: { pl: 'nic nie czeka', en: 'nothing waiting' },
   available_today: { pl: 'Dostępne dziś', en: 'Available today' },
   forecast_word: { pl: 'Prognoza', en: 'Forecast' },
   projected_shortfall: { pl: 'Prognozowany brak', en: 'Projected shortfall' },

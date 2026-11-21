@@ -4,13 +4,28 @@ import { db, logActivity, newId, nowIso } from '../domain/store';
 import { RULES, type DraftAction } from '../rules';
 import { explain } from './explain';
 
-const isDuplicate = (a: Pick<Action, 'kind' | 'refId' | 'title'>) =>
-  db.actions.some((x) => x.kind === a.kind && (a.refId ? x.refId === a.refId : x.title === a.title) && x.status !== 'rejected');
-
 /** Same card = same CFO, kind, tier, execution, title, target (refId), amount, due date and reasons. */
 const fingerprint = (a: DraftAction) => JSON.stringify([a.cfo, a.kind, a.tier, a.execution, a.title, a.refId, a.amountPLN, a.dueDate, a.why]);
 
-/** True when the rules would propose exactly this card right now (nothing in its numbers changed). */
+/**
+ * Cards the watchdog withdrew because their numbers changed. They get status 'rejected' like an owner's "no" (the web
+ * shows both as closed), but only the owner's "no" blocks a new proposal. Ids are unique, so a demo reset needs no clear.
+ */
+const withdrawn = new Set<string>();
+
+/** True for a card the watchdog withdrew (its numbers changed), not one the owner rejected. */
+export const isWithdrawn = (id: string) => withdrawn.has(id);
+
+/** Same proposal = same kind and target (the invoice or obligation, or the title when there is no target). */
+const sameProposal = (x: Action, a: DraftAction) => x.kind === a.kind && (a.refId ? x.refId === a.refId : x.title === a.title);
+
+/**
+ * Already handled: the same proposal is open, approved or done, or the owner rejected it with the same numbers.
+ * Review of PR #6: a rejected reminder came back on the next "Run check". New numbers make a new proposal.
+ */
+const isDuplicate = (a: DraftAction) =>
+  db.actions.some((x) => sameProposal(x, a) && (x.status !== 'rejected' || (!withdrawn.has(x.id) && fingerprint(x) === fingerprint(a))));
+
 /** Every rule's proposals. A rule that throws (e.g. bad data) is logged and skipped: the other agents still finish. */
 export function allDrafts(): DraftAction[] {
   return RULES.flatMap((rule) => {
@@ -31,6 +46,7 @@ export const NEEDS_OWNER: ReadonlySet<ActionKind> = new Set<ActionKind>([
   'tax_payment', 'supplier_payment', 'credit_line', 'payment_reminder', 'fx_hedge', 'deposit', 'ksef_fix',
 ]);
 
+/** True when the rules would propose exactly this card right now (nothing in its numbers changed). */
 export function isCurrentCard(card: DraftAction, drafts = allDrafts()): boolean {
   const key = fingerprint(card);
   return drafts.some((d) => fingerprint(d) === key);
@@ -46,6 +62,7 @@ export async function runAutopilot(): Promise<AutopilotResult> {
   for (const a of db.actions) {
     if (a.status !== 'open' || isCurrentCard(a, drafts)) continue;
     a.status = 'rejected';
+    withdrawn.add(a.id);
     logActivity(a.cfo, `Withdrawn, numbers changed: ${a.title}`, false, a.id);
     log.push(`↩ ${a.title} (withdrawn, numbers changed)`);
   }

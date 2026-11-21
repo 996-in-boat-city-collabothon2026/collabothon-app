@@ -45,8 +45,9 @@ body {
 }
 h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
 
-/* Every amount, date and KSeF number: JetBrains Mono with tabular figures */
-.num, .tabular-nums { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+/* Every amount and date: Red Hat Display with tabular, lining figures – digits line up like on a bank statement,
+   but it reads as normal text, not code. KSeF numbers and XML keep the mono font via the font-mono class. */
+.num, .tabular-nums { font-family: var(--font-display); font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1, "lnum" 1; letter-spacing: -0.02em; }
 
 /* Targeted, calm transitions only (never transition-all) */
 button, a { transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: ease; }
