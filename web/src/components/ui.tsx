@@ -177,8 +177,8 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
   const finish = (kind: 'approve' | 'reject', fn?: () => void) => { if (done) return; setDone(kind); setTimeout(() => fn?.(), 750); };
   const canDecide = action.tier === 'NEEDS_APPROVAL' && action.status === 'open';
   return (
-    <article className="rounded-3xl bg-white p-4">
-      <div className="flex items-start gap-3">
+    <article className="flex h-full flex-col rounded-3xl bg-white p-4">
+      <div className="flex flex-1 items-start gap-3">
         <span className="flex w-20 shrink-0 flex-col items-center pt-3 text-center">
           <span className="agent-hello"><CfoAvatar cfo={action.cfo} size={36} live /></span>
           <span className="mt-1 text-base font-bold leading-tight">{CFOS[action.cfo].name}</span>
@@ -216,7 +216,8 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
         </div>
       </div>
       {canDecide && (
-        <div className="mt-3 flex gap-2">
+        // mt-auto: the buttons stay on the card's bottom edge, so they line up in a row of cards
+        <div className="mt-auto flex gap-2 pt-3">
           <button onClick={() => finish('approve', onApprove)} disabled={!!done} aria-live="polite"
             className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-accent py-2 text-lg font-bold text-white">
             {done === 'approve'
