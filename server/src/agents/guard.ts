@@ -1,6 +1,7 @@
 // Owner: Pair 2 (Person A). Rebuild 2 (docs/AGENTS-8B-PLAN.md): the 8B model writes its own answer, and this guard
 // decides whether the owner may see it. Golden rule 1: every number on screen must come from the rules. A reply with
 // a number the facts do not have is never shown; the caller shows the rule summary instead.
+import { fmtPLN } from '../domain/money';
 import type { CfoFacts } from './facts';
 import { looksPolish } from './safety';
 
@@ -103,4 +104,16 @@ export function checkReply(reply: string, facts: CfoFacts): { ok: boolean; reaso
   const wrong = numbersIn(text).find((n) => !allowed.some((a) => same(a, n)));
   if (wrong !== undefined) return { ok: false, reason: `number not in facts: ${wrong}` };
   return { ok: true, reason: '' };
+}
+
+/** English money before "zł": "14,230.00 zł", "36,000 zł", "4.27 zł". Our format ("14 230,00 zł") does not match. */
+// (?<![\d.,]): start at the first digit, or "1234,567 zł" becomes "1234 567,00 zł" (review of PR #32).
+const ENGLISH_MONEY = /(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})\s?zł/g;
+
+/**
+ * Golden rule 6: money on screen is "14 230,00 zł". The 8B model often writes "14,230.00 zł" (live run on 8B: 6 of 8
+ * chair sentences). Call this AFTER checkReply: the value stays the same, only the way it is written changes.
+ */
+export function tidyMoney(text: string): string {
+  return text.replace(ENGLISH_MONEY, (_whole, n: string) => fmtPLN(Number(n.replace(/,/g, ''))));
 }
