@@ -5,6 +5,8 @@ import type { BoardroomResult } from '@cfo/shared';
 import { config } from '../config';
 import { db, resetDb } from '../domain/store';
 import { setModelCallForTests } from '../llm/provider';
+import { settlePayment } from '../domain/settle';
+import { runAutopilot } from '../agents/autopilot';
 import { cfoFacts } from '../agents/facts';
 import routes, { pickCfo } from './boardroom';
 
@@ -117,6 +119,25 @@ describe('POST /api/boardroom', () => {
     expect(n.statusCode).toBe(200);
     expect(n.json<BoardroomResult>().turns).toEqual([]);
     expect(calls).toBe(0);
+  });
+
+  // Moved from routes/ask.test.ts (review of PR #6: after paying Krause early the chair still offered the old forward).
+  it('never offers a stale card; with no cards the meeting runs the check and approves nothing', async () => {
+    down = true; // rule texts only
+    const first = (await post({ topic: 'Monthly review' })).json<BoardroomResult>();
+    expect(first.decisionActionIds.length).toBeGreaterThan(0);
+    for (const id of first.decisionActionIds) expect(db.actions.find((a) => a.id === id)!.status).toBe('open');
+
+    await runAutopilot();
+    const supplier = db.actions.find((a) => a.kind === 'supplier_payment')!;
+    const hedge = db.actions.find((a) => a.kind === 'fx_hedge')!;
+    settlePayment(supplier.amountPLN!, supplier.refId); // paying Krause early makes the old forward stale
+    supplier.status = 'approved';
+    const r = (await post({ topic: 'Monthly review' })).json<BoardroomResult>();
+    expect(r.decisionActionIds).not.toContain(hedge.id);
+    expect(r.decisionActionIds).not.toContain(supplier.id);
+    expect(r.summary).not.toContain('Lock the rate');
+    expect(r.decisionActionIds.length).toBeGreaterThan(0);
   });
 
   it('model down → still 200, every turn is its CFO\'s rule text', async () => {
