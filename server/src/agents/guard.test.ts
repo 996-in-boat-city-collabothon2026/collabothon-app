@@ -17,6 +17,19 @@ describe('numbersIn: every way the model writes a number', () => {
     expect(numbersIn('1,500 EUR')).toEqual([1500]);
   });
 
+  it('digits inside a name are not a number; digits next to a word on one side still are (live run on 8B: JPK_V7M)', () => {
+    expect(numbersIn('JPK_V7M is the VAT file')).toEqual([]);
+    expect(checkReply('JPK_V7M is the monthly VAT file you send by November 25, 2026.', cfoFacts('marek')).ok).toBe(true);
+    expect(numbersIn('200zł')).toEqual([200]);
+    expect(numbersIn('EUR1500')).toEqual([1500]);
+    expect(checkReply('Your VAT is 99999zł.', cfoFacts('marek')).ok).toBe(false);
+    // Review of PR #29: letters on both sides must not hide an amount.
+    expect(numbersIn('EUR99999zł')).toEqual([99999]);
+    expect(numbersIn('EUR1500zł')).toEqual([1500]);
+    expect(numbersIn('x99999y')).toEqual([99999]);
+    expect(checkReply('Pay EUR99999zł now.', cfoFacts('kasia'))).toEqual({ ok: false, reason: 'number not in facts: 99999' });
+  });
+
   it('reads decimals, percents, signs, dates and years', () => {
     expect(numbersIn('4,27 zł or 4.27 zł')).toEqual([4.27, 4.27]);
     expect(numbersIn('If EUR rises 5%')).toEqual([5]);
