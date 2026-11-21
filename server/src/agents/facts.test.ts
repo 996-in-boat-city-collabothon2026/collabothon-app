@@ -6,6 +6,7 @@ import { db, resetDb } from '../domain/store';
 import { settlePayment } from '../domain/settle';
 import { explain } from './explain';
 import { cfoFacts, summaryOf } from './facts';
+import { nipError } from '../ksef/nip';
 
 const CFOS: CfoId[] = ['anna', 'kasia', 'marek', 'tomasz'];
 const sp = (s: string) => s.replace(/ /g, ' '); // fmtPLN uses no-break spaces
@@ -28,7 +29,7 @@ describe('facts as points (seed, 2026-11-20)', () => {
   });
 
   it('details: balance, each late customer, each tax, the KSeF reason, the value in złoty, the rate trend, each car', () => {
-    expect(ids('anna', false)).toEqual(['balance', 'late-inv-s-001', 'late-inv-s-002']);
+    expect(ids('anna', false)).toEqual(['balance', 'owed', 'late-inv-s-001', 'late-inv-s-002']);
     expect(text('anna', 'balance')).toBe('Your bank balance today is 38 400,00 zł.');
     expect(text('anna', 'late-inv-s-001')).toBe('FlotaTrans Sp. z o.o. owes you 12 300,00 zł and is 15 days late.');
     expect(text('anna', 'late-inv-s-002')).toBe('Kurier Express Kraków owes you 7380,00 zł and is 9 days late.');
@@ -40,6 +41,14 @@ describe('facts as points (seed, 2026-11-20)', () => {
       'ZUS: 5800,00 zł, due December 20, 2026 (in 30 days), still unpaid.',
       'PIT: 2100,00 zł, due December 20, 2026 (in 30 days), still unpaid.',
     ]);
+    // Live run on 8B: the model added these up itself and the guard rejected the sum. Now they are facts.
+    expect(text('anna', 'owed')).toBe('Your late customers FlotaTrans Sp. z o.o. and Kurier Express Kraków owe you 19 680,00 zł in total.');
+    expect(text('marek', 'taxes-total')).toBe('All your taxes due in the next 30 days come to 22 130,00 zł in total.');
+    expect(cfoFacts('anna').lines.map(sp)).toContain('Late customers owe you in total: 19 680,00 zł');
+    expect(cfoFacts('marek').lines.map(sp)).toContain('All taxes due in 30 days together: 22 130,00 zł');
+    // Test copy log (PR #38 run): Tomasz added labour + parts (1700 + 237,50) himself.
+    expect(text('tomasz', 'missing-total')).toBe('Labour and parts markup together: 1937,50 zł is missing.');
+    expect(cfoFacts('tomasz').lines.map(sp)).toContain('Labour and parts markup together: 1937,50 zł missing');
     expect(text('tomasz', 'top-cost')).toBe('You spend most on parts: 17 850,00 zł in 30 days. Ask other suppliers for a quote.');
     expect(cfoFacts('tomasz').points.filter((p) => p.id.startsWith('car-')).map((p) => sp(p.text))).toEqual([
       'VW Passat 2015: 800,00 zł of labour is missing.',
@@ -134,5 +143,22 @@ describe('facts as points in other data states', () => {
     expect(text('tomasz', 'markup')).toMatch(/^A parts markup below/);
     resetDb();
     expect(text('tomasz', 'markup')).toMatch(/^Also, a parts markup below/);
+  });
+});
+
+describe('KSeF reason in the facts (review of PR #36)', () => {
+  beforeEach(() => resetDb());
+  const reasonFor = (nip: string) => {
+    db.invoices.find((i) => i.id === 'inv-s-003')!.ksef = { status: 'rejected', rejectionReason: nipError(nip)! };
+    return text('marek', 'ksef-inv-s-003');
+  };
+
+  it('a German buyer is not told "it must have 9 digits"', () => {
+    expect(reasonFor('DE12345')).toContain('is wrong, a German VAT ID is DE and 9 digits.');
+  });
+
+  it('checksum and country prefix keep their detail', () => {
+    expect(reasonFor('1234567890')).toContain('is wrong, the checksum does not match.');
+    expect(reasonFor('TE123456789')).toContain('is wrong, the country prefix "TE" is not supported.');
   });
 });

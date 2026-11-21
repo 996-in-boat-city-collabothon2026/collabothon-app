@@ -368,3 +368,150 @@ npm run build
 - **Fake model replies:** `setModelCallForTests` in `server/src/llm/provider.ts` feeds any reply into the routes
   (see `server/src/routes/ask.test.ts`).
 - **Live model:** `LLM_MODE=openai_compat` with the vLLM address from `deploy/README.md`.
+
+---
+
+## 7. Live run on 8B (rebuild 2, step A1 of [AGENTS-NEXT.md](AGENTS-NEXT.md))
+
+**When / where:** 2026-11-21, 16:25 CET, `warsztat-cfo-test` (health: `llama-31-8b-instruct`, ok). App mode
+(`LIVE_APP_URL`), so the test saw only what the owner sees: no raw replies and no guard reasons (`oc` was not logged
+in, so no port-forward and no `[guard]` log). The deployed build follows the topic in meetings (10/10 leads right), so
+it runs the 8B code. 80 questions + 10 meetings, 5 min 20 s.
+
+| Measure | Result | Goal |
+|---|---|---|
+| Guard pass rate `/api/ask` | **75/80 (94%)**: anna 18/20, kasia 20/20, marek 17/20, tomasz 20/20 | ≥ 80% ✅ |
+| Numbers on screen that are not rule numbers | **0** (asks, turns and chair) | 0 ✅ |
+| Routing without a named CFO | 16/16 | ✅ |
+| Answer time `/api/ask` | p50 2,4 s · p95 3,6 s · max 3,9 s | |
+| Meeting: right lead | 10/10 | ✅ |
+| Meeting turns from the model | 30/30 (100%); chair sentence 8/9 | |
+| Meeting time | margin 15,4 s · EUR 10,8 s · December 13,8 s · VAT 15,9 s · "Kasia, …" 9,6 s · cut costs 13,1 s · KSeF 12,8 s · loan 13,4 s · **Monthly review 20,8 s** · hello 0,1 s | < 22 s ✅ (review is close) |
+
+**The 5 fallbacks.** The reasons are not in the app response; each one was reproduced with `checkReply` on a likely
+reply, and each gives exactly this reason:
+
+| CFO | Question | Likely reason | What it tells us |
+|---|---|---|---|
+| anna | How much do my customers owe me? | `number not in facts: 19680` (model adds 12 300 + 7 380) | the total owed is not a fact |
+| marek | How much do I pay in taxes in total? | `number not in facts: 22130` (14 230 + 5 800 + 2 100) | the tax total is not a fact |
+| anna | Is a 5000 zł loan enough? | `number not in facts: 5000` (repeats the owner's number) | correct: the question is never a fact |
+| marek | What is JPK_V7M? | `number not in facts: 7` (`numbersIn("JPK_V7M")` → 7) | a guard false alarm on a form name |
+| marek | What happens if I miss the VAT deadline? | not reproduced | |
+
+Every fallback showed the same `facts.summary`, whatever was asked (step A2 fixes this).
+
+**Wrong meaning that passed the guard** (correct numbers, the known limit in [AGENTS-8B-GUARD.md](AGENTS-8B-GUARD.md)):
+- **Chair writes money the English way:** "14,230.00 zł", "36,000.00 zł" in 6 of 8 chair sentences (golden rule 6:
+  `14 230,00 zł`). The guard reads the value, so it lets it through.
+- **Chair ignores the topic and gives cash advice that hurts cash:** "How to improve the margin?" → VAT, reminders, EUR,
+  credit line (nothing about the margin); "Will we survive December?" → "pay 14,230 zł in VAT … to avoid a −20,275 zł
+  balance" (paying VAT makes the gap bigger).
+- **False comfort:** Anna, "Do I need a loan?" → "not yet a loan issue" (the reminders cover 19 680 of the 35 275 zł
+  gap). Kasia, "Should I worry about the złoty?" → "The złoty is currently stable" (not a fact).
+- **Wrong order:** Tomasz, "How can I cut costs?" → the parts markup first (237,50 zł) instead of labour (1700,00 zł).
+- **Dodges a question their area owns:** Kasia, "Should I pay Krause early?" → "discuss this with your accountant"
+  (there is a card for it); Anna, "Can I pay all my bills in December?" → "not bill payments".
+- **No labels mixed up** (no "ZUS of 14 230 zł"): A4 is not needed now.
+- Marek adds the KSeF fix to almost every answer (14 of 17): true, but repetitive.
+
+**Full report:** every question, shown text and time, written by `live.test.ts` to `LIVE_REPORT` (not committed).
+
+**What changed after this run (branch `agents8b-quality`):**
+- The facts now give the **total owed by late customers** (19 680,00 zł) and the **total of taxes due** (22 130,00 zł),
+  so the model can copy them instead of adding them up (2 of the 5 fallbacks).
+- The guard no longer reads digits **inside a name** (`JPK_V7M` is not 7). Digits next to a word on one side only
+  (`200zł`, `EUR1500`) are still checked.
+- **The fallback fits the question** (`fallbackFor` in `agents/facts.ts`): a question about a detail gets the main
+  point, then that detail ("When do I pay ZUS?" → the VAT deadline, then ZUS). A question about the conclusion, or
+  one that matches nothing, still gets the whole summary. Over the 80 live questions: 11 different fallback texts instead of 4.
+- **No retry (A3 skipped):** at 94% it would help about 1 question in 80 and add 2–3 s to a failing answer.
+- **Not touched (outside this branch's files):** the chair's English money format and its off-topic plan
+  (`agents/boardroom.ts`). Agree on it with Person B before changing it.
+
+---
+
+## 8. Chat follow-ups (rebuild 2, step B4 of [AGENTS-NEXT.md](AGENTS-NEXT.md))
+
+**What is checked:** after a meeting the owner keeps asking in the chat. Since PR #28 the web sends the last 6 messages
+as `history`, and `followUpCfo` keeps the CFO who led (or answered last) unless the question names another CFO or topic.
+
+**How:** the same calls the web makes, from a script: `POST /api/boardroom` with the topic, then `POST /api/ask` three
+times with `history` built like `ChatThread.tsx` does (topic, turns, chair, earlier follow-ups; last 6). `oc` was not
+logged in, so there are no `[guard]` log lines. Every text below reads as model text (none is a rule summary).
+
+### Run 1: production after PR #28 (2026-11-21, 16:48 CET, `llama-31-8b-instruct`)
+The test copy had not picked up the branch build, so this ran on production right after the merge (the webhook build).
+
+Meeting "Should we lock the EUR rate?" (11,9 s): Kasia leads (320,25 zł risk, forward contract for 1500 EUR), Marek and
+Anna say "not my area", Tomasz passes.
+
+| Owner asks | Answered by | Answer | OK? |
+|---|---|---|---|
+| Why? (3,3 s) | Kasia | "...a rising EUR rate could cost us 320,25 zł. I suggest locking the rate with a forward contract for 1500 EUR to protect ourselves from this potential loss." | ✅ |
+| How much would it cost? (1,3 s) | **Tomasz** | "That's not my area, I'm focused on costs and margins, not currency exchange." | ❌ |
+| OK, what first? (3,5 s) | **Tomasz** | "First, bill the full hours at 200,00 zł for the three orders ... to recover the 1700,00 zł missing." | ❌ |
+
+**Why it went wrong:** "cost" is one of Tomasz's keywords, and a keyword beat the chat. "OK, what first?" then stayed
+with Tomasz, because he had answered last. All numbers on screen were rule numbers.
+
+**Fix** (`agents/topic.ts`, PR agents8b-chat-followup): when the question points back ("it", "that", "this") and the
+history has a CFO, money words alone ("cost", "how much", "price", "cheap", "save") no longer switch the CFO. A real
+topic ("Is it time to pay VAT?" → Marek), "cut costs" (→ Tomasz) or a CFO's name still switch.
+
+### Run 2: production after the fix (PR #30, 2026-11-21, 16:59 CET)
+Meeting (10,0 s): Kasia leads (forward contract for 1500 EUR at 4,27 zł), Marek and Anna say "not my area".
+
+| Owner asks | Answered by | Answer | OK? |
+|---|---|---|---|
+| Why? (5,3 s) | Kasia | "You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł, and the rate is going up (from 4,22 zł to 4,27 zł). I suggest locking the rate with a forward contract for 1500 EUR." | ✅ |
+| How much would it cost? (2,7 s) | Kasia | "The cost of a forward contract is not specified in the FACTS, so I don't know the exact cost. You should decide whether to lock the rate with a forward contract for 1500 EUR." | ✅ |
+| OK, what first? (2,4 s) | Kasia | "First, you should decide whether to lock the rate with a forward contract for 1500 EUR. If you decide to do so, I will help you with the next steps." | ✅ |
+
+All 3 from Kasia, all on topic, every number a rule number. "How much would it cost?" has no answer in the rules, and
+the model says so instead of inventing a price. **B4 done.**
+
+After the review of #30, `money` was added to the money words ("Is that a lot of money?" went to Anna).
+
+**Seen in passing (not B's files):** the chair writes "36,000 zł" and "14,230.00 zł" (English format) and lists all open cards, not the
+EUR topic; Marek and Anna say "not my area" instead of passing (`agents/boardroom.ts`, Person C).
+(Fixed in PR #32: `tidyMoney`, a topic meeting decides only the lead's cards, `NOT_MY_AREA` reactions pass.)
+
+**Monthly review in parallel** (branch `agents8b-meeting-parallel`): the general meeting took 20,8 s of the 22 s goal
+because the 4 full answers ran one after another. They now run at the same time, like the reactions in a topic
+meeting; the order on screen stays Marek → Anna → Tomasz → Kasia. A hanging model still costs one budget, but now 4
+requests are cancelled instead of 1 (`llm/provider.test.ts` updated). To check on the test copy: Monthly review < 10 s.
+
+### Live run: Monthly review in parallel (2026-11-21, 21:15–21:45 CET, `llama-31-8b-instruct`)
+The same `live.test.ts` (80 questions + 10 meetings) on production (`main`) and on the test copy built from
+`agents8b-meeting-parallel` (c8dc5bd), one after the other, then "Monthly review" 3 more times on each.
+
+| Measure | Production (`main`) | Test copy (this branch) |
+|---|---|---|
+| **Monthly review** (4 runs) | 22,2 · 22,3 · 19,0 · 20,9 s → **21,1 s** | 12,6 · 11,9 · 12,4 · 12,7 s → **12,4 s** |
+| Meetings over the 22 s goal | 1 (Monthly review) | 0 |
+| Monthly review summary in the full test | rule summary (likely out of time; production log not checked) | the chair's sentence |
+| Other meetings (code not changed) | 5,0–12,7 s | 5,0–15,5 s (same code: normal spread) |
+| Chair sentence from the model | 6 of 7 chair calls | 5 of 7 (the 2 Tomasz meetings have no cards, so no chair) |
+| Guard pass rate `/api/ask` | 71/74 (96%)* | 76/80 (95%) |
+| Numbers on screen not from the rules | 0 | 0 |
+
+\* The connection dropped at question 75 on production ("other side closed", no deploy at that time), so 74 answers.
+
+Not < 10 s as hoped: 4 parallel answers share the one GPU, so each is a bit slower, and the chair still comes after
+them. Still 41% faster, and the general meeting is well inside the 22 s budget.
+
+**Test copy log** (build `warsztat-cfo-test-19` = c8dc5bd, 119 `[llm]` lines, all ok, slowest the chair at 9,8 s). The 7
+`[guard]` lines, each a correct block:
+
+| Who | Reason | What the model did |
+|---|---|---|
+| ask:kasia | number not in facts: 6000 | repeated the owner's trap ("Is 6000 zł my euro exposure?") |
+| ask:marek | 1423 | made up a late-VAT penalty (10% of 14 230) |
+| ask:tomasz | 1937.5 | added labour + parts (1700 + 237,50): the same habit as the totals fixed for Anna and Marek |
+| ask:tomasz | 1100 | added two of the three labour losses |
+| ask:anna (meeting reaction) | 1700 | repeated the lead's (Tomasz's) amount, which is not in Anna's facts |
+| boardroom:chair | 128.1 | subtracted two EUR risks (448,35 − 320,25) |
+| boardroom:chair | no valid JSON | the 9,8 s call |
+
+The 4 ask lines are exactly the 4 fallbacks of the live test (76/80).

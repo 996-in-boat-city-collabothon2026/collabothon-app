@@ -1,6 +1,6 @@
 // Owner: Pair 2 (Person B). Who answers a question, who leads a meeting, and what is only small talk.
 // Keywords only: no model call, so this is fast and always gives the same answer.
-import { CFOS, type CfoId } from '@cfo/shared';
+import { CFOS, type ChatLine, type CfoId } from '@cfo/shared';
 
 // Pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
 // score wins. Ties and no match → Anna. Short words use \b so "pit" doesn't match "hospital", "vat" not "private".
@@ -65,6 +65,26 @@ export function leadFor(topic: string): CfoId | null {
 /** Who answers a bubble question. Always a CFO: no match → Anna. */
 export function pickCfo(question: string): CfoId {
   return leadFor(question) ?? 'anna';
+}
+
+// "How much would IT cost?" points back at the chat: there "cost" or "how much" is about what was just said, not
+// Tomasz's costs (B4 live check: it went to Tomasz after Kasia's EUR answer).
+const POINTS_BACK = /\b(?:it|that|this|those|them)\b/i;
+const MONEY_WORDS = /\b(?:how much|costs?|price[sd]?|cheap\w*|expensive|sav(?:e|ing)s?|money)\b/gi; // money: review of #30
+
+/**
+ * Who answers a follow-up in a chat ("Why?", "And next month?"). A named CFO or a keyword match wins, so
+ * "When is VAT due?" still goes to Marek. Otherwise the CFO who answered the owner's last question stays: the FIRST
+ * one after it, because after a meeting the lead speaks first and the others only react. No CFO in the history →
+ * pickCfo (Anna).
+ */
+export function followUpCfo(question: string, history: ChatLine[] = []): CfoId {
+  const isCfo = (line: ChatLine) => line.from === 'cfo' && line.cfo;
+  const lastOwner = history.map((line) => line.from).lastIndexOf('owner');
+  const answer = history.slice(lastOwner + 1).find(isCfo) ?? [...history].reverse().find(isCfo);
+  // With "it/that/this" and someone to point back at, money words alone do not switch the CFO.
+  const topic = answer && POINTS_BACK.test(question) ? question.replace(MONEY_WORDS, ' ') : question;
+  return leadFor(topic) ?? answer?.cfo ?? pickCfo(question);
 }
 
 // Greetings and thanks (English and Polish, with or without Polish letters).

@@ -1,12 +1,13 @@
 // Owner: Pair 2.
 import type { FastifyPluginAsync } from 'fastify';
-import { CFOS, type AskResult, type CfoId } from '@cfo/shared';
+import { CFOS, type AskRequest, type AskResult, type ChatLine, type CfoId } from '@cfo/shared';
 import { runBoardroom } from '../agents/boardroom';
 import { askCfo } from '../agents/cfo';
-import { pickCfo } from '../agents/topic';
+import { followUpCfo, pickCfo } from '../agents/topic';
 
-// Quick-advice bubble: the web sends no CFO (web/src/components/AskBubble.tsx), so pickCfo picks one for every
-// bubble question. The keyword routing lives in agents/topic.ts; re-exported here for routes/boardroom.test.ts.
+// Quick-advice bubble: the web sends no CFO (web/src/components/AskBubble.tsx), so the server picks one for every
+// bubble question (followUpCfo: by keywords, or the CFO from the chat history). The keyword routing lives in
+// agents/topic.ts; pickCfo is re-exported here for routes/boardroom.test.ts.
 export { pickCfo };
 
 // Body checks (review of PR #6: {"topic":123}, {"question":123} and {"cfo":"toString"} gave 500).
@@ -17,11 +18,37 @@ const BOARDROOM_BODY = {
   type: 'object',
   properties: { topic: { type: 'string', maxLength: 200 } },
 } as const;
+// history (a chat after a meeting): at most 6 lines, each { from, cfo?, text }. Anything else → 400.
+const CHAT_LINE = {
+  type: 'object',
+  required: ['from', 'text'],
+  properties: {
+    from: { type: 'string', enum: ['owner', 'cfo'] },
+    cfo: { type: 'string', enum: Object.keys(CFOS) },
+    text: { type: 'string', maxLength: 500 },
+  },
+} as const;
 const ASK_BODY = {
   type: 'object',
   required: ['question'],
-  properties: { question: { type: 'string', maxLength: 1000 }, cfo: { type: 'string' } },
+  properties: {
+    question: { type: 'string', maxLength: 1000 },
+    cfo: { type: 'string' },
+    history: { type: 'array', maxItems: 6, items: CHAT_LINE },
+  },
 } as const;
+/** The prompt gets at least this many of the last lines: enough for "Why?", and the prompt stays small. */
+export const PROMPT_HISTORY_LINES = 4;
+
+/**
+ * The chat lines for the prompt: from the owner's last question on, so after a meeting the lead sees the topic and
+ * their own answer (review of PR #28), but never fewer than the last 4. The API allows at most 6 lines.
+ */
+export function promptHistory(history: ChatLine[]): ChatLine[] {
+  const lastOwner = history.map((line) => line.from).lastIndexOf('owner');
+  const start = Math.min(Math.max(lastOwner, 0), history.length - PROMPT_HISTORY_LINES);
+  return history.slice(Math.max(start, 0));
+}
 
 const routes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { topic?: string } }>('/boardroom', { schema: { body: BOARDROOM_BODY } }, async (req) =>
@@ -29,7 +56,7 @@ const routes: FastifyPluginAsync = async (app) => {
   );
 
   // Quick advice bubble + "Ask a CFO". cfo is optional: without it the server picks one by topic.
-  app.post<{ Body: { cfo?: string; question: string } }>('/ask', {
+  app.post<{ Body: Omit<AskRequest, 'cfo'> & { cfo?: string } }>('/ask', {
     schema: { body: ASK_BODY },
     // Fastify would turn {"question": 123} into "123" during validation, so the type is checked before that.
     preValidation: async (req, reply) => {
@@ -41,9 +68,12 @@ const routes: FastifyPluginAsync = async (app) => {
     if (!question) return reply.code(400).send({ error: 'question is required' });
     // Own keys only: "toString" or "constructor" are not CFOs.
     const named = req.body.cfo && Object.hasOwn(CFOS, req.body.cfo) ? (req.body.cfo as CfoId) : undefined;
-    const cfo = named ?? pickCfo(question);
+    const history = req.body.history ?? [];
+    // No CFO named: by topic, or the CFO who answered the last question in the chat ("Why?" stays with Kasia).
+    // It looks at all lines (up to 6), so after a meeting it still sees the lead before the others' reactions.
+    const cfo = named ?? followUpCfo(question, history);
     // askCfo never throws: the model's reply if the guard accepts it, otherwise the rule summary.
-    const { text } = await askCfo(cfo, question);
+    const { text } = await askCfo(cfo, question, { history: promptHistory(history) });
     return { cfo, text } satisfies AskResult;
   });
 };

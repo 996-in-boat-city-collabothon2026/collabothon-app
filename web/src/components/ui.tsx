@@ -218,7 +218,7 @@ export function ActionCard({ action, onApprove, onReject }: {
                   action.dueDate ? `${t('due')} ${fmtDay(action.dueDate)}` : '',
                   action.explanation ?? '',
                   ...action.why,
-                ].map((s) => s.trim().replace(/\.+$/, '')).filter(Boolean).join('. ')} />
+                ].map((s) => s.trim().replace(/\.+$/, '')).filter(Boolean).join('. ')} cfo={action.cfo} />
               </div>
             </div>
           )}

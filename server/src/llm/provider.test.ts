@@ -78,8 +78,8 @@ describe('time budget', () => {
     expect(ms).toBeLessThan(800);
     expect(result.turns).toHaveLength(4);
     expect(result.turns[0].text).not.toBe(''); // rules-based fallback (Pair 2 owns the wording)
-    expect(calls).toBe(1); // the first call used the whole budget, the others did not even send a request
-    expect(aborted).toBe(1); // and that hanging request was cancelled
+    expect(calls).toBe(4); // the 4 CFOs ask at the same time; the chair sends nothing (the budget is used up)
+    expect(aborted).toBe(4); // and every hanging request was cancelled
   });
 
   it('a slow model: each call only gets what is left of the budget', async () => {
@@ -105,7 +105,7 @@ describe('time budget', () => {
       expect(res.statusCode).toBe(200);
       expect(Date.now() - start).toBeLessThan(800);
     }
-    expect(aborted).toBe(2); // one hanging call per request, each cancelled by its own budget
+    expect(aborted).toBe(8); // 4 hanging calls per request, each cancelled by its own budget
     await app.close();
   });
 });

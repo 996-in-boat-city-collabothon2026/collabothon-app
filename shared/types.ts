@@ -214,6 +214,20 @@ export interface ExpenseBreakdown {
   byCategory: { category: ExpenseCategory; amountPLN: number; share: number }[]; // biggest first, share 0..1
 }
 
+/** One message of a chat, sent back to /ask as context ("Why?" after a meeting). */
+export interface ChatLine {
+  from: 'owner' | 'cfo';
+  cfo?: CfoId; // who answered, when from = 'cfo'
+  text: string;
+}
+
+/** Body of POST /api/ask. cfo and history are optional, so old clients keep working. */
+export interface AskRequest {
+  question: string;
+  cfo?: CfoId; // without it the server picks one by topic (or keeps the CFO from the history)
+  history?: ChatLine[]; // at most 6 lines: all pick the CFO; the prompt gets those from the last question on (at least 4)
+}
+
 export interface AskResult {
   cfo: CfoId; // who answered (picked by topic when the question did not name a CFO)
   text: string;
@@ -290,3 +304,6 @@ export interface InvoiceFill {
   skipped: { field: string; value: string; reason: ClerkSkipReason }[];
   missing: ClerkMissingField[];
 }
+
+// ---------- KSeF ----------
+export { ksefReasonEn } from './ksefReason';

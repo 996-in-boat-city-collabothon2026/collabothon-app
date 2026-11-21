@@ -1,6 +1,7 @@
 // Owner: Pair 2 (Person A). Rebuild 2 (docs/AGENTS-8B-PLAN.md): the 8B model writes its own answer, and this guard
 // decides whether the owner may see it. Golden rule 1: every number on screen must come from the rules. A reply with
 // a number the facts do not have is never shown; the caller shows the rule summary instead.
+import { fmtPLN } from '../domain/money';
 import type { CfoFacts } from './facts';
 import { looksPolish } from './safety';
 
@@ -38,6 +39,9 @@ function toValue(token: string): number {
 export function numbersIn(text: string): number[] {
   // fmtPLN puts a non-breaking space (U+00A0, or U+202F) between thousands: read it as a normal space.
   let t = text.replace(/[  ]/g, ' ');
+  // ONE digit between two capital letters is part of a form name, not an amount: "JPK_V7M" (live run on 8B: read
+  // as 7). Anything else is still checked: "200zł", "EUR1500" and "EUR99999zł" (review of PR #29) are amounts.
+  t = t.replace(/(?<=\p{Lu})\d(?=\p{Lu})/gu, '');
   const found: number[] = [];
   t = t.replace(SHORT_DATE, (whole, d: string, m: string, y?: string) => {
     // "4.27" is a rate and "15.00" is money (month 00), not dates
@@ -100,4 +104,16 @@ export function checkReply(reply: string, facts: CfoFacts): { ok: boolean; reaso
   const wrong = numbersIn(text).find((n) => !allowed.some((a) => same(a, n)));
   if (wrong !== undefined) return { ok: false, reason: `number not in facts: ${wrong}` };
   return { ok: true, reason: '' };
+}
+
+/** English money before "zł": "14,230.00 zł", "36,000 zł", "4.27 zł". Our format ("14 230,00 zł") does not match. */
+// (?<![\d.,]): start at the first digit, or "1234,567 zł" becomes "1234 567,00 zł" (review of PR #32).
+const ENGLISH_MONEY = /(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d{2})?|\d+\.\d{2})\s?zł/g;
+
+/**
+ * Golden rule 6: money on screen is "14 230,00 zł". The 8B model often writes "14,230.00 zł" (live run on 8B: 6 of 8
+ * chair sentences). Call this AFTER checkReply: the value stays the same, only the way it is written changes.
+ */
+export function tidyMoney(text: string): string {
+  return text.replace(ENGLISH_MONEY, (_whole, n: string) => fmtPLN(Number(n.replace(/,/g, ''))));
 }

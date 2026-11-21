@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { CfoId } from '@cfo/shared';
 import { resetDb } from '../domain/store';
 import { cfoFacts } from './facts';
-import { checkReply, MAX_CHARS, numbersIn } from './guard';
+import { checkReply, MAX_CHARS, numbersIn, tidyMoney } from './guard';
 import { REVIEW_REPLIES } from './review-corpus';
 
 const CFOS: CfoId[] = ['anna', 'kasia', 'marek', 'tomasz'];
@@ -15,6 +15,19 @@ describe('numbersIn: every way the model writes a number', () => {
     for (const s of ['14 230,00 zł', '14 230,00 zł', '14 230 zł', '14,230 zł', '14230']) expect(numbersIn(s)).toEqual([14230]);
     expect(numbersIn('-20,275,00 zł')).toEqual([20275]);
     expect(numbersIn('1,500 EUR')).toEqual([1500]);
+  });
+
+  it('digits inside a name are not a number; digits next to a word on one side still are (live run on 8B: JPK_V7M)', () => {
+    expect(numbersIn('JPK_V7M is the VAT file')).toEqual([]);
+    expect(checkReply('JPK_V7M is the monthly VAT file you send by November 25, 2026.', cfoFacts('marek')).ok).toBe(true);
+    expect(numbersIn('200zł')).toEqual([200]);
+    expect(numbersIn('EUR1500')).toEqual([1500]);
+    expect(checkReply('Your VAT is 99999zł.', cfoFacts('marek')).ok).toBe(false);
+    // Review of PR #29: letters on both sides must not hide an amount.
+    expect(numbersIn('EUR99999zł')).toEqual([99999]);
+    expect(numbersIn('EUR1500zł')).toEqual([1500]);
+    expect(numbersIn('x99999y')).toEqual([99999]);
+    expect(checkReply('Pay EUR99999zł now.', cfoFacts('kasia'))).toEqual({ ok: false, reason: 'number not in facts: 99999' });
   });
 
   it('reads decimals, percents, signs, dates and years', () => {
@@ -108,5 +121,29 @@ describe('the review corpus: every real model reply from the reviews (agents/rev
     expect(wrong.length).toBe(75);
     const caught = wrong.filter((r) => !check(r.cfo, r.text).ok).length;
     expect(caught).toBeGreaterThanOrEqual(39);
+  });
+});
+
+describe('tidyMoney: money on screen in the app format (golden rule 6)', () => {
+  const sp = (s: string) => s.replace(/[  ]/g, ' '); // fmtPLN uses no-break spaces
+  it('rewrites English money before "zł" and keeps the value (live run on 8B: the chair wrote "14,230.00 zł")', () => {
+    expect(sp(tidyMoney('Pay 14,230.00 zł for VAT and open a credit line of 36,000 zł.'))).toBe('Pay 14 230,00 zł for VAT and open a credit line of 36 000,00 zł.');
+    expect(sp(tidyMoney('The rate is 4.27 zł.'))).toBe('The rate is 4,27 zł.');
+    expect(sp(tidyMoney('to avoid a -20,275 zł balance'))).toBe('to avoid a -20 275,00 zł balance');
+  });
+  it('never rewrites part of a number (review of PR #32: "1234,567 zł" became "1234 567,00 zł")', () => {
+    for (const s of ['1234,567 zł', '12,34 zł', '4.2700 zł', '1.234,56 zł']) {
+      expect(tidyMoney(s)).toBe(s);
+      expect(numbersIn(tidyMoney(s))).toEqual(numbersIn(s));
+    }
+    expect(sp(tidyMoney('1,000,000 zł and 0.50 zł'))).toBe('1 000 000,00 zł and 0,50 zł');
+  });
+
+  it('leaves our format, other currencies and plain numbers alone', () => {
+    for (const s of ['VAT is 14 230,00 zł.', 'You owe 1,500 EUR.', 'It went up 4 weeks in a row, 5%.']) expect(tidyMoney(s)).toBe(s);
+  });
+  it('never changes a value: the guard reads the same numbers before and after', () => {
+    const s = 'Pay 14,230.00 zł, 36,000 zł and 4.27 zł.';
+    expect(numbersIn(tidyMoney(s))).toEqual(numbersIn(s));
   });
 });

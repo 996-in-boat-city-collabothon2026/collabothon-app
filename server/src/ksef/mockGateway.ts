@@ -1,6 +1,6 @@
 // Owner: Pair 3. SIMULATED KSeF: no real government API is called.
 // send() → "processing" now → after ~2 s "accepted" (KSeF number + UPO) or "rejected" (reason).
-import type { Invoice } from '@cfo/shared';
+import { ksefReasonEn, type Invoice } from '@cfo/shared';
 import { db, logActivity, nowIso } from '../domain/store';
 import { nipError } from './nip';
 
@@ -20,7 +20,7 @@ export function sendToKsef(inv: Invoice): void {
     const error = validate(inv);
     if (error) {
       inv.ksef = { status: 'rejected', rejectionReason: error };
-      logActivity('marek', `KSeF rejected ${inv.number}: ${error}`, true);
+      logActivity('marek', `KSeF rejected ${inv.number}: ${ksefReasonEn(error)}`, true);
       return;
     }
     const ksefNumber = `${db.shop.nip}-${db.shop.today.replace(/-/g, '')}-${hex(12)}-${hex(2)}`;

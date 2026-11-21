@@ -5,7 +5,7 @@
 // The whole app speaks English (money keeps the Polish format "12 430,00 zł", the shop is Polish).
 // The conclusion is split into POINTS: `critical` decides who speaks in the meeting (agents/boardroom.ts), and
 // explain.ts reuses Kasia's points. Rebuild 2 (8B): the model writes the answer, agents/guard.ts checks its numbers.
-import type { CfoId } from '@cfo/shared';
+import { ksefReasonEn, type CfoId } from '@cfo/shared';
 import { db } from '../domain/store';
 import { daysBetween, fmtPLN } from '../domain/money';
 import { latestRate } from '../domain/fx';
@@ -68,6 +68,9 @@ function anna(): Built {
     ...(gap > 0 ? [`Missing to the buffer: ${fmtPLN(gap)}`] : []),
     ...(credit ? [`Proposed credit line (simulated): ${fmtPLN(credit)}`] : []),
     ...(lateText.length ? [`Customers who owe you money and are late: ${list(lateText)}`] : []),
+    // Live run on 8B: "How much do my customers owe me?" made the model add the amounts itself (19 680), and the
+    // guard rejected the sum. The rules give the total, so the model can copy it.
+    ...(late.length > 1 ? [`Late customers owe you in total: ${fmtPLN(owedTotal())}`] : []),
   ];
 
   const points: CfoPoint[] = [];
@@ -84,12 +87,19 @@ function anna(): Built {
     }
   }
   points.push(point('balance', `Your bank balance today is ${fmtPLN(db.bank.balancePLN)}.`, false));
+  // Before the single customers: "Who owes me money?" matches both, and the earlier point wins a tie (fallbackFor).
+  if (late.length > 1) {
+    points.push(point('owed', `Your late customers ${list(late.map((i) => noDemo(i.counterparty.name)))} owe you ${fmtPLN(owedTotal())} in total.`, false));
+  }
   for (const r of paymentReminders()) {
     const i = late.find((x) => x.id === r.refId)!;
     points.push(point(`late-${i.id}`, `${noDemo(i.counterparty.name)} owes you ${fmtPLN(r.amountPLN!)} and is ${inDays(i.dueDate)}.`, false));
   }
   return { lines, points };
 }
+
+/** What the late customers owe together (the sum of the reminder amounts). */
+const owedTotal = () => paymentReminders().reduce((sum, r) => sum + (r.amountPLN ?? 0), 0);
 
 function kasia(): Built {
   const exposures = fxExposures();
@@ -147,11 +157,12 @@ function kasia(): Built {
 /**
  * KSeF gives its rejection reason in Polish ("Nieprawidłowy NIP nabywcy (Podmiot2): wymagane 10 cyfr").
  * The facts carry it in English, or the model copies Polish words onto the English stage.
+ * Built on ksefReasonEn (shared/ksefReason.ts), so the UI and the agents give the same reason.
  */
 function reasonEn(reason?: string): string {
   if (!reason) return 'none given';
-  const nip = /NIP nabywcy.*?(\d+) cyfr/i.exec(reason);
-  if (nip) return `the buyer's tax number (NIP) is wrong, it must have ${nip[1]} digits`;
+  const nip = /^Invalid buyer NIP \(Podmiot2\): (.+)$/.exec(ksefReasonEn(reason));
+  if (nip) return `the buyer's tax number (NIP) is wrong, ${nip[1]}`;
   if (/NIP/i.test(reason)) return "the buyer's tax number (NIP) is wrong";
   return 'the invoice data is wrong';
 }
@@ -168,6 +179,9 @@ function marek(): Built {
       (i) => `Invoice ${i.number} for ${noDemo(i.counterparty.name)} was rejected by KSeF (e-invoice system). Reason: ${reasonEn(i.ksef.rejectionReason)}`,
     ),
   ];
+  // Live run on 8B: "How much do I pay in taxes in total?" made the model add the taxes itself (22 130).
+  const total = taxes.reduce((sum, o) => sum + o.amountPLN, 0);
+  if (taxes.length > 1) lines.push(`All taxes due in 30 days together: ${fmtPLN(total)}`);
   if (lines.length === 0) lines.push('No taxes due in 30 days and no KSeF problems');
 
   const next = taxes[0];
@@ -184,6 +198,7 @@ function marek(): Built {
   for (const o of taxes) {
     points.push(point(`tax-${o.id}`, `${o.kind}: ${fmtPLN(o.amountPLN)}, due ${fmtDateEn(o.dueDate)} (${inDays(o.dueDate)}), still unpaid.`, false));
   }
+  if (taxes.length > 1) points.push(point('taxes-total', `All your taxes due in the next 30 days come to ${fmtPLN(total)} in total.`, false));
   // The reason was only in the old prompt lines (found in M8): "why was it rejected?" needs its own point.
   for (const i of rejected) {
     const why = i.ksef.rejectionReason ? ` because ${reasonEn(i.ksef.rejectionReason)}` : ', no reason given';
@@ -209,6 +224,9 @@ function tomasz(): Built {
     );
   }
   if (markup.length) lines.push(`Parts markup below ${target}: ${markup.length} orders, ${fmtPLN(sumMissing(markup))} missing in total`);
+  // Live run on 8B (test copy log): the model added labour + parts itself (1937.5) and the guard rejected the sum.
+  const bothMissing = sumMissing(labour) + sumMissing(markup);
+  if (labour.length && markup.length) lines.push(`Labour and parts markup together: ${fmtPLN(bothMissing)} missing`);
   if (top) lines.push(`Biggest cost you can change: ${CATEGORY_EN[top.category]}, ${fmtPLN(top.amount)} in 30 days (${top.sharePct}% of all costs)`);
   if (lines.length === 0) lines.push('Margins and costs are in order');
 
@@ -223,11 +241,44 @@ function tomasz(): Built {
     points.push(point('top-cost', `You spend most on ${CATEGORY_EN[top.category]}: ${fmtPLN(top.amount)} in 30 days. Ask other suppliers for a quote.`, points.length === 0));
   }
   if (!points.length) points.push(point('ok', 'Margins and costs are in order.'));
+  if (labour.length && markup.length) points.push(point('missing-total', `Labour and parts markup together: ${fmtPLN(bothMissing)} is missing.`, false));
   for (const { o, missing } of labour) points.push(point(`car-${o.id}`, `${o.car}: ${fmtPLN(missing)} of labour is missing.`, false));
   return { lines, points };
 }
 
 const BUILDERS: Record<CfoId, () => Built> = { anna, kasia, marek, tomasz };
+
+/** Words that say nothing about the topic ("what is my…"). */
+const STOP_WORDS = new Set(['the', 'and', 'what', 'when', 'how', 'much', 'many', 'does', 'did', 'can', 'could', 'should',
+  'would', 'will', 'are', 'was', 'were', 'has', 'have', 'you', 'your', 'about', 'with', 'for', 'this', 'that', 'there',
+  'any', 'all', 'now', 'please', 'tell', 'need', 'one', 'sentence', 'why', 'who', 'which', 'not']);
+
+/** The words of the question that can point at a topic: 3+ letters, not a stop word, lower case, without a final
+ * "s" ("owes" also finds "owe", "taxes" also finds "tax"). */
+const topicWords = (question: string) =>
+  (question.toLowerCase().match(/\p{L}{3,}/gu) ?? []).filter((w) => !STOP_WORDS.has(w)).map((w) => w.replace(/(?<=\p{L}{3})s$/u, ''));
+
+/**
+ * The rule text shown when the model's reply cannot be shown (model down, or the guard said no).
+ * It fits the question: the point sharing the most words with it wins (ties: the earlier point).
+ * - The best point is a detail ("What is the EUR rate today?" → the rate) → the first core point, then that detail,
+ *   so the main advice never vanishes.
+ * - The best point is part of the conclusion, or nothing matches → the whole summary, as before.
+ * Deterministic: no model, the same question always gives the same text.
+ */
+export function fallbackFor(facts: CfoFacts, question: string): string {
+  const words = topicWords(question);
+  let best: CfoPoint | undefined;
+  let bestScore = 0;
+  for (const p of facts.points) {
+    const text = p.text.toLowerCase();
+    const score = words.filter((w) => text.includes(w)).length;
+    if (score > bestScore) [best, bestScore] = [p, score];
+  }
+  if (!best || best.core) return facts.summary;
+  const main = facts.points.find((p) => p.core);
+  return main ? `${main.text} ${best.text}` : best.text;
+}
 
 /** Facts + conclusion for one CFO. Today's date is always included. */
 export function cfoFacts(cfo: CfoId): CfoFacts {

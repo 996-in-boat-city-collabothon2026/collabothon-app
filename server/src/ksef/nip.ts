@@ -39,6 +39,7 @@ export function isValidNip(nip: string): boolean {
 /**
  * Polish error message for KSeF (it answers in Polish), or null when the buyer ID is fine.
  * Every message contains "NIP nabywcy" so the agents' facts translate it (server/src/agents/facts.ts).
+ * A new message also needs an English mapping in shared/ksefReason.ts (shown in the English UI).
  */
 export function nipError(nip: string): string | null {
   const country = foreignPrefix(nip);

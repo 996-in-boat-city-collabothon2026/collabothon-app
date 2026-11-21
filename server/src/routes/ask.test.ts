@@ -2,12 +2,12 @@
 // model writes the answer (agents/cfo.ts); the routing cases moved to agents/topic.test.ts. Fake model, no GPU.
 import Fastify from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AskResult } from '@cfo/shared';
+import type { AskResult, ChatLine } from '@cfo/shared';
 import { config } from '../config';
 import { resetDb } from '../domain/store';
 import { setModelCallForTests, type ChatMessage } from '../llm/provider';
 import { cfoFacts } from '../agents/facts';
-import boardroom from './boardroom';
+import boardroom, { promptHistory } from './boardroom';
 
 // The real guard (agents/guard.ts, Person A) checks every reply, so these are end-to-end through the route.
 
@@ -81,6 +81,122 @@ describe('POST /api/ask: body checks', () => {
   ])('%s → 400, and no model call', async (_name, payload) => {
     expect((await post(payload)).statusCode).toBe(400);
     expect(calls).toBe(0);
+  });
+});
+
+describe('POST /api/ask: history (a chat after a meeting)', () => {
+  const line = (text: string) => ({ from: 'owner', text });
+
+  it('no history works as before', async () => {
+    modelReply = 'Your margin suffers because some labour is billed too low. Raise those prices first.';
+    expect(await ask({ question: 'How to improve the margin?' })).toEqual({ cfo: 'tomasz', text: modelReply });
+  });
+
+  it('up to 6 good lines are accepted', async () => {
+    const history = [line('a'), { from: 'cfo', cfo: 'kasia', text: 'b' }, line('c'), line('d'), line('e'), line('f')];
+    expect((await post({ question: 'How to improve the margin?', history })).statusCode).toBe(200);
+  });
+
+  it.each([
+    ['7 items', { history: Array.from({ length: 7 }, (_, i) => line(`m${i}`)) }],
+    ['not an array', { history: 'x' }],
+    ['a line that is not an object', { history: ['x'] }],
+    ['an unknown "from"', { history: [{ from: 'bank', text: 'hi' }] }],
+    ['a CFO that is not ours', { history: [{ from: 'cfo', cfo: 'toString', text: 'hi' }] }],
+    ['no text', { history: [{ from: 'owner' }] }],
+    ['text too long', { history: [line('x'.repeat(501))] }],
+  ])('%s → 400, and no model call', async (_name, extra) => {
+    const r = await post({ question: 'Why?', ...extra });
+    expect(r.statusCode).toBe(400);
+    expect(calls).toBe(0);
+  });
+});
+
+describe('POST /api/ask: follow-ups use the history', () => {
+  const afterKasia = [
+    { from: 'owner', text: 'Should we lock the EUR rate?' },
+    { from: 'cfo', cfo: 'kasia', text: 'Yes, a forward contract would protect the Krause invoice.' },
+  ];
+
+  it('"Why?" after Kasia → kasia answers, and the prompt holds the chat', async () => {
+    const r = await ask({ question: 'Why?', history: afterKasia });
+    expect(r.cfo).toBe('kasia');
+    expect(lastPrompt[1].content).toContain('Kasia: Yes, a forward contract would protect the Krause invoice.');
+  });
+
+  it('B4 live check: "How much would it cost?" and "OK, what first?" after Kasia → kasia', async () => {
+    expect((await ask({ question: 'How much would it cost?', history: afterKasia })).cfo).toBe('kasia');
+    expect((await ask({ question: 'OK, what first?', history: afterKasia })).cfo).toBe('kasia');
+  });
+
+  it('"When is VAT due?" after Kasia → marek', async () => {
+    expect((await ask({ question: 'When is VAT due?', history: afterKasia })).cfo).toBe('marek');
+  });
+
+  it('owner lines only: the last 4 reach the prompt (never fewer than 4)', async () => {
+    const history = ['one', 'two', 'three', 'four', 'five', 'six'].map((text) => ({ from: 'owner', text }));
+    await ask({ question: 'Why?', history });
+    expect(lastPrompt[1].content).not.toContain('Owner: two');
+    expect(lastPrompt[1].content).toContain('Owner: three');
+    expect(lastPrompt[1].content).toContain('Owner: six');
+  });
+
+  it('after a full meeting (6 lines) "Why?" goes to the lead, and the lead sees the topic and their own answer', async () => {
+    const history = [
+      { from: 'owner', text: 'Should we lock the EUR rate?' },
+      { from: 'cfo', cfo: 'kasia', text: 'Lock the rate with a forward contract.' },
+      { from: 'cfo', cfo: 'anna', text: 'Cash is tight.' },
+      { from: 'cfo', cfo: 'tomasz', text: 'Margins are thin.' },
+      { from: 'cfo', cfo: 'marek', text: 'VAT is due on the 25th.' },
+      { from: 'cfo', text: 'Joint recommendation: lock the rate first.' },
+    ];
+    expect((await ask({ question: 'Why?', history })).cfo).toBe('kasia');
+    expect(lastPrompt[1].content).toContain('Owner: Should we lock the EUR rate?');
+    expect(lastPrompt[1].content).toContain('Kasia: Lock the rate with a forward contract.');
+    expect(lastPrompt[1].content).toContain('CFO: Joint recommendation: lock the rate first.');
+  });
+
+  it('a chat as the web sends it (chair line without a CFO, a long turn cut to 500) → 200, stays with the last CFO', async () => {
+    const history = [
+      { from: 'cfo', cfo: 'kasia', text: 'k'.repeat(500) },
+      { from: 'cfo', cfo: 'anna', text: 'Cash is tight in December.' },
+      { from: 'cfo', text: 'Joint recommendation: lock the rate first.' },
+      { from: 'owner', text: 'OK' },
+    ];
+    const r = await post({ question: 'Why?', history });
+    expect(r.statusCode).toBe(200);
+    expect(r.json<AskResult>().cfo).toBe('anna');
+    expect(lastPrompt[1].content).toContain('CFO: Joint recommendation: lock the rate first.');
+  });
+
+  it('a history with "99 999 zł" and a model that repeats it → the answer never contains 99 999', async () => {
+    modelReply = 'Because your VAT is 99 999 zł.';
+    const r = await ask({ question: 'Why?', history: [
+      { from: 'owner', text: 'Is my VAT 99 999 zł?' },
+      { from: 'cfo', cfo: 'marek', text: 'Your VAT is 99 999 zł.' },
+    ] });
+    expect(r.cfo).toBe('marek');
+    expect(r.text).not.toContain('99 999');
+    expect(r.text).toBe(cfoFacts('marek').summary);
+  });
+});
+
+describe('promptHistory: which chat lines the model sees', () => {
+  const o = (text: string): ChatLine => ({ from: 'owner', text });
+  const k = (text: string): ChatLine => ({ from: 'cfo', cfo: 'kasia', text });
+
+  it('from the owner\'s last question on, when that is more than 4 lines (a meeting)', () => {
+    const h = [o('topic'), k('lead'), k('r1'), k('r2'), k('r3'), k('chair')];
+    expect(promptHistory(h)).toEqual(h);
+    expect(promptHistory(h.slice(1))).toEqual(h.slice(1)); // no owner line: all of them (max 6)
+  });
+  it('never fewer than the last 4', () => {
+    const h = [o('q1'), k('a1'), o('q2'), k('a2'), o('q3'), k('a3')];
+    expect(promptHistory(h)).toEqual(h.slice(-4));
+  });
+  it('short histories are kept whole', () => {
+    expect(promptHistory([])).toEqual([]);
+    expect(promptHistory([o('q'), k('a')])).toEqual([o('q'), k('a')]);
   });
 });
 
