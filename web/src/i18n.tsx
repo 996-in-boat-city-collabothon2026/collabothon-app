@@ -490,6 +490,7 @@ const DICT: Record<string, { pl: string; en: string }> = {
   mic_stop: { pl: 'Zakończ i zamień na tekst', en: 'Stop and turn into text' },
   mic_listening: { pl: 'Słucham… naciśnij jeszcze raz, gdy skończysz.', en: 'Listening… press again when you are done.' },
   mic_working: { pl: 'Zamieniam mowę na tekst…', en: 'Turning speech into text…' },
+  mic_opening: { pl: 'Włączam mikrofon…', en: 'Opening the microphone…' },
   mic_denied: { pl: 'Mikrofon jest zablokowany. Zezwól na niego w przeglądarce.', en: 'The microphone is blocked. Allow it in the browser.' },
   mic_nothing: { pl: 'Nic nie usłyszałam. Spróbuj jeszcze raz.', en: "I didn't hear anything. Try again." },
   mic_failed: { pl: 'Nie udało się zamienić mowy na tekst. Spróbuj jeszcze raz albo napisz.', en: "Couldn't turn speech into text. Try again or type." },
