@@ -1,5 +1,5 @@
 // Owner: Pair 2 (Person B). Personas stay short, wear the right hat and describe the rebuild's contract (M6):
-// pick ready-made points by id, write no fact, add at most one comment with no fact in it.
+// pick ready-made points by id, write no fact, pick at most one pre-written comment by id.
 import { describe, expect, it } from 'vitest';
 import { CFOS, HATS, type CfoId } from '@cfo/shared';
 import { CHAIR_PERSONA, PERSONAS } from './personas';
@@ -7,16 +7,16 @@ import { CHAIR_PERSONA, PERSONAS } from './personas';
 const cfos = Object.keys(CFOS) as CfoId[];
 
 describe('personas', () => {
-  it.each(cfos)('%s: ≤ 15 lines, its own hat, picks points, writes no fact, one English comment', (cfo) => {
+  it.each(cfos)('%s: ≤ 15 lines, its own hat, picks points, writes no fact, picks one comment by id', (cfo) => {
     const p = PERSONAS[cfo];
     expect(p.split('\n').length).toBeLessThanOrEqual(15);
     expect(p).toContain(`You are ${CFOS[cfo].name}`);
     expect(p).toContain(HATS[CFOS[cfo].hat].label.toLowerCase());
     expect(p).toContain('pick the ids');
     expect(p).toContain('Never write a fact yourself');
-    expect(p).toContain('one short sentence in English');
-    expect(p).toContain('no numbers, dates, money, names or market moves, and nothing in the past tense');
-    expect(p).toContain('never say that anything was done');
+    expect(p).toContain('pick ONE comment by its id from COMMENTS');
+    expect(p).toContain('Never write a comment yourself');
+    expect(p).toContain('the owner decides');
     expect(p).not.toMatch(/Copy amounts|FACTS/); // the old free-text contract is gone
   });
 
@@ -42,7 +42,7 @@ describe('personas', () => {
     expect(CHAIR_PERSONA).toContain(HATS.blue.label.toLowerCase());
     expect(CHAIR_PERSONA).toContain('no new numbers');
     expect(CHAIR_PERSONA).toContain('Pick only ids from the list');
-    expect(CHAIR_PERSONA).toContain('one short sentence in English');
+    expect(CHAIR_PERSONA).toContain('pick ONE comment by its id from COMMENTS');
     expect(CHAIR_PERSONA).toContain('the owner decides');
   });
 });

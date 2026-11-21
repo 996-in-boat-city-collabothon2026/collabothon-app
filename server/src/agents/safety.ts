@@ -1,9 +1,6 @@
-// Owner: Pair 2. The check for the only model text an agent shows: its one-sentence comment (commentProblem below),
-// in /api/ask, each conference turn and the chair. Facts are always rule text (agents/facts.ts points).
-// The app is English only. The Polish detector is a GUARD, not Polish support: the model (and the Polish seed names
-// it reads) can still slip into Polish, and such a comment must never reach the English UI.
+// Owner: Pair 2. The app is English only. The model writes no text any more (agents/comments.ts), so this Polish
+// detector now guards the tests: every rule text and comment on stage must read as English (agents/corpus.test.ts).
 import { db } from '../domain/store';
-import { claimsDone, falseCalm, myMoney } from './text';
 
 /** Polish letters (not "ł": it is in "zł"; not "ó": it is in "Kraków"). */
 const POLISH_LETTERS = /[ąćęńśźż]/i;
@@ -88,74 +85,4 @@ export function looksPolish(text: string): boolean {
   if (words.some((w) => POLISH_WORDS.has(w)) || words.filter((w) => POLISH_SHAPE.test(w)).length >= 2) return true;
   const english = words.filter((w) => ENGLISH_WORDS.has(w) || ENGLISH_SHAPE.test(w)).length;
   return words.length <= 6 ? english < 2 : english / words.length < 0.4;
-}
-
-// ---------- Rebuild M3 (docs/PAIR2-REBUILD.md): the model's one-sentence comment ----------
-// The facts are always rule text (the points in agents/facts.ts). The model may add ONE short comment in its hat's
-// voice, and that comment must carry no fact at all. "No fact" can be checked completely, unlike "the right fact":
-// no number, money, date, name or market trend, and nothing in the past tense (nothing was done: golden rule 3).
-
-export const COMMENT_MAX_WORDS = 25;
-
-/** Words that carry a number. "one" and "first" stay: "one thing at a time", "chase the money first". */
-const NUMBER_WORDS = /\b(?:zero|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?|half|halves|double|twice|triple|percent|per\s+cent)\b/i;
-/** A currency name, code or symbol (also "euro": the direction of a rate is a fact, so the comment leaves it out). */
-const MONEY_WORDS = /(?<![\p{L}])(?:zł|zl|złot\p{L}*|zlot\p{L}*|pln|eur|euros?|usd|dollars?|gbp|pounds?|chf|francs?|bucks|quid|grand)(?![\p{L}])|[€$£¥]/iu;
-/** A month, a weekday or a relative date. "May" and "March" only capitalised ("you may", "march on" are fine). */
-const DATE_WORDS = /\b(?:january|february|april|june|july|august|september|october|november|december|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|tomorrow|yesterday|overdue|late|weekends?|weeks?|months?|years?|quarters?)\b/i;
-const MONTH_CAPS = /\b(?:March|May|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept?|Oct|Nov|Dec)\b/;
-/** A market move is a fact of the rules (and the model reversed it live). */
-const TREND_WORDS = /\b(?:rise|rises|rising|rose|risen|fall|falls|falling|fell|fallen|drops?|dropping|dropped|climb\w*|jump\w*|surg\w*|slid\w*|sink\w*|sank|plung\w*|strengthen\w*|weaken\w*|apprecia\w*|deprecia\w*|soar\w*|tumbl\w*|(?:go|goes|going)\s+(?:up|down))\b/i;
-/** Capitalised words that are not names: the hats' own vocabulary. Anything else capitalised mid-sentence is a name. */
-const NOT_A_NAME = new Set(['I', "I'm", "I'd", "I'll", 'VAT', 'ZUS', 'PIT', 'JPK', 'KSeF', 'NBP', 'NIP', 'UPO', 'OK', 'CFO', 'Anna', 'Kasia', 'Marek', 'Tomasz']);
-
-/** Past forms that are never present tense. */
-const PAST_IRREGULAR = 'went|gone|got|gotten|took|taken|sent|paid|made|did|done|came|gave|given|left|told|sold|bought|brought|spent|lost|won|kept|held|found|wrote|written|spoke|spoken|began|begun|chose|chosen|drew|drawn|fell|fallen|felt|forgot|forgotten|knew|known|led|lent|met|ran|saw|seen|shown|stood|thought|understood|became|broke|broken|built|caught|fought|hid|hidden|meant|sat|slept|taught|threw|thrown|wore|worn|woke|woken';
-const PAST = new RegExp(`\\b(?:was|were|been|had|${PAST_IRREGULAR})\\b`, 'i');
-/** Same form in present and past ("set", "cut", "put"): a claim only after be/have ("is set up", "has cut"). */
-const AMBIGUOUS_PAST = /\b(?:is|are|be|being|has|have)\s+(?:\w+\s+)?(?:set|put|cut|let|read|hit|cost|spread|shut|quit|hurt|upset|bet)\b|\b\w+'(?:s|re|ve)\s+(?:\w+\s+)?(?:set|put|cut|let|read|hit|cost|spread|shut|quit|hurt|upset|bet)\b/i;
-/** A state that says the work is over: "the forward is now active", "the line is in place", "it's on its way". */
-const COMPLETED = /\b(?:is|are|now|already)\s+(?:\w+\s+)?(?:complete|active|ready|live|open|in\s+place|through|underway|over|on\s+(?:its|their|the)\s+way)\b|\b\w+'(?:s|re)\s+(?:\w+\s+)?(?:complete|active|ready|live|open|in\s+place|through|underway|over)\b/i;
-/** Words ending in -ed that are not a past action: feelings and plain adjectives a hat may use. */
-const ED_OK = new Set(['red', 'bed', 'shed', 'owed', 'concerned', 'worried', 'prepared', 'focused', 'interested', 'pleased', 'relieved', 'surprised', 'convinced', 'tired', 'scared', 'excited', 'detailed', 'limited', 'balanced', 'advanced', 'experienced', 'skilled', 'informed', 'organised', 'organized', 'motivated', 'committed', 'dedicated', 'complicated', 'unexpected', 'based', 'related', 'rushed', 'stressed', 'simulated', 'rejected']); // "simulated": the app's own word; "rejected": the invoice's true state
-const EED_PAST = new Set(['agreed', 'freed', 'decreed', 'guaranteed', 'refereed']);
-const isPastEd = (w: string) => {
-  const l = w.toLowerCase();
-  if (l.length < 4 || !l.endsWith('ed') || ED_OK.has(l)) return false;
-  return !l.endsWith('eed') || EED_PAST.has(l); // "need", "indeed", "proceed" are present
-};
-/** Next to a real risk (a critical point) a calming word is false calm. */
-const CALM_WORDS = /\b(?:fine|safe|healthy|enough|okay|ok|comfortable|stable|solid|secure|relax\w*|plenty|good\s+shape|under\s+control|all\s+good|no\s+problem|not\s+a\s+problem|nothing\s+to\s+worry|no\s+worr\w*|don'?t\s+worry|no\s+need\s+to\s+worry|no\s+rush|no\s+hurry|not\s+urgent|nothing\s+urgent|can\s+wait)\b/i;
-/** Money goes TO a customer: the customers owe the shop (live: "pay FlotaTrans 12 300 zł"). */
-const PAY_CUSTOMER = /\b(?:pay|paying|transfer|wire)\b[^.?!]{0,30}\b(?:customers?|clients?|debtors?)\b/i;
-
-/**
- * Why the comment must not be shown ('' = it may be shown after the rule text).
- * `critical` = this CFO has a real risk right now (any critical point, not only the chosen ones).
- */
-export function commentProblem(comment: string, critical: boolean): string {
-  const c = comment.trim();
-  if (!c) return 'empty';
-  if (/[\r\n]|[*#_`[\]{}<>|]/.test(c)) return 'markup or more than one line';
-  const words = c.split(/\s+/);
-  if (words.length > COMMENT_MAX_WORDS) return 'too long';
-  if (c.split(/[.!?]+(?=\s|$)/).filter((s) => s.trim()).length > 1) return 'more than one sentence';
-  if (/\d/.test(c) || NUMBER_WORDS.test(c)) return 'a number';
-  if (MONEY_WORDS.test(c)) return 'money';
-  if (DATE_WORDS.test(c) || MONTH_CAPS.test(c) || /\bFV\b/i.test(c)) return 'a date or an invoice';
-  const tokens = c.match(/\p{L}+(?:['’]\p{L}+)?/gu) ?? [];
-  const capitalised = tokens.filter((w, i) => (i > 0 && /^\p{Lu}/u.test(w)) || /\p{Ll}\p{Lu}/u.test(w)); // "FlotaTrans" even first
-  const lower = c.toLowerCase();
-  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const dataName = dataNames()
-    .map((n) => n.split(/\s+/)[0].toLowerCase()) // "flotatrans", "kurier", "autoteile", "jan", "ford" in any case
-    .find((n) => n.length >= 3 && new RegExp(`(?<![\\p{L}])${escape(n)}(?![\\p{L}])`, 'u').test(lower));
-  if (capitalised.some((w) => !NOT_A_NAME.has(w)) || dataName) return 'a name';
-  if (looksPolish(c)) return 'not in English'; // after the names: without them a short reply has too few words
-  if (TREND_WORDS.test(c)) return 'a market trend';
-  if (PAST.test(c) || AMBIGUOUS_PAST.test(c) || COMPLETED.test(c) || tokens.some(isPastEd) || claimsDone(c)) return 'past tense or a done claim';
-  if (myMoney(c)) return "the owner's money told as the advisor's";
-  if (PAY_CUSTOMER.test(c)) return 'pays a customer';
-  if (critical && (CALM_WORDS.test(c) || falseCalm(c))) return 'false calm next to a real risk';
-  return '';
 }

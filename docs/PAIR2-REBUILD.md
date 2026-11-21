@@ -332,7 +332,7 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
   - **The main conclusion is always shown:** the first core point is added like a critical one (finding 1: Tomasz's car list without "Bill the full hours").
   - **No repeated deadline:** a point can say `sameAs`, and is skipped when that point is shown. `tax-<next>` is the same as `next-tax`, so "Is my VAT late?" no longer shows the VAT line twice.
   - **No dangling sentence:** a point can say `needs`. "If that is not enough, a credit line…" needs `reminders` and always comes with it.
-  - **Comments off by default:** `agentModel.comments = false`. About 12 of 49 shown comments were wrong advice with no number in them, which no check can catch (finding 2). The conference chair's comment is off too. Turn it back on to demo comments; the comment tests and the corpus run with it on.
+  - ~~Comments off by default~~ (`agentModel.comments`): replaced in F2 by comments the model picks from a fixed list.
 
 ---
 

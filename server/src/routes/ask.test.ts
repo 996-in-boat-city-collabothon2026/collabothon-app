@@ -11,6 +11,7 @@ import { settlePayment } from '../domain/settle';
 import { runAutopilot } from '../agents/autopilot';
 import { cfoFacts } from '../agents/facts';
 import { agentModel } from '../agents/answer';
+import { COMMENTS } from '../agents/comments';
 import boardroom, { ruleAnswer } from './boardroom';
 
 let modelReply = '';
@@ -152,14 +153,14 @@ describe('POST /api/ask: JSON choice (rebuild M4)', () => {
   }
   const point = (cfo: CfoId, id: string) => cfoFacts(cfo).points.find((p) => p.id === id)!.text;
   const choice = (points: string[], comment = '') => JSON.stringify({ points, comment });
-  beforeEach(() => { agentModel.comments = true; }); // the comment path; 'comments off' has its own test
-  afterEach(() => { agentModel.enabled = true; agentModel.comments = false; });
+  const said = (cfo: CfoId, id: string) => COMMENTS[cfo].find((c) => c.id === id)!.text;
+  afterEach(() => { agentModel.enabled = true; });
 
   it('valid JSON: the chosen points in the facts\' order, then the comment', async () => {
-    modelReply = choice(['tax-ob-zus-11', 'next-tax'], 'Taxes are not negotiable, so put that money aside first.');
+    modelReply = choice(['tax-ob-zus-11', 'next-tax'], 'marek-aside');
     const r = await askAs('marek', 'When do I pay ZUS?');
     expect(r.status).toBe(200);
-    expect(r.text).toBe(`${point('marek', 'next-tax')} ${point('marek', 'tax-ob-zus-11')} Taxes are not negotiable, so put that money aside first.`);
+    expect(r.text).toBe(`${point('marek', 'next-tax')} ${point('marek', 'tax-ob-zus-11')} ${said('marek', 'marek-aside')}`);
   });
 
   it('only details picked → the first main point is added (Tomasz: car-* ids only → "labour")', async () => {
@@ -180,16 +181,27 @@ describe('POST /api/ask: JSON choice (rebuild M4)', () => {
     expect((await askAs('anna', 'Can I borrow?')).text).toBe(`${point('anna', 'gap')} ${point('anna', 'reminders')} ${point('anna', 'credit')}`);
   });
 
-  it('comments off (the default for the demo): the points only', async () => {
-    agentModel.comments = false;
-    modelReply = choice(['next-tax'], 'Taxes are not negotiable, so put that money aside first.');
-    expect((await askAs('marek', 'VAT?')).text).toBe(point('marek', 'next-tax'));
+  it('a comment id from another CFO, an unknown id, or a calm id next to a critical point → no comment', async () => {
+    for (const id of ['anna-chase', 'marek-nope', 'marek-calm']) { // VAT due in 5 days is critical for Marek
+      modelReply = choice(['next-tax'], id);
+      expect((await askAs('marek', 'VAT?')).text).toBe(point('marek', 'next-tax'));
+    }
+    modelReply = choice(['labour'], 'tomasz-calm'); // nothing critical for Tomasz: the calm comment fits
+    expect((await askAs('tomasz', 'Prices?')).text).toBe(`${point('tomasz', 'labour')} ${said('tomasz', 'tomasz-calm')}`);
+  });
+
+  it('the prompt lists the CFO\'s comment ids and asks for an id, not a sentence', async () => {
+    await askAs('marek', 'VAT?');
+    const prompt = lastPrompt[1].content;
+    expect(prompt).toContain(`- marek-aside: ${said('marek', 'marek-aside')}`);
+    expect(prompt).not.toContain('marek-calm');
+    expect(prompt).toContain('the id of one comment from COMMENTS');
   });
 
   it('a critical point is always shown: "what is my balance?" never hides the cash gap', async () => {
-    modelReply = choice(['balance'], 'I would rather chase the money owed to you before borrowing anything.');
+    modelReply = choice(['balance'], 'anna-chase');
     const r = await askAs('anna', 'What is my balance today?');
-    expect(r.text).toBe(`${point('anna', 'gap')} ${point('anna', 'balance')} I would rather chase the money owed to you before borrowing anything.`);
+    expect(r.text).toBe(`${point('anna', 'gap')} ${point('anna', 'balance')} ${said('anna', 'anna-chase')}`);
   });
 
   it('unknown ids and repeats are dropped, at most 3 points; nothing valid → the conclusion (summary)', async () => {
@@ -208,12 +220,12 @@ describe('POST /api/ask: JSON choice (rebuild M4)', () => {
       modelReply = bad;
       expect((await askAs('kasia', 'Euro?')).text).toBe(ruleAnswer('kasia'));
     }
-    modelReply = "```json\n{'points': ['rate-EUR'], 'comment': 'I trust certainty more than predictions.',}\n```";
-    expect((await askAs('kasia', 'Euro?')).text).toBe(`${point('kasia', 'fx-EUR')} ${point('kasia', 'rate-EUR')} I trust certainty more than predictions.`);
+    modelReply = "```json\n{'points': ['rate-EUR'], 'comment': 'kasia-fixed',}\n```";
+    expect((await askAs('kasia', 'Euro?')).text).toBe(`${point('kasia', 'fx-EUR')} ${point('kasia', 'rate-EUR')} ${said('kasia', 'kasia-fixed')}`);
   });
 
-  it('a comment with a fact, a done claim or false calm is dropped; the points stay', async () => {
-    for (const comment of ['Pay the 14 230 zł now.', 'The VAT was paid.', 'Remind FlotaTrans first.', "Don't worry, it can wait."]) {
+  it('a free-text comment is never shown, true or false; the points stay', async () => {
+    for (const comment of ['Pay the 14 230 zł now.', 'The VAT was paid.', 'Remind FlotaTrans first.', "Don't worry, it can wait.", said('marek', 'marek-aside')]) {
       modelReply = choice(['next-tax'], comment);
       expect((await askAs('marek', 'VAT?')).text).toBe(point('marek', 'next-tax'));
     }

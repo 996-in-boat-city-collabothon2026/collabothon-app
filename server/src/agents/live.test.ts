@@ -18,7 +18,7 @@ import boardroom from '../routes/boardroom';
 import { runAutopilot } from './autopilot';
 import { cfoFacts } from './facts';
 import { parseChoice } from './answer';
-import { commentProblem } from './safety';
+import { commentsFor, pickComment } from './comments';
 
 const BASE = process.env.LIVE_LLM_BASE_URL?.replace(/\/$/, '');
 const APP = process.env.LIVE_APP_URL?.replace(/\/$/, '');
@@ -147,7 +147,8 @@ describe.skipIf(!BASE && !APP)(`M9 live check (${BASE ? `vLLM ${BASE}` : `app ${
           kind: 'ask', expected: cfo, answeredBy: r.body.cfo, question, ms: r.ms, raw,
           json: choice === undefined ? undefined : !!choice,
           ids: choice?.points, validIds: choice?.points?.filter((id) => facts.points.some((p) => p.id === id)),
-          comment: choice?.comment, refused: choice?.comment ? commentProblem(choice.comment, critical) : undefined,
+          comment: choice?.comment, commentOk: choice?.comment ? !!pickComment(choice.comment, commentsFor(r.body.cfo, critical)) : undefined,
+          mainShown: facts.points.some((p) => p.core && shown.points.includes(p.id)),
           shownPoints: shown.points, shownComment: shown.comment, text: r.body.text,
         });
       }
@@ -172,14 +173,17 @@ describe.skipIf(!BASE && !APP)(`M9 live check (${BASE ? `vLLM ${BASE}` : `app ${
     const asks = rows.filter((r) => r.kind === 'ask');
     const withRaw = asks.filter((r) => r.json !== undefined);
     const comments = asks.filter((r) => r.comment);
-    const reasons: Record<string, number> = {};
-    for (const r of comments) if (r.refused) reasons[String(r.refused)] = (reasons[String(r.refused)] ?? 0) + 1;
+    const mainByCfo = (['marek', 'anna', 'tomasz', 'kasia'] as CfoId[]).map((c) => {
+      const mine = asks.filter((r) => r.answeredBy === c);
+      return `${c} ${mine.filter((r) => r.mainShown).length}/${mine.length}`;
+    });
     const routed = asks.filter((r, i) => i % 20 >= 16);
     const lat = calls.filter((c) => !c.error).map((c) => c.ms);
     const lines = [
       `[M9] /api/ask: ${asks.length} questions, answered ${asks.filter((r) => r.text).length}`,
       BASE ? `[M9] valid JSON: ${withRaw.filter((r) => r.json).length}/${withRaw.length} (${pct(withRaw.filter((r) => r.json).length, withRaw.length)}); with at least one valid id: ${pct(withRaw.filter((r) => (r.validIds as string[] | undefined)?.length).length, withRaw.length)}` : '[M9] (raw replies are only recorded with LIVE_LLM_BASE_URL)',
-      BASE ? `[M9] comments written: ${comments.length}, shown: ${comments.filter((r) => r.refused === '').length} (${pct(comments.filter((r) => r.refused === '').length, comments.length)}); refused by reason: ${JSON.stringify(reasons)}` : '',
+      BASE ? `[M9] comment ids picked: ${comments.length}, valid and allowed: ${comments.filter((r) => r.commentOk).length} (${pct(comments.filter((r) => r.commentOk).length, comments.length)})` : '',
+      `[R2] main point shown, per CFO: ${mainByCfo.join(', ')}`,
       `[M9] answers with a comment on screen: ${asks.filter((r) => r.shownComment).length}/${asks.length}`,
       `[M9] routing by topic (no CFO given): ${routed.filter((r) => r.expected === r.answeredBy).length}/${routed.length} to the expected CFO`,
       BASE ? `[M9] model call latency: p50 ${quantile(lat, 0.5)} ms, p95 ${quantile(lat, 0.95)} ms, errors ${calls.filter((c) => c.error).length}/${calls.length}` : '',

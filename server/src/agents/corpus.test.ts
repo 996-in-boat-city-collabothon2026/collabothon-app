@@ -9,12 +9,12 @@ import { config } from '../config';
 import { db, resetDb } from '../domain/store';
 import { setModelCallForTests, type ChatMessage } from '../llm/provider';
 import boardroom from '../routes/boardroom';
-import { agentModel } from './answer';
 import { allDrafts, isCurrentCard, runAutopilot } from './autopilot';
 import { ruleSummary } from './boardroom';
 import { cfoFacts } from './facts';
 import { REVIEW_REPLIES } from './review-corpus';
-import { commentProblem, looksPolish } from './safety';
+import { looksPolish } from './safety';
+import { COMMENTS } from './comments';
 import { explain } from './explain';
 
 const saved = { ...config.llm };
@@ -23,12 +23,10 @@ let reply: (m: ChatMessage[]) => string = () => '';
 beforeAll(async () => {
   resetDb();
   await runAutopilot(); // the chair needs the open cards
-  agentModel.comments = true; // the stricter case: every corpus reply is also tried as a shown comment
   Object.assign(config.llm, { baseUrl: 'http://model.test/v1', timeoutMs: 20_000, budgetMs: 22_000 });
 });
 beforeEach(() => setModelCallForTests(async (m) => reply(m), 'openai_compat')); // also clears the last-answer cache
 afterAll(() => {
-  agentModel.comments = false;
   Object.assign(config.llm, saved);
   setModelCallForTests(null, 'mock');
 });
@@ -48,15 +46,17 @@ async function post<T>(url: string, payload: object): Promise<T> {
 const numbersOf = (s: string) => [...s.matchAll(/[-−]?\d[\d\s .,]*\d|\d/g)].map((m) => m[0].replace(/[\s ]/g, '').replace('−', '-'));
 
 /**
- * The property: `shown` is the rule text, optionally followed by one comment that passes commentProblem and has no
- * digit, and every number in `shown` is a number of the rule text.
+ * The property: `shown` is the rule text, optionally followed by one pre-written comment (not a calm one next to a
+ * critical point), and every number in `shown` is a number of the rule text.
  */
+const ALL_COMMENTS = Object.values(COMMENTS).flat();
 function onlyRuleText(shown: string, rule: string, critical: boolean) {
   expect(shown.startsWith(rule), `not the rule text: ${shown}`).toBe(true);
   const comment = shown.slice(rule.length).trim();
   if (comment) {
-    expect(/\d/.test(comment), `a number in the comment: ${comment}`).toBe(false);
-    expect(commentProblem(comment, critical)).toBe('');
+    const canned = ALL_COMMENTS.find((c) => c.text === comment);
+    expect(canned, `not a pre-written comment: ${comment}`).toBeDefined();
+    expect(critical && canned!.calm, `a calm comment next to a risk: ${comment}`).toBeFalsy();
   }
   const allowed = new Set(numbersOf(rule));
   for (const n of numbersOf(shown)) expect(allowed.has(n), `${n} is not in the rule text`).toBe(true);
@@ -90,23 +90,39 @@ describe(`regression corpus: ${REVIEW_REPLIES.length} replies from the reviews, 
 });
 
 describe('the property is not empty', () => {
-  it('a wrong label, a number in the comment, or a fact-carrying comment would fail it', () => {
+  it('a wrong label, a written comment, or a calm comment next to a risk would fail it', () => {
     const rule = cfoFacts('anna').summary;
     expect(() => onlyRuleText('Your bank balance today is -20 275,00 zł.', rule, true)).toThrow();
     expect(() => onlyRuleText(`${rule} Your balance today is -20 275,00 zł.`, rule, true)).toThrow();
     expect(() => onlyRuleText(`${rule} Remind FlotaTrans first.`, rule, true)).toThrow();
-    expect(() => onlyRuleText(`${rule} Chase the customers who owe you before you think about a loan.`, rule, true)).not.toThrow();
+    expect(() => onlyRuleText(`${rule} ${COMMENTS.anna[3].text}`, rule, true)).toThrow(); // anna-calm
+    expect(() => onlyRuleText(`${rule} ${COMMENTS.anna[0].text}`, rule, true)).not.toThrow();
   });
 });
 
 describe('every rule text on stage is English (moved from the PR #6 route tests)', () => {
-  it('points of every CFO, card titles and explanations', async () => {
+  it('points of every CFO, pre-written comments, card titles and explanations', async () => {
     for (const cfo of ['marek', 'anna', 'tomasz', 'kasia'] as CfoId[]) {
       for (const p of cfoFacts(cfo).points) expect(looksPolish(p.text), `${cfo}/${p.id}: ${p.text}`).toBe(false);
     }
+    for (const c of ALL_COMMENTS) expect(looksPolish(c.text), c.id).toBe(false);
     for (const a of db.actions) {
       expect(looksPolish(a.title), a.title).toBe(false);
       if (a.tier === 'NEEDS_APPROVAL') expect(looksPolish(explain(a)), explain(a)).toBe(false);
     }
+  });
+});
+
+describe('pre-written comments (agents/comments.ts)', () => {
+  it('carry no fact: no digit, no money, no name from the data; ids are unique and start with the speaker', () => {
+    const names = [...db.invoices.map((i) => i.counterparty.name.split(' ')[0]), ...db.repairOrders.map((o) => o.car.split(' ')[0])];
+    for (const [who, list] of Object.entries(COMMENTS)) {
+      for (const c of list) {
+        expect(c.id.startsWith(`${who}-`), c.id).toBe(true);
+        expect(c.text, c.id).not.toMatch(/\d|zł|PLN|EUR|USD|euro/i);
+        for (const n of names) expect(c.text.includes(n), `${c.id} names ${n}`).toBe(false);
+      }
+    }
+    expect(new Set(ALL_COMMENTS.map((c) => c.id)).size).toBe(ALL_COMMENTS.length);
   });
 });

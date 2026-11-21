@@ -9,8 +9,8 @@ import { isCurrentCard, runAutopilot } from './autopilot';
 import { agentModel } from './answer';
 import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, TURN_MAX_TOKENS } from './boardroom';
 import { cfoFacts } from './facts';
+import { COMMENTS, type Speaker } from './comments';
 import { explain } from './explain';
-import { claimsDone, falseCalm, myMoney } from './text';
 import { looksPolish } from './safety';
 
 const saved = { ...config.llm };
@@ -24,7 +24,6 @@ beforeEach(() => {
   resetDb();
   sent.length = 0;
   reply = () => '';
-  agentModel.comments = true; // most tests check the comment path; 'comments off' has its own test
   Object.assign(config.llm, { baseUrl: 'http://model.test/v1', timeoutMs: 20_000, budgetMs: 22_000 });
   setModelCallForTests(async (m, o) => {
     sent.push({ m, o });
@@ -32,7 +31,6 @@ beforeEach(() => {
   }, 'openai_compat');
 });
 afterAll(() => {
-  agentModel.comments = false;
   Object.assign(config.llm, saved);
   setModelCallForTests(null, 'mock');
 });
@@ -43,6 +41,8 @@ const persona = (m: ChatMessage[], c: CfoId) => m[0].content.includes(`You are $
 const current = () => db.actions.filter((a) => a.status === 'open' && a.tier === 'NEEDS_APPROVAL' && isCurrentCard(a));
 const pt = (c: CfoId, id: string) => cfoFacts(c).points.find((p) => p.id === id)!.text;
 const choice = (points: string[], comment = '') => JSON.stringify({ points, comment });
+/** The text of a pre-written comment. */
+const said_ = (id: string, who: Speaker = id.split('-')[0] as Speaker) => COMMENTS[who].find((c) => c.id === id)!.text;
 const chairJson = (decisionActionIds: string[], comment = '') => JSON.stringify({ decisionActionIds, comment });
 
 // Rebuild M5 (docs/PAIR2-REBUILD.md): each CFO picks its own rule points and may add one checked comment; the chair
@@ -91,22 +91,22 @@ describe('conference: prompts and limits', () => {
   });
 });
 
-describe('conference turns: rule points + a checked comment', () => {
+describe('conference turns: rule points + a picked comment', () => {
   it('valid choices: the picked points in the facts\' order, critical points always, then the comment', async () => {
     await runAutopilot();
     const said: Record<CfoId, string> = {
-      marek: choice(['ksef'], 'KSeF needs correct buyer data, so check the NIP carefully.'),
-      anna: choice(['reminders'], 'Chase the customers who owe you before you think about a loan.'),
+      marek: choice(['ksef'], 'marek-data'),
+      anna: choice(['reminders'], 'anna-chase'),
       tomasz: choice(['labour']),
-      kasia: choice(['hedge-EUR', 'rate-EUR'], 'Nobody can predict the rate, so locking it gives you peace of mind.'),
+      kasia: choice(['hedge-EUR', 'rate-EUR'], 'kasia-fixed'),
     };
     reply = (m) => (isChair(m) ? '' : said[ORDER.find((c) => persona(m, c))!]);
     const r = await runBoardroom();
     expect(r.turns.map((t) => t.text)).toEqual([
-      `${pt('marek', 'next-tax')} ${pt('marek', 'ksef')} KSeF needs correct buyer data, so check the NIP carefully.`, // VAT in 5 days is critical
-      `${pt('anna', 'gap')} ${pt('anna', 'reminders')} Chase the customers who owe you before you think about a loan.`,
+      `${pt('marek', 'next-tax')} ${pt('marek', 'ksef')} ${said_('marek-data')}`, // VAT in 5 days is critical
+      `${pt('anna', 'gap')} ${pt('anna', 'reminders')} ${said_('anna-chase')}`,
       pt('tomasz', 'labour'),
-      `${pt('kasia', 'fx-EUR')} ${pt('kasia', 'hedge-EUR')} ${pt('kasia', 'rate-EUR')} Nobody can predict the rate, so locking it gives you peace of mind.`,
+      `${pt('kasia', 'fx-EUR')} ${pt('kasia', 'hedge-EUR')} ${pt('kasia', 'rate-EUR')} ${said_('kasia-fixed')}`,
     ]);
   });
 
@@ -134,30 +134,41 @@ describe('conference turns: rule points + a checked comment', () => {
     ['a name', 'Remind FlotaTrans first.'],
     ['Polish', 'Zapłać VAT na czas, to ważne.'],
     ['false calm next to the cash gap', 'You are in good shape, so take it easy.'],
-  ])('a comment with %s is dropped, the points stay', async (_, comment) => {
+  ])('a free-text comment (%s) is never shown, the points stay', async (_, comment) => {
     await runAutopilot();
     reply = (m) => (persona(m, 'anna') ? choice(['reminders'], comment) : '');
     expect((await runBoardroom()).turns[1].text).toBe(`${pt('anna', 'gap')} ${pt('anna', 'reminders')}`);
   });
-  it('comments off (the default for the demo): rule points only, in turns and in the chair summary', async () => {
+
+  it.each([
+    ['another CFO\'s id', 'tomasz-bill'],
+    ['an unknown id', 'anna-nope'],
+    ['a calm id next to the cash gap', 'anna-calm'],
+  ])('%s → no comment', async (_, id) => {
     await runAutopilot();
-    agentModel.comments = false;
-    reply = (m) => (isChair(m) ? JSON.stringify({ decisionActionIds: [], comment: 'Start with what is due first.' })
-      : choice(['ksef'], 'KSeF needs correct buyer data, so check the NIP carefully.'));
-    const r = await runBoardroom();
-    expect(r.turns[0].text).toBe(`${pt('marek', 'next-tax')} ${pt('marek', 'ksef')}`);
-    expect(r.summary).not.toContain('Start with');
+    reply = (m) => (persona(m, 'anna') ? choice(['reminders'], id) : '');
+    expect((await runBoardroom()).turns[1].text).toBe(`${pt('anna', 'gap')} ${pt('anna', 'reminders')}`);
+  });
+
+  it('the prompt lists only this CFO\'s comments, without the calm ones next to a critical point', async () => {
+    await runAutopilot();
+    await runBoardroom();
+    const anna = sent.find((c) => persona(c.m, 'anna'))!.m[1].content;
+    expect(anna).toContain(`- anna-chase: ${said_('anna-chase')}`);
+    expect(anna).not.toContain('anna-calm');
+    expect(anna).not.toContain('tomasz-bill');
+    expect(sent.find((c) => persona(c.m, 'tomasz'))!.m[1].content).toContain('tomasz-calm'); // nothing critical
   });
 });
 
-describe('conference chair: current card ids + a checked comment', () => {
+describe('conference chair: current card ids + a picked comment', () => {
   it('picked ids in the chair\'s order, unknown and repeated ids dropped; the summary lists them, then the comment', async () => {
     await runAutopilot();
     const [a, b] = [current().find((x) => x.kind === 'payment_reminder')!, current().find((x) => x.kind === 'tax_payment')!];
-    reply = (m) => (isChair(m) ? chairJson(['nope', a.id, b.id, a.id], 'I would start with the reminders and keep the credit line as a backup.') : '');
+    reply = (m) => (isChair(m) ? chairJson(['nope', a.id, b.id, a.id], 'chair-closest') : '');
     const r = await runBoardroom();
     expect(r.decisionActionIds).toEqual([a.id, b.id]);
-    expect(r.summary).toBe(`${ruleSummary([a, b])} I would start with the reminders and keep the credit line as a backup.`);
+    expect(r.summary).toBe(`${ruleSummary([a, b])} ${said_('chair-closest', 'chair')}`);
   });
 
   it('no valid id → every current card; a stale card is never offered', async () => {
@@ -177,7 +188,9 @@ describe('conference chair: current card ids + a checked comment', () => {
     ['a number', 'Pay VAT of 14 230 zł first.'],
     ['Polish', 'Podatek VAT trzeba zapłacić na czas.'],
     ['the advisor\'s money', 'I will pay the VAT so you do not have to.'],
-  ])('a chair comment with %s is dropped, the rule summary stays', async (_, comment) => {
+    ['a calm id next to the cash gap', 'chair-calm'],
+    ['a CFO\'s id', 'anna-chase'],
+  ])('a chair comment (%s) is not shown, the rule summary stays', async (_, comment) => {
     await runAutopilot();
     reply = (m) => (isChair(m) ? chairJson([], comment) : '');
     const r = await runBoardroom();
@@ -197,20 +210,6 @@ describe('conference: rule texts and checks still used', () => {
     const lines = cfoFacts('marek').lines.join('\n');
     expect(lines).toContain("Reason: the buyer's tax number (NIP) is wrong, it must have 10 digits");
     expect(looksPolish(lines)).toBe(false);
-  });
-
-  it('done-claim, false-calm and my-money checks (used by commentProblem)', () => {
-    expect(claimsDone('I suggest sending reminders and locking the rate.')).toBe(false);
-    expect(claimsDone('The invoice must be sent again.')).toBe(false);
-    expect(claimsDone('The reminders have been sent.')).toBe(true);
-    expect(claimsDone('It was decided to send reminders to overdue customers.')).toBe(true);
-    expect(claimsDone('However, no decisions were made, and no actions were assigned.')).toBe(true);
-    expect(claimsDone("We've decided to lock the rate.")).toBe(true);
-    expect(claimsDone('The owner decides whether to send reminders.')).toBe(false);
-    expect(falseCalm('You have nothing to lose.')).toBe(true);
-    expect(falseCalm('You lose 320,25 zł if EUR rises.')).toBe(false);
-    expect(myMoney("I'll lose 320,25 zł.")).toBe(true);
-    expect(myMoney('I suggest you pay VAT by November 25, 2026.')).toBe(false);
   });
 
   it('no EUR rate: Kasia says in English the conversion is unavailable, the other agents finish', async () => {
@@ -269,18 +268,6 @@ describe('approval explanations (autopilot)', () => {
   });
 });
 
-describe('review of 8d96df5: completed actions vs proposals, negation and hypotheticals', () => {
-  it.each([
-    'VAT of 14,230 zł got paid.', 'The reminder went out.', 'The payment is complete.', 'The VAT payment went through.',
-    'The reminder has been dispatched.', 'We took care of VAT.', 'The forward contract is in place.', 'VAT is already paid.',
-  ])('claim: %s', (t) => expect(claimsDone(t)).toBe(true));
-  it.each([
-    'VAT of 14,230 zł has not been paid.', 'We can send reminders about VAT of 14,230 zł.', 'Once VAT is paid, the deadline is met.',
-    'If the reminder is sent today, FlotaTrans may pay.', 'VAT should be paid by November 25, 2026.', "I've taken a look at your costs.",
-    'The EUR rate is out of your control.',
-  ])('not a claim: %s', (t) => expect(claimsDone(t)).toBe(false));
-});
-
 describe('review of 8d96df5: language', () => {
   it.each(['VAT to 14 230 zł. Zaplac go.', 'VAT is 14 230,00 zł, zaplac do 25 listopada.', 'VAT 14 230 zł.', 'Pay VAT 14 230 zł, prosze.', 'Podatek VAT wynosi 14 230 zł.'])(
     'not English: %s',
@@ -292,19 +279,3 @@ describe('review of 8d96df5: language', () => {
   ])('English: %s', (t) => expect(looksPolish(t)).toBe(false));
 });
 
-describe('review of bc24564: the receiver confirms a payment', () => {
-  it.each(['The tax office received your payment.', 'The bank credited the transfer.', 'FlotaTrans paid you yesterday.', 'The tax office has received your payment.'])(
-    'claim: %s',
-    (t) => expect(claimsDone(t)).toBe(true),
-  );
-  it.each([
-    'The tax office has not received your payment yet.', "FlotaTrans hasn't paid you.", 'Send reminders to the customers who have not paid you.',
-    'If the tax office receives your payment by November 25, 2026, there is no penalty.', 'Once the tax office has received your payment, VAT is settled.',
-  ])('not a claim: %s', (t) => expect(claimsDone(t)).toBe(false));
-});
-
-describe('review of bc24564: a past "when" story is still a claim', () => {
-  it('"When the office checked, your VAT was paid." is a claim', () => {
-    expect(claimsDone('When the office checked, your VAT was paid.')).toBe(true);
-  });
-});

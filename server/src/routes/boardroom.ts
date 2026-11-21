@@ -3,11 +3,12 @@ import type { FastifyPluginAsync } from 'fastify';
 import { CFOS, type AskResult, type CfoId } from '@cfo/shared';
 import { runBoardroom } from '../agents/boardroom';
 import { cfoFacts, type CfoFacts } from '../agents/facts';
-import { agentModel, CHOICE_FORMAT, parseChoice, pointList, renderAnswer } from '../agents/answer';
+import { agentModel, CHOICE_FORMAT, commentBlock, parseChoice, pointList, renderAnswer } from '../agents/answer';
+import { commentsFor, type CannedComment } from '../agents/comments';
 import { PERSONAS } from '../agents/personas';
 import { chatOr } from '../llm/provider';
 
-/** A JSON reply with a few ids and one short comment fits easily (a free-text answer needed 160). */
+/** A JSON reply with a few point ids and one comment id fits easily (a free-text answer needed 160). */
 export const ASK_MAX_TOKENS = 120;
 
 // Quick-advice bubble: pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
@@ -60,16 +61,18 @@ export function ruleAnswer(cfo: CfoId, _question?: string): string {
 }
 
 /**
- * The prompt for the small model: the ready-made points with their ids, then the question. The model only picks ids
- * and may add one comment (agents/answer.ts), so it never has to copy a number.
+ * The prompt for the small model: the ready-made points and comments with their ids, then the question. The model
+ * only picks ids (agents/answer.ts), so it never has to copy a number.
  */
-function askPrompt(question: string, facts: CfoFacts): string {
+function askPrompt(question: string, facts: CfoFacts, comments: CannedComment[]): string {
   return [
     'POINTS (ready-made answers from the rules, each with its id):',
     pointList(facts),
     '',
+    commentBlock(comments),
+    '',
     `OWNER ASKS: ${question}`,
-    'Pick the points that answer the question. You may add one short comment in your own voice, in English.',
+    'Pick the points that answer the question, and the id of one comment that fits (or none).',
     CHOICE_FORMAT,
   ].join('\n');
 }
@@ -100,14 +103,15 @@ const routes: FastifyPluginAsync = async (app) => {
     const cfo = named ?? pickCfo(question);
     const facts = cfoFacts(cfo);
     if (!agentModel.enabled) return { cfo, text: facts.summary } satisfies AskResult;
+    const comments = commentsFor(cfo, facts.points.some((p) => p.critical));
     // chatOr never throws: a dead, slow or empty model gives '' → no JSON → the core points (the summary).
     const raw = await chatOr('', [
       { role: 'system', content: PERSONAS[cfo] },
-      { role: 'user', content: askPrompt(question, facts) },
+      { role: 'user', content: askPrompt(question, facts, comments) },
     ], { maxTokens: ASK_MAX_TOKENS, temperature: 0.1, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
 
     // The text is always rule text; a number the owner typed ("Is VAT 99 999 zł?") can never reach the answer.
-    const answer = renderAnswer(facts, parseChoice(raw));
+    const answer = renderAnswer(facts, parseChoice(raw), comments);
     if (answer.note) console.info(`[guard] ask:${cfo} ${answer.note}`);
     return { cfo, text: answer.text } satisfies AskResult;
   });
