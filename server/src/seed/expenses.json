@@ -1,16 +1,16 @@
 [
-  { "id": "ex-01", "date": "2026-10-24", "category": "taxes", "label": "VAT za wrzesień", "amountPLN": 12100 },
-  { "id": "ex-02", "date": "2026-10-28", "category": "parts", "label": "Inter Cars – części", "amountPLN": 3150 },
-  { "id": "ex-03", "date": "2026-10-28", "category": "rent", "label": "Czynsz za warsztat – listopad", "amountPLN": 6500 },
-  { "id": "ex-04", "date": "2026-10-31", "category": "payroll", "label": "Wynagrodzenia – październik", "amountPLN": 21000 },
-  { "id": "ex-05", "date": "2026-11-01", "category": "other", "label": "Program warsztatowy – abonament", "amountPLN": 250 },
+  { "id": "ex-01", "date": "2026-10-24", "category": "taxes", "label": "VAT for September", "amountPLN": 12100 },
+  { "id": "ex-02", "date": "2026-10-28", "category": "parts", "label": "Inter Cars – parts", "amountPLN": 3150 },
+  { "id": "ex-03", "date": "2026-10-28", "category": "rent", "label": "Workshop rent – November", "amountPLN": 6500 },
+  { "id": "ex-04", "date": "2026-10-31", "category": "payroll", "label": "Salaries – October", "amountPLN": 21000 },
+  { "id": "ex-05", "date": "2026-11-01", "category": "other", "label": "Workshop software – subscription", "amountPLN": 250 },
   { "id": "ex-06", "date": "2026-11-02", "category": "other", "label": "Ubezpieczenie OC warsztatu", "amountPLN": 690 },
   { "id": "ex-07", "date": "2026-11-04", "category": "parts", "label": "Hurtownia Części Moto – FZ/1102", "amountPLN": 8400 },
-  { "id": "ex-08", "date": "2026-11-05", "category": "utilities", "label": "Prąd", "amountPLN": 1280 },
+  { "id": "ex-08", "date": "2026-11-05", "category": "utilities", "label": "Electricity", "amountPLN": 1280 },
   { "id": "ex-09", "date": "2026-11-05", "category": "utilities", "label": "Woda i gaz", "amountPLN": 540 },
   { "id": "ex-10", "date": "2026-11-10", "category": "parts", "label": "Autoteile Krause GmbH – 1 480 EUR", "amountPLN": 6300 },
-  { "id": "ex-11", "date": "2026-11-10", "category": "leasing", "label": "Leasing podnośnika – rata", "amountPLN": 1450 },
-  { "id": "ex-12", "date": "2026-11-12", "category": "other", "label": "Utylizacja olejów i filtrów", "amountPLN": 380 },
-  { "id": "ex-13", "date": "2026-11-18", "category": "taxes", "label": "ZUS za październik", "amountPLN": 5800 },
-  { "id": "ex-14", "date": "2026-11-18", "category": "taxes", "label": "Zaliczka PIT za październik", "amountPLN": 1900 }
+  { "id": "ex-11", "date": "2026-11-10", "category": "leasing", "label": "Car lift leasing – instalment", "amountPLN": 1450 },
+  { "id": "ex-12", "date": "2026-11-12", "category": "other", "label": "Oil and filter disposal", "amountPLN": 380 },
+  { "id": "ex-13", "date": "2026-11-18", "category": "taxes", "label": "ZUS (social security) for October", "amountPLN": 5800 },
+  { "id": "ex-14", "date": "2026-11-18", "category": "taxes", "label": "PIT advance for October", "amountPLN": 1900 }
 ]

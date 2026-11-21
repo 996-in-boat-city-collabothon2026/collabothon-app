@@ -1,9 +1,219 @@
 @import "tailwindcss";
 
-/* Big, readable base for owners of all generations */
-html {
-  font-size: 17px;
+/* Quiet luxury / Swiss editorial.
+   Paper #FAFAFA, white cards with 1px #E5E5E5 hairlines, graphite #111 text, grey #666 descriptions.
+   One noble accent: bottle green #0F5132 (approved, positive cash). Muted amber #B45309 only for alerts. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-paper: #fafafa;
+  --color-ink: #111111;
+  --color-muted: #666666;
+  --color-hairline: #e5e5e5;
+  --color-accent: #0f5132;       /* bottle green */
+  --color-accent-ink: #0f5132;
+  --color-accent-soft: #eef4f0;
+  --color-warn: #b45309;         /* muted amber – alerts only */
+  --color-warn-soft: #fbf3ea;
 }
+
+/* Big, readable base for owners of every age (18px) */
+html { font-size: 18px; }
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  font-family: var(--font-sans);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
+h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+
+/* Every amount, date and KSeF number: JetBrains Mono with tabular figures */
+.num, .tabular-nums { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* Targeted, calm transitions only (never transition-all) */
+button, a { transition-property: color, background-color, border-color; transition-duration: 150ms; transition-timing-function: ease; }
+
+/* Visible keyboard focus */
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: 6px; }
+
+/* White card with a 1px hairline. No shadow. */
+.surface {
+  background: #fff;
+  border: 1px solid var(--color-hairline);
+  border-radius: 14px;
+}
+.surface:hover { border-color: #d4d4d4; transition: border-color 150ms ease; }
+
+/* Kept for older markup: now plain */
+.glow-mint { background: #fff; }
+.text-gradient { color: var(--color-ink); }
+.dot-grid { background: var(--color-paper); }
+.reveal { }
+
+/* Skeleton loading */
+@keyframes shimmer-bg { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+.skeleton {
+  border-radius: 8px;
+  background-color: #f0f0f0;
+  background-image: linear-gradient(90deg, #f0f0f0 0, #f7f7f7 40px, #f0f0f0 80px);
+  background-size: 400px 100%;
+  background-repeat: no-repeat;
+  animation: shimmer-bg 1.2s linear infinite;
+}
+
+/* Calm entrance for content */
+@keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.pop-in { animation: fade-in .25s ease backwards; }
+
+/* "AI is thinking" text */
+@keyframes thinking { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+.ai-shimmer { animation: thinking 1.6s ease-in-out infinite; }
+
+/* Small solid status orb (no gradients) */
+.ai-orb { background: var(--color-ink); border-radius: 9999px; }
+@keyframes wave { 0%, 100% { transform: scaleY(.35); } 50% { transform: scaleY(1); } }
+.wave span { display: inline-block; width: 3px; height: 18px; margin: 0 2px; border-radius: 3px; background: #fff; animation: wave 1s ease-in-out infinite; }
+
+/* Live dot used on agents that are working */
+@keyframes ripple { from { transform: scale(1); opacity: .5; } to { transform: scale(2.4); opacity: 0; } }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: var(--color-accent); animation: ripple 1.8s ease-out infinite; }
+
+/* Thin connector with a moving dot (approval flow) */
+@keyframes travel { from { left: 0%; } to { left: 100%; } }
+.flow-line { position: relative; height: 1px; background: var(--color-hairline); }
+.flow-line::after { content: ""; position: absolute; top: -3px; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 9999px; background: var(--color-accent); animation: travel 2s linear infinite; }
+
+/* Agent network picture */
+@keyframes hub-pulse { 0%, 100% { opacity: .5; } 50% { opacity: .15; } }
+.hub-pulse { animation: hub-pulse 2.4s ease-in-out infinite; }
+
+/* Forecast line draws in once */
+@keyframes draw { from { stroke-dashoffset: 4000; } to { stroke-dashoffset: 0; } }
+.cash-chart .recharts-area-curve, .cash-chart .recharts-line-curve { stroke-dasharray: 4000; animation: draw 1.4s ease-out backwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .hub-dot, .live-dot::after, .flow-line::after { display: none; }
+}
+
+/* ---------- Dashboard choreography & micro-interactions ---------- */
+/* Staggered entrance: 0.06 s per step, y 16 → 0, blur 4 → 0, opacity 0 → 1 */
+@keyframes enter { from { opacity: 0; transform: translateY(16px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.enter { animation: enter .6s cubic-bezier(.2,.7,.2,1) backwards; animation-delay: calc(var(--i, 0) * 60ms); }
+
+/* KPI hairline dividers */
+.kpi { border-color: var(--color-hairline); }
+.kpi + .kpi { border-top: 1px solid var(--color-hairline); }
+@media (min-width: 640px) {
+  .kpi + .kpi { border-top: 0; }
+  .kpi:nth-child(2n) { border-left: 1px solid var(--color-hairline); }
+  .kpi:nth-child(n+3) { border-top: 1px solid var(--color-hairline); }
+}
+@media (min-width: 1024px) {
+  .kpi:nth-child(n+3) { border-top: 0; }
+  .kpi + .kpi { border-left: 1px solid var(--color-hairline); }
+}
+
+/* Agent cards: cursor-following soft glow on the edge, lift + green border on hover */
+.agent-card { transition: transform 200ms ease, border-color 150ms ease; }
+.agent-card::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0;
+  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, 50%), rgb(15 81 50 / .07), transparent 70%);
+  transition: opacity 200ms ease;
+}
+@media (hover: hover) {
+  .agent-card:hover { transform: translateY(-3px); border-color: #0F5132; }
+  .agent-card:hover::before { opacity: 1; }
+  .agent-card:hover .agent-icon { border-color: #0F5132; color: #0F5132; transform: rotate(-6deg) scale(1.04); }
+}
+.agent-icon { transition: transform 250ms ease, color 150ms ease, border-color 150ms ease; }
+.stage-bar { transition: left 350ms cubic-bezier(.3,1.4,.5,1); }
+
+/* Check mark draws itself */
+@keyframes draw-check { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.check-draw { stroke-dasharray: 1; animation: draw-check .5s ease-out .1s backwards; }
+
+/* Typing dots */
+@keyframes typing { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.typing { display: inline-flex; gap: 4px; }
+.typing i { width: 6px; height: 6px; border-radius: 9999px; background: #111; animation: typing 1.2s ease-in-out infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; }
+.typing i:nth-child(3) { animation-delay: .3s; }
+
+/* Collapsible panel */
+.collapse-panel { transition: height 320ms cubic-bezier(.2,.7,.2,1); }
+.plus { display: inline-block; transition: transform 200ms ease; }
+
+/* OpenShift status: calm radar ping + glow */
+@keyframes radar { from { transform: scale(1); opacity: .45; } to { transform: scale(3); opacity: 0; } }
+.radar { position: relative; display: inline-flex; width: 8px; height: 8px; border-radius: 9999px; background: var(--color-accent); box-shadow: 0 0 0 3px rgb(15 81 50 / .12); }
+.radar::before, .radar::after { content: ""; position: absolute; inset: 0; border-radius: 9999px; background: var(--color-accent); animation: radar 2.4s ease-out infinite; }
+.radar::after { animation-delay: 1.2s; }
+.radar.off { background: var(--color-warn); box-shadow: 0 0 0 3px rgb(180 83 9 / .12); }
+.radar.off::before, .radar.off::after { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-card:hover { transform: none; }
+  .radar::before, .radar::after { display: none; }
+}
+
+/* 3D agent pictures: one picture per agent, the same gentle bob and the same hover tilt for all */
+@keyframes avatar-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.avatar-fig { animation: avatar-bob 3.2s ease-in-out infinite; transform-origin: 50% 70%; }
+.avatar-3d:hover .avatar-fig { animation: none; transform: rotate(-4deg); transition: transform 200ms ease; }
+.avatar-hat { transform-box: fill-box; transform-origin: 50% 60%; animation: avatar-bob 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .avatar-fig, .avatar-hat { animation: none; } }
+
+/* ---------- "Drukuj A4": the dashboard on one sheet, readable without a magnifier ---------- */
+@media print {
+  @page { size: A4; margin: 12mm; }
+  html { font-size: 12px; }
+  body { background: #fff !important; }
+  header, nav, .no-print, [role="dialog"], button[aria-label] { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; }
+  .surface { border: 1px solid #bbb !important; box-shadow: none !important; break-inside: avoid; }
+  .enter, .pop-in, .surface { animation: none !important; }
+  .grid { gap: 8px !important; }
+  .kpi-card { padding: 10px !important; }
+  details:not([open]) { display: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+
+/* ---------- Printable report: calm, text-first typography (serif, large, generous spacing) ---------- */
+.report-doc { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif; color: #1a1a1a; }
+.report-kicker { font-size: 1rem; letter-spacing: .06em; text-transform: uppercase; color: #555; }
+.report-h1 { font-family: Georgia, serif; font-size: 2.1rem; line-height: 1.2; font-weight: 700; margin-top: .3rem; letter-spacing: 0; }
+.report-meta { margin-top: .4rem; font-size: 1.05rem; color: #444; }
+.report-section { margin-top: 1.8rem; }
+.report-h2 { font-family: Georgia, serif; font-size: 1.35rem; font-weight: 700; border-bottom: 1px solid #ddd; padding-bottom: .25rem; margin-bottom: .7rem; letter-spacing: 0; }
+.report-p { font-size: 1.12rem; line-height: 1.7; margin-bottom: .7rem; }
+.report-list { font-size: 1.12rem; line-height: 1.7; padding-left: 1.4rem; list-style: decimal; }
+ul.report-list { list-style: disc; }
+.report-list li { margin-bottom: .55rem; }
+.report-owner { color: #555; }
+.report-dl > div { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px dotted #ccc; padding: .45rem 0; font-size: 1.12rem; }
+.report-dl dt { color: #333; }
+.report-dl dd { font-weight: 700; text-align: right; }
+.report-small { font-size: .95rem; line-height: 1.6; color: #444; margin-top: .8rem; }
+.report-small a { text-decoration: underline; }
+@media print {
+  .report-page { max-width: none !important; padding: 0 !important; }
+  .report-doc { border: 0 !important; padding: 0 !important; border-radius: 0 !important; }
+  .report-p, .report-list, .report-dl > div { font-size: 12.5pt; }
+  .report-h1 { font-size: 20pt; }
+  .report-h2 { font-size: 14pt; break-after: avoid; }
+  .report-section { break-inside: avoid-page; }
+}
+
+/* Standing agents (Approvals): calm breathing + sway; the proposing agent nods. */
+.standing-agent .sa-sway { transform-box: view-box; transform-origin: 50% 96%; animation: sa-sway 5s ease-in-out infinite; }
+.standing-agent .sa-upper { transform-box: view-box; transform-origin: 50% 72%; animation: sa-breathe 3.6s ease-in-out infinite; }
+.standing-agent .sa-head { transform-box: view-box; transform-origin: 50% 40%; }
+.standing-agent.is-speaking .sa-head { animation: sa-nod 2.8s ease-in-out infinite; }
+@keyframes sa-sway { 0%, 100% { transform: rotate(-1deg); } 50% { transform: rotate(1deg); } }
+@keyframes sa-breathe { 0%, 100% { transform: translateY(0) scaleY(1); } 50% { transform: translateY(-3px) scaleY(1.01); } }
+@keyframes sa-nod { 0%, 55%, 100% { transform: rotate(0); } 65% { transform: translateY(5px) rotate(3deg); } 75% { transform: rotate(0); } 85% { transform: translateY(4px) rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) { .standing-agent .sa-sway, .standing-agent .sa-upper, .standing-agent .sa-head { animation: none !important; } }
