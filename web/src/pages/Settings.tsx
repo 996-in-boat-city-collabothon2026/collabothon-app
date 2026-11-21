@@ -131,7 +131,7 @@ function PlatformRows({ h }: { h: LlmHealth | null }) {
           <dt className="text-sm text-stone-600">{k}</dt>
           <dd className="flex items-center gap-2 font-medium sm:text-right">
             {k === t('platform_status') && (
-              <span className={`h-2 w-2 shrink-0 rounded-full ${!h.ok ? 'bg-rose-500' : live ? 'bg-accent' : 'bg-amber-400'}`} aria-hidden="true" />
+              <span className={`h-2 w-2 shrink-0 rounded-full ${!h.ok ? 'bg-warn' : live ? 'bg-accent' : 'bg-zinc-400'}`} aria-hidden="true" />
             )}
             {v}
           </dd>

@@ -18,7 +18,7 @@ type Phase = 'idle' | 'thinking' | 'talking' | 'done' | 'error';
 /** Neutral round avatar with initials; the speaker gets an accent ring. */
 function Person({ cfo, size = 44, active = false }: { cfo: CfoId; size?: number; active?: boolean }) {
   return (
-    <span className={`relative inline-flex shrink-0 rounded-full ${active ? 'ring-4 ring-accent' : ''}`}>
+    <span className={`relative inline-flex shrink-0 rounded-full ${active ? 'agent-speaking ring-4 ring-accent' : ''}`}>
       <CfoAvatar cfo={cfo} size={size} />
       {active && <span className="live-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-accent" />}
     </span>
@@ -137,7 +137,7 @@ export default function Boardroom() {
         </form>
 
         {/* Who is at the table */}
-        <ul className="mt-6 grid w-full grid-cols-2 gap-4 sm:grid-cols-4">
+        <ul className={`mt-6 grid w-full grid-cols-2 gap-4 sm:grid-cols-4 ${phase === 'thinking' ? 'agents-thinking' : ''}`}>
           {ORDER.map((c) => (
             <li key={c} className={`flex flex-col items-center gap-2 rounded-2xl px-2 pb-3 pt-6 text-center transition ${speaking === c ? 'bg-accent-soft' : ''} ${busy && speaking !== c ? 'opacity-60' : ''}`}>
               <Person cfo={c} size={56} active={speaking === c} />
@@ -155,7 +155,7 @@ export default function Boardroom() {
         <section className="surface p-5" aria-label={t('transcript')}>
           <ol className="space-y-4" aria-live="polite">
             {result.turns.slice(0, shown).map((turn, i) => (
-              <li key={i} className="pop-in flex items-start gap-3">
+              <li key={i} className="turn-in flex items-start gap-3">
                 <Person cfo={turn.cfo} size={44} />
                 <div className="min-w-0 flex-1">
                   <p className="mb-1 font-semibold">

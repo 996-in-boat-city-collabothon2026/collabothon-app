@@ -248,7 +248,7 @@ function DocSheet({ viewer, onClose }: { viewer: Viewer; onClose: () => void }) 
         </>
       ) : upo ? (
         <>
-        <p className="rounded-2xl bg-emerald-50 p-3 font-semibold text-emerald-800">✅ {t('upo_ok')}</p>
+        <p className="rounded-2xl bg-accent-soft p-3 font-semibold text-accent-ink">{t('upo_ok')}</p>
         <p className="text-stone-700">{t('upo_explain')}</p>
         <dl className="divide-y divide-slate-200 rounded-xl border border-zinc-200">
           {[

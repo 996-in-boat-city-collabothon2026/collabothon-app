@@ -1,6 +1,6 @@
 // App shell: sidebar on desktop, bottom tab bar on mobile.
 import { useEffect, useState } from 'react';
-import { Navigate, NavLink, Route, Routes, useNavigate } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { User } from '@cfo/shared';
 import { api, useApi } from './api/client';
 import AskBubble from './components/AskBubble';
@@ -25,6 +25,7 @@ const NAV = [
 
 export default function App() {
   const { t } = useT();
+  const loc = useLocation();
   const { data: health } = useApi(api.llmHealth);
   const navigate = useNavigate();
   // undefined = still checking, null = not logged in
@@ -57,7 +58,7 @@ export default function App() {
       {/* Bottom padding: room for the mobile tab bar + the advice bubble, so it never covers the last buttons */}
       <div className="pb-40 md:pb-24">
         {/* Floating top bar: logo, menu pills (desktop), model, sign out */}
-        <header className="sticky top-0 z-30 bg-paper/85 backdrop-blur-xl">
+        <header className="sticky top-0 z-30 bg-paper/95">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 py-1 pl-4 pr-2">
             <span className="whitespace-nowrap text-lg font-extrabold tracking-tight"><span aria-hidden="true" className="sm:hidden">W</span><span className="sr-only sm:not-sr-only">WarsztatCFO</span></span>
             <nav aria-label="Menu" className="hidden items-center gap-1 lg:flex">
@@ -77,6 +78,7 @@ export default function App() {
           </div>
         </header>
         <main className="mx-auto min-h-screen max-w-6xl px-4 pt-5 lg:px-8">
+          <div key={loc.pathname} className="page-in">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/approvals" element={<Approvals />} />
@@ -86,6 +88,7 @@ export default function App() {
             <Route path="/report" element={<Report />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </div>
         </main>
       </div>
 
