@@ -5,6 +5,8 @@ param(
   [string]$Base = "http://localhost:8080",
   [switch]$RequireModel  # fail if /api/llm/health is not openai_compat + ok
 )
+# "https://host/" + "/api/..." = "//api/...", which returns the web page, not JSON: drop a trailing slash.
+$Base = $Base.TrimEnd('/')
 
 $checks = @(
   @{ m = "GET";  p = "/api/health" },

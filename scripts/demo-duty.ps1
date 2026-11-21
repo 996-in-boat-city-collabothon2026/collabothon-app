@@ -1,7 +1,7 @@
 # Owner: Pair 1. Demo duty kit (plan step 6.4). Windows PowerShell 5.1. Usage:
 #   ./scripts/demo-duty.ps1           status only (changes nothing): pods, model, live image, ready commands
 #   ./scripts/demo-duty.ps1 -Mock     Plan B: the model is down -> switch the app to mock mode (rule text)
-#   ./scripts/demo-duty.ps1 -Real     back to the real model (OpenShift AI)
+#   ./scripts/demo-duty.ps1 -Real     back to the real model: llama-31-8b-instruct (OpenShift AI, project cfo-llm)
 # Rollback of a bad build is NOT in here on purpose: follow deploy/README.md section 1 by hand.
 param(
   [switch]$Mock,
@@ -10,6 +10,10 @@ param(
   [string]$App = "warsztat-cfo"  # only to try the script on the test copy: -App warsztat-cfo-test -Base <test URL>
 )
 $ns = "my-first-model"
+$Base = $Base.TrimEnd('/')  # a trailing slash makes "//api/..." return the web page, not JSON
+# The demo model (decided 21 Nov). -Real always points the app at it, even after a switch to the 3B fallback.
+$RealModel = "llama-31-8b-instruct"
+$RealUrl = "http://llama-31-8b-instruct-predictor.cfo-llm.svc.cluster.local:8080/v1"
 
 function Get-LlmMode {
   try { (Invoke-RestMethod -Uri "$Base/api/llm/health" -TimeoutSec 10) } catch { $null }
@@ -24,7 +28,11 @@ function Show-Health {
 
 function Switch-Mode([string]$mode) {
   Write-Host "Switching the app to LLM_MODE=$mode ..." -ForegroundColor Cyan
-  oc set env deploy/$App LLM_MODE=$mode -n $ns
+  if ($mode -eq "openai_compat") {
+    oc set env deploy/$App LLM_MODE=$mode LLM_MODEL=$RealModel LLM_BASE_URL=$RealUrl -n $ns
+  } else {
+    oc set env deploy/$App LLM_MODE=$mode -n $ns
+  }
   oc rollout status deploy/$App -n $ns --timeout=180s
   # The old pod can still answer for 30-60 s while it stops, so wait until health shows the new mode.
   for ($i = 0; $i -lt 18; $i++) {
