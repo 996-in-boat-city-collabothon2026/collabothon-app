@@ -1,0 +1,80 @@
+# LIVE MODEL since Sat 21 Nov: Llama 3.1 8B Instruct from Red Hat's ModelCar catalog, in our own project cfo-llm.
+# Recreate it with: oc apply -f deploy/model/llama-31-8b.yaml   (needs the GPU free: stop any other model first)
+# Copied from the working llama-32-3b-instruct setup (same runtime image), with:
+#  - the 8B model, 8192 context (enough for our prompts), 90% GPU memory
+#  - no tool-calling flags (the app does not use tools; the 3.2 tool template would not match 3.1)
+#  - more RAM for loading the 16 GB of weights
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: llama-31-8b-instruct
+  namespace: cfo-llm
+  annotations:
+    opendatahub.io/apiProtocol: REST
+    opendatahub.io/recommended-accelerators: '["nvidia.com/gpu"]'
+    opendatahub.io/runtime-version: v0.9.1.0
+    opendatahub.io/template-display-name: vLLM NVIDIA GPU ServingRuntime for KServe
+    opendatahub.io/template-name: vllm-cuda-runtime-template
+    openshift.io/display-name: vLLM NVIDIA GPU ServingRuntime for KServe
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    prometheus.io/path: /metrics
+    prometheus.io/port: "8080"
+  containers:
+  - name: kserve-container
+    image: registry.redhat.io/rhaiis/vllm-cuda-rhel9:3.2.4
+    command: [python, -m, vllm.entrypoints.openai.api_server]
+    args:
+    - --port=8080
+    - --model=/mnt/models
+    - --served-model-name={{.Name}}
+    env:
+    - name: HF_HOME
+      value: /tmp/hf_home
+    ports:
+    - containerPort: 8080
+      protocol: TCP
+  multiModel: false
+  supportedModelFormats:
+  - autoSelect: true
+    name: vLLM
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: llama-31-8b-instruct
+  namespace: cfo-llm
+  annotations:
+    openshift.io/display-name: llama-31-8b-instruct
+    opendatahub.io/hardware-profile-name: gpu-profile
+    opendatahub.io/hardware-profile-namespace: redhat-ods-applications
+    opendatahub.io/model-type: generative
+    security.opendatahub.io/enable-auth: "false"
+    serving.kserve.io/deploymentMode: Standard
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  predictor:
+    automountServiceAccountToken: false
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: llama-31-8b-instruct
+      storageUri: oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.1-8b-instruct
+      args:
+      - --dtype=half
+      - --max-model-len=8192
+      - --gpu-memory-utilization=0.90
+      resources:
+        requests:
+          cpu: "1"
+          memory: 8Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
