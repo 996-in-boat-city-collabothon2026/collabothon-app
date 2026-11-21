@@ -48,14 +48,14 @@ const chairJson = (decisionActionIds: string[], comment = '') => JSON.stringify(
 // Rebuild M5 (docs/PAIR2-REBUILD.md): each CFO picks its own rule points and may add one checked comment; the chair
 // picks current card ids and may add one checked comment. No free model text reaches the stage.
 describe('conference: prompts and limits', () => {
-  it('each turn gets only its own points with ids and asks for the JSON choice; 120 tokens, temperature 0.1', async () => {
+  it('each turn gets only its own points with ids and asks for the JSON choice; 120 tokens, temperature 0.4 (chair 0.1)', async () => {
     await runAutopilot();
     sent.length = 0;
     await runBoardroom('Will the cash last through December?');
     const turns = sent.filter((c) => !isChair(c.m));
     expect(turns).toHaveLength(4);
     turns.forEach((c, i) => {
-      expect(c.o).toMatchObject({ maxTokens: TURN_MAX_TOKENS, temperature: 0.1 });
+      expect(c.o).toMatchObject({ maxTokens: TURN_MAX_TOKENS, temperature: 0.4 });
       for (const p of cfoFacts(ORDER[i]).points) expect(c.m[1].content).toContain(`- ${p.id} (${p.core ? 'main' : 'detail'}): ${p.text}`);
       expect(c.m[1].content).toContain('Reply ONLY with JSON');
       expect(c.m[1].content).toContain('MEETING TOPIC: Will the cash last through December?');

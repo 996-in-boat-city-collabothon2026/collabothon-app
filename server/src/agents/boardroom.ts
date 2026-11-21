@@ -17,6 +17,10 @@ const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia']; // White → Black 
 // Live: ~36 tokens/s and a 22 s budget for 5 calls. A JSON choice (a few point ids + one comment id) fits in 120 tokens.
 export const TURN_MAX_TOKENS = 120;
 export const CHAIR_MAX_TOKENS = 160;
+// The model returns only ids, so a higher temperature cannot put a wrong fact on screen; it only varies the picks.
+// If live JSON validity drops below 80%, go back to 0.2 (docs/PAIR2-REBUILD.md, live run 2).
+export const TURN_TEMPERATURE = 0.4;
+export const CHAIR_TEMPERATURE = 0.1;
 
 const transcriptOf = (turns: BoardroomTurn[]) => turns.map((t) => `${CFOS[t.cfo].name}: ${t.text}`).join('\n');
 
@@ -70,7 +74,7 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
     const raw = await chatOr('', [
       { role: 'system', content: PERSONAS[cfo] },
       { role: 'user', content: turnPrompt(cfo, facts, subject, heard, comments) },
-    ], { maxTokens: TURN_MAX_TOKENS, temperature: 0.1, mockKey: `boardroom:${cfo}` });
+    ], { maxTokens: TURN_MAX_TOKENS, temperature: TURN_TEMPERATURE, mockKey: `boardroom:${cfo}` });
     const answer = renderAnswer(facts, parseChoice(raw), comments);
     if (answer.note) console.info(`[guard] boardroom:${cfo} ${answer.note}`);
     turns.push({ cfo, text: answer.text });
@@ -89,7 +93,7 @@ export async function runBoardroom(topic?: string): Promise<BoardroomResult> {
   const chairRaw = await chatOr('', [
     { role: 'system', content: `${CHAIR_PERSONA} ${CHAIR_FORMAT}` },
     { role: 'user', content: `ITEMS TO APPROVE:\n${items}\n\nDEBATE:\n${transcriptOf(heard)}\n\n${commentBlock(chairComments)}` },
-  ], { maxTokens: CHAIR_MAX_TOKENS, temperature: 0.1, mockKey: 'boardroom:chair' });
+  ], { maxTokens: CHAIR_MAX_TOKENS, temperature: CHAIR_TEMPERATURE, mockKey: 'boardroom:chair' });
 
   const chair = extractJson(chairRaw, ChairSchema);
   // Cards in the chair's order, unknown ids and repeats dropped; none valid → every current card.

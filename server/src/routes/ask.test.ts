@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AskResult, BoardroomResult, CfoId } from '@cfo/shared';
 import { config } from '../config';
 import { db, resetDb } from '../domain/store';
-import { setModelCallForTests, type ChatMessage } from '../llm/provider';
+import { setModelCallForTests, type ChatMessage, type ChatOptions } from '../llm/provider';
 import { settlePayment } from '../domain/settle';
 import { runAutopilot } from '../agents/autopilot';
 import { cfoFacts } from '../agents/facts';
@@ -17,6 +17,7 @@ import boardroom, { pickCfo, ruleAnswer } from './boardroom';
 let modelReply = '';
 const sp = (s: string) => s.replace(/ /g, ' '); // fmtPLN uses no-break spaces
 let lastPrompt: ChatMessage[] = [];
+let lastOptions: ChatOptions | undefined;
 let calls = 0;
 const saved = { ...config.llm };
 
@@ -30,9 +31,10 @@ beforeEach(() => {
   resetDb(); // no "Run check" needed: the facts come straight from the rules
   Object.assign(config.llm, { baseUrl: 'http://model.test/v1', timeoutMs: 20_000, budgetMs: 22_000 });
   calls = 0;
-  setModelCallForTests(async (messages) => {
+  setModelCallForTests(async (messages, options) => {
     calls++;
     lastPrompt = messages;
+    lastOptions = options;
     return modelReply;
   }, 'openai_compat');
 });
@@ -52,6 +54,7 @@ describe('POST /api/ask', () => {
     expect(prompt).toContain('OWNER ASKS: Is the euro rate a problem?');
     expect(prompt).toContain('Reply ONLY with JSON');
     expect(prompt).not.toContain('36 000,00 zł'); // Anna's credit line is not Kasia's business
+    expect(lastOptions).toMatchObject({ maxTokens: 120, temperature: 0.4 }); // F6: only ids come back, so variety is safe
   });
 
   it('a true English free-text reply is still not shown: only rule text reaches the owner', async () => {

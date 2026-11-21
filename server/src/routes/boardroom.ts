@@ -10,6 +10,8 @@ import { chatOr } from '../llm/provider';
 
 /** A JSON reply with a few point ids and one comment id fits easily (a free-text answer needed 160). */
 export const ASK_MAX_TOKENS = 120;
+/** Only ids come back, so variety is safe (agents/boardroom.ts TURN_TEMPERATURE says why). */
+export const ASK_TEMPERATURE = 0.4;
 
 // Quick-advice bubble: the web sends no CFO (web/src/components/AskBubble.tsx), so this picks one for every bubble question.
 // Pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
@@ -112,7 +114,7 @@ const routes: FastifyPluginAsync = async (app) => {
     const raw = await chatOr('', [
       { role: 'system', content: PERSONAS[cfo] },
       { role: 'user', content: askPrompt(question, facts, comments) },
-    ], { maxTokens: ASK_MAX_TOKENS, temperature: 0.1, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
+    ], { maxTokens: ASK_MAX_TOKENS, temperature: ASK_TEMPERATURE, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
 
     // The text is always rule text; a number the owner typed ("Is VAT 99 999 zł?") can never reach the answer.
     const answer = renderAnswer(facts, parseChoice(raw), comments);
