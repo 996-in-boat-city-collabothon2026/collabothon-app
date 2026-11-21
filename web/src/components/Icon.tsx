@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 export type IconName =
   | 'home' | 'check-hand' | 'users' | 'receipt' | 'settings' | 'chat' | 'close' | 'search' | 'bulb'
   | 'flask' | 'bolt' | 'alert' | 'arrow' | 'arrow-up-right' | 'check' | 'x' | 'clock' | 'pen' | 'mail'
-  | 'bank' | 'truck' | 'building' | 'user' | 'sparkle';
+  | 'bank' | 'truck' | 'building' | 'user' | 'sparkle' | 'mic' | 'plus';
 
 const P: Record<IconName, ReactNode> = {
   home: <path d="M4 11.5 12 5l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z" />,
@@ -30,6 +30,8 @@ const P: Record<IconName, ReactNode> = {
   truck: <><path d="M3 6h11v10H3zM14 9.5h4l3 3.5v3h-7" /><circle cx="7" cy="17.5" r="1.8" /><circle cx="17.5" cy="17.5" r="1.8" /></>,
   building: <><path d="M4 21V5l8-2v18M12 8l8 2.5V21M3 21h18" /><path d="M7.5 9h1.5M7.5 13h1.5M7.5 17h1.5M15.5 13h1.5M15.5 17h1.5" /></>,
   user: <><circle cx="12" cy="8.5" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>,
+  mic: <><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" /></>,
+  plus: <path d="M12 5v14M5 12h14" />,
   sparkle: <path d="M12 3c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7z" />,
 };
 

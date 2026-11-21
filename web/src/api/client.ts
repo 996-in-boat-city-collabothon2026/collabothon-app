@@ -8,6 +8,11 @@ import type {
 /** GET /ksef/invoices adds totals computed on the server (Pair 3 route), so the UI never does money maths. */
 export type KsefInvoiceRow = Invoice & { gross: number; grossPLN: number };
 
+/** Invoice clerk agent types (POST /invoices/parse-voice) live in shared/types.ts: one contract for server and web. */
+export type { ClerkForm, InvoiceFill, PaymentMethod } from '@cfo/shared';
+import type { ClerkForm, InvoiceFill } from '@cfo/shared';
+export type NewInvoice = Omit<Invoice, 'id' | 'ksef' | 'paid'>;
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
@@ -39,6 +44,9 @@ export const api = {
   ask: (question: string, cfo?: CfoId, history?: ChatLine[]) => post<AskResult>('/ask', { question, cfo, history }),
   invoices: () => call<KsefInvoiceRow[]>('/ksef/invoices'),
   sendInvoice: (id: string, fix?: Pick<Invoice, 'counterparty'>) => post<Invoice>(`/ksef/invoices/${id}/send`, fix ?? {}),
+  createInvoice: (inv: NewInvoice) => post<Invoice>('/ksef/invoices', inv),
+  /** Invoice clerk agent: dictated text + the form → values for the EMPTY fields only. Saves nothing. */
+  fillInvoiceGaps: (text: string, form: ClerkForm) => post<InvoiceFill>('/invoices/parse-voice', { text, form }),
   invoiceXml: (id: string) => call<string>(`/ksef/invoices/${id}/xml`),
   invoiceUpo: (id: string) => call<Upo>(`/ksef/invoices/${id}/upo`),
   settings: () => call<Settings>('/settings'),
