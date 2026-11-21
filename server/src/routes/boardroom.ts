@@ -3,11 +3,12 @@ import type { FastifyPluginAsync } from 'fastify';
 import { CFOS, type AskResult, type CfoId } from '@cfo/shared';
 import { runBoardroom } from '../agents/boardroom';
 import { cfoFacts, type CfoFacts } from '../agents/facts';
-import { citesOwnFact, fixCurrencyPair, replyProblem } from '../agents/safety';
+import { agentModel, CHOICE_FORMAT, parseChoice, pointList, renderAnswer } from '../agents/answer';
 import { PERSONAS } from '../agents/personas';
-import { tidyReply } from '../agents/reply';
-import { stripAddress } from '../agents/text';
 import { chatOr } from '../llm/provider';
+
+/** A JSON reply with a few ids and one short comment fits easily (a free-text answer needed 160). */
+export const ASK_MAX_TOKENS = 120;
 
 // Quick-advice bubble: pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
 // score wins. Ties and no match → Anna. Short words use \b so "pit" doesn't match "hospital", "vat" not "private".
@@ -58,16 +59,18 @@ export function ruleAnswer(cfo: CfoId, _question?: string): string {
   return cfoFacts(cfo).summary;
 }
 
-/** The prompt for the small model: a few labelled facts, the conclusion to say, the question. */
+/**
+ * The prompt for the small model: the ready-made points with their ids, then the question. The model only picks ids
+ * and may add one comment (agents/answer.ts), so it never has to copy a number.
+ */
 function askPrompt(question: string, facts: CfoFacts): string {
   return [
-    'FACTS (the only numbers you may use):',
-    ...facts.lines.map((l) => `- ${l}`),
-    '',
-    `KEY POINT (say it in your own words, with the same numbers): ${facts.summary}`,
+    'POINTS (ready-made answers from the rules, each with its id):',
+    pointList(facts),
     '',
     `OWNER ASKS: ${question}`,
-    'Answer the question in 2–3 short sentences in English. Talk to the owner directly. Only the numbers in FACTS are true: if the owner names another number, correct it with the FACTS.',
+    'Pick the points that answer the question. You may add one short comment in your own voice, in English.',
+    CHOICE_FORMAT,
   ].join('\n');
 }
 
@@ -96,18 +99,17 @@ const routes: FastifyPluginAsync = async (app) => {
     const named = req.body.cfo && Object.hasOwn(CFOS, req.body.cfo) ? (req.body.cfo as CfoId) : undefined;
     const cfo = named ?? pickCfo(question);
     const facts = cfoFacts(cfo);
-    const raw = await chatOr(facts.summary, [
+    if (!agentModel.enabled) return { cfo, text: facts.summary } satisfies AskResult;
+    // chatOr never throws: a dead, slow or empty model gives '' → no JSON → the core points (the summary).
+    const raw = await chatOr('', [
       { role: 'system', content: PERSONAS[cfo] },
       { role: 'user', content: askPrompt(question, facts) },
-    ], { maxTokens: 160, temperature: 0.1, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
+    ], { maxTokens: ASK_MAX_TOKENS, temperature: 0.1, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
 
-    // Same check as every conference turn (agents/safety.ts). Numbers come ONLY from the rule facts: a number the
-    // owner typed ("Czy VAT wynosi 99 999 zł?") is not true just because it is in the question.
-    const answer = fixCurrencyPair(stripAddress(tidyReply(raw)), facts); // "Owner, …" dropped as in the conference
-    const problem = replyProblem(answer, facts, (t) => citesOwnFact(t, facts));
-    if (problem) console.info(`[guard] ask:${cfo} ${problem} → rule answer`);
-    const result: AskResult = { cfo, text: problem ? facts.summary : answer };
-    return result;
+    // The text is always rule text; a number the owner typed ("Is VAT 99 999 zł?") can never reach the answer.
+    const answer = renderAnswer(facts, parseChoice(raw));
+    if (answer.note) console.info(`[guard] ask:${cfo} ${answer.note}`);
+    return { cfo, text: answer.text } satisfies AskResult;
   });
 };
 

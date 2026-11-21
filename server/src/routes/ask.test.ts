@@ -1,15 +1,17 @@
-// Owner: Pair 2 (Person B). POST /api/ask: short facts per CFO, the reply is tidied in code, and a reply with an
-// invented number, a "done" claim, false calm or a Polish reply is never shown (the English rule conclusion is shown).
-// Stage language: English, even when the owner asks in Polish.
+// Owner: Pair 2 (Person B). POST /api/ask. Rebuild M4 (docs/PAIR2-REBUILD.md): the model picks rule points by id
+// and may add one checked comment (agents/answer.ts). Its free text is never shown, even when it is true, so every
+// free-text reply below (invented number, "done" claim, false calm, Polish) ends as English rule text.
 import Fastify from 'fastify';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AskResult, BoardroomResult } from '@cfo/shared';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { AskResult, BoardroomResult, CfoId } from '@cfo/shared';
 import { config } from '../config';
 import { db, resetDb } from '../domain/store';
 import { setModelCallForTests, type ChatMessage } from '../llm/provider';
 import { claimsDone } from '../agents/text';
 import { settlePayment } from '../domain/settle';
 import { runAutopilot } from '../agents/autopilot';
+import { cfoFacts } from '../agents/facts';
+import { agentModel } from '../agents/answer';
 import boardroom, { ruleAnswer } from './boardroom';
 
 let modelReply = '';
@@ -40,28 +42,28 @@ afterAll(() => {
 });
 
 describe('POST /api/ask', () => {
-  it('sends only this CFO facts and the conclusion, and asks for English', async () => {
-    modelReply = 'You have 1500 EUR to pay.';
+  it('sends only this CFO\'s points with their ids and asks for the JSON choice', async () => {
+    modelReply = '';
     await ask('Is the euro rate a problem?');
     const prompt = sp(lastPrompt[1].content);
-    expect(prompt).toContain('FACTS');
-    expect(prompt).toContain('Loss if EUR rises 5%: 320,25 zł');
-    expect(prompt).toContain('2–3 short sentences in English');
+    expect(prompt).toContain('POINTS');
+    expect(prompt).toContain('- fx-EUR: You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł');
+    expect(prompt).toContain('- rate-EUR: ');
+    expect(prompt).toContain('OWNER ASKS: Is the euro rate a problem?');
+    expect(prompt).toContain('Reply ONLY with JSON');
     expect(prompt).not.toContain('36 000,00 zł'); // Anna's credit line is not Kasia's business
-    expect(lastPrompt[0].content).toContain('Always answer in English');
   });
 
-  it('keeps an English reply that only repeats numbers from the facts', async () => {
+  it('a true English free-text reply is still not shown: only rule text reaches the owner', async () => {
     modelReply = 'You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł.';
-    expect(await ask('Is the euro rate a problem?')).toEqual({ cfo: 'kasia', text: modelReply });
+    expect(await ask('Is the euro rate a problem?')).toEqual({ cfo: 'kasia', text: ruleAnswer('kasia') });
   });
 
-  it('tidies the reply: no brackets, no list, no cut-off sentence (live replies)', async () => {
+  it('free text with brackets, a list or a cut-off sentence (live replies) → rule conclusion', async () => {
     modelReply = 'VAT [14 230,00 zł] is due on [November 25, 2026].';
-    expect((await ask('How much VAT do I pay and when?')).text).toBe('VAT 14 230,00 zł is due on November 25, 2026.');
-
+    expect((await ask('How much VAT do I pay and when?')).text).toBe(ruleAnswer('marek'));
     modelReply = "Here's what to do:\n\n- Send a reminder to FlotaTrans Sp. z o.o. for 12 300,00 zł.\n- Lately, consider a";
-    expect((await ask('Will I run out of cash?')).text).toBe('Send a reminder to FlotaTrans Sp. z o.o. for 12 300,00 zł.');
+    expect((await ask('Will I run out of cash?')).text).toBe(ruleAnswer('anna'));
   });
 
   it('replaces a reply with an invented amount by the rule conclusion (live reply)', async () => {
@@ -117,7 +119,7 @@ describe('POST /api/ask: numbers come only from the rules', () => {
     modelReply = 'Your lowest balance will be 20 275,00 zł on December 20, 2026.';
     expect((await ask('Will I run out of cash?')).text).toBe(ruleAnswer('anna'));
     modelReply = 'Your lowest balance will be -20 275,00 zł on December 20, 2026, below your buffer.';
-    expect((await ask('Will I run out of cash?')).text).toBe(modelReply);
+    expect((await ask('Will I run out of cash?')).text).toBe(ruleAnswer('anna')); // true, but free text (M4)
   });
 });
 
@@ -133,15 +135,15 @@ describe('POST /api/ask: same safeguards as the conference', () => {
     expect((await ask('Is the euro a problem?')).text).toBe(ruleAnswer('kasia'));
   });
 
-  it('"EUR/USD rate" with only euro invoices → "EUR rate" (live conference)', async () => {
+  it('"EUR/USD rate" free text (live conference) → rule conclusion', async () => {
     modelReply = 'The EUR/USD rate is going up: if EUR rises 5%, you lose 320,25 zł.';
-    expect((await ask('Is the euro a problem?')).text).toBe('The EUR rate is going up: if EUR rises 5%, you lose 320,25 zł.');
+    expect((await ask('Is the euro a problem?')).text).toBe(ruleAnswer('kasia'));
   });
 
-  it('a proposal still passes', async () => {
+  it('a proposal is not a done claim, but as free text it is not shown either', async () => {
     expect(claimsDone('I suggest paying VAT.')).toBe(false);
     modelReply = 'I suggest paying VAT of 14 230,00 zł by November 25, 2026.';
-    expect((await ask('Should I pay VAT?')).text).toBe(modelReply);
+    expect((await ask('Should I pay VAT?')).text).toBe(ruleAnswer('marek'));
   });
 });
 
@@ -163,9 +165,9 @@ describe('POST /api/ask: known misreads from the live tests are not shown', () =
     expect(r.text).toBe(ruleAnswer(r.cfo));
   });
 
-  it('the right direction is still fine', async () => {
+  it('the right direction as free text → rule conclusion too', async () => {
     modelReply = 'Send a reminder to FlotaTrans Sp. z o.o., who owes you 12 300,00 zł.';
-    expect((await ask('Will I have enough cash?')).text).toBe(modelReply);
+    expect((await ask('Will I have enough cash?')).text).toBe(ruleAnswer('anna'));
   });
 });
 
@@ -188,13 +190,13 @@ describe('blocker 1: a false "it was done" claim is never shown', () => {
     expect(db.obligations.find((o) => o.id === 'ob-vat-10')!.paid).toBe(false);
   });
 
-  it('"were sent" too; a proposal and the true "has not been paid" still pass', async () => {
+  it('"were sent" too; a proposal and the true "has not been paid" are free text, so rule text too (M4)', async () => {
     modelReply = 'The reminders to FlotaTrans Sp. z o.o. for 12 300,00 zł were sent.';
     expect((await askHttp('Will I have enough cash?')).text).toBe(ruleAnswer('anna'));
     modelReply = 'I suggest you pay VAT of 14,230 zł by November 25, 2026.';
-    expect((await askHttp('How much VAT do I owe?')).text).toBe(modelReply);
+    expect((await askHttp('How much VAT do I owe?')).text).toBe(ruleAnswer('marek'));
     modelReply = 'VAT of 14 230,00 zł has not been paid yet, it is due on November 25, 2026.';
-    expect((await askHttp('How much VAT do I owe?')).text).toBe(modelReply);
+    expect((await askHttp('How much VAT do I owe?')).text).toBe(ruleAnswer('marek'));
   });
 });
 
@@ -210,15 +212,16 @@ describe('blocker 2: every money amount is checked, also a small one', () => {
     expect((await askHttp('Is the VAT late fee 17 zł?')).text).toBe(ruleAnswer('marek'));
   });
 
-  it('17 zł that really is an amount in the data passes', async () => {
+  it('17 zł that really is an amount in the data: the rule text says it, never the free text (M4)', async () => {
     db.obligations.find((o) => o.id === 'ob-vat-10')!.amountPLN = 17;
     modelReply = 'VAT is 17 zł, due on November 25, 2026. Invoice FV/2026/11/009 must be fixed and sent again.';
-    expect((await askHttp('How much VAT do I owe?')).text).toBe(modelReply);
+    expect((await askHttp('How much VAT do I owe?')).text).toBe(ruleAnswer('marek'));
+    expect(sp(ruleAnswer('marek'))).toContain('VAT 17,00 zł');
   });
 });
 
 describe('blocker 3: the direction of the 5% FX shock is checked', () => {
-  it('position to pay (seed): "-5%" or "falls" → rule answer; "rises 5%" passes', async () => {
+  it('position to pay (seed): "-5%", "falls" or even the true "rises 5%" free text → rule answer', async () => {
     modelReply = 'A -5% change would cost you 320,25 zł.';
     const r = await askHttp('Is the euro rate a problem?');
     expect(r.status).toBe(200);
@@ -229,14 +232,14 @@ describe('blocker 3: the direction of the 5% FX shock is checked', () => {
     modelReply = 'If EUR falls 5%, you lose 320,25 zł.';
     expect((await askHttp('Is the euro rate a problem?')).text).toBe(ruleAnswer('kasia'));
     modelReply = 'If EUR rises 5%, you lose 320,25 zł on the 1500 EUR you owe.';
-    expect((await askHttp('Is the euro rate a problem?')).text).toBe(modelReply);
+    expect((await askHttp('Is the euro rate a problem?')).text).toBe(ruleAnswer('kasia'));
   });
 
-  it('position to receive (Krause paid): "falls 5%" passes, "rises" or "+5%" → rule answer', async () => {
+  it('position to receive (Krause paid): the rule text says "falls 5%"; any free text → rule answer', async () => {
     settlePayment(15372, 'inv-p-002');
     expect(sp(ruleAnswer('kasia'))).toMatch(/^You have 2100 EUR to receive\. If EUR falls 5%, you lose 448,35 zł/);
     modelReply = 'If EUR falls 5%, you lose 448,35 zł on the 2100 EUR you will receive.';
-    expect((await askHttp('Is the euro rate a problem?')).text).toBe(modelReply);
+    expect((await askHttp('Is the euro rate a problem?')).text).toBe(ruleAnswer('kasia'));
     modelReply = 'If EUR rises 5%, you lose 448,35 zł.';
     expect((await askHttp('Is the euro rate a problem?')).text).toBe(ruleAnswer('kasia'));
     modelReply = 'A +5% move would cost you 448,35 zł.';
@@ -257,12 +260,11 @@ describe('blocker 4: a Polish reply never reaches the English stage', () => {
     expect((await askHttp('Is the euro rate a problem?')).text).toBe(ruleAnswer('kasia'));
   });
 
-  it('an English reply with zł, Kraków and Sp. z o.o. is shown as written (not the fallback)', async () => {
+  it('an English free-text reply with zł, Kraków and Sp. z o.o. is not shown either (M4)', async () => {
     modelReply = 'Kurier Express Kraków owes you 7 380,00 zł and FlotaTrans Sp. z o.o. owes you 12 300,00 zł: send them reminders first.';
     const r = await askHttp('Will I have enough cash?');
     expect(r.cfo).toBe('anna');
-    expect(r.text).toBe(modelReply);
-    expect(r.text).not.toBe(ruleAnswer('anna'));
+    expect(r.text).toBe(ruleAnswer('anna'));
   });
 });
 
@@ -298,11 +300,9 @@ describe('boardroom routes: body checks, address, current cards', () => {
     expect((await post('/api/boardroom', { topic: 123 })).statusCode).toBe(200);
   });
 
-  it('"Owner, …" at the start of an answer is dropped, as in the conference', async () => {
+  it('"Owner, …" free text never reaches the answer (M4: rule text only)', async () => {
     modelReply = 'Owner, VAT of 14 230,00 zł is due on November 25, 2026.';
-    expect((await post('/api/ask', { cfo: 'marek', question: 'VAT?' })).json<AskResult>().text).toBe(
-      'VAT of 14 230,00 zł is due on November 25, 2026.',
-    );
+    expect((await post('/api/ask', { cfo: 'marek', question: 'VAT?' })).json<AskResult>().text).toBe(ruleAnswer('marek'));
   });
 
   it('the conference never offers a stale card, and with no cards it says nothing about the money', async () => {
@@ -321,5 +321,77 @@ describe('boardroom routes: body checks, address, current cards', () => {
     expect(r.decisionActionIds).not.toContain(supplier.id);
     expect(r.summary).not.toContain('Lock the rate');
     expect(r.decisionActionIds.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------- Rebuild M4: the model picks rule points and may add one checked comment ----------
+describe('POST /api/ask: JSON choice (rebuild M4)', () => {
+  async function askAs(cfo: string, question: string) {
+    const app = Fastify();
+    await app.register(boardroom, { prefix: '/api' });
+    const res = await app.inject({ method: 'POST', url: '/api/ask', payload: { cfo, question } });
+    return { status: res.statusCode, ...res.json<AskResult>() };
+  }
+  const point = (cfo: CfoId, id: string) => cfoFacts(cfo).points.find((p) => p.id === id)!.text;
+  const choice = (points: string[], comment = '') => JSON.stringify({ points, comment });
+  afterEach(() => { agentModel.enabled = true; });
+
+  it('valid JSON: the chosen points in the facts\' order, then the comment', async () => {
+    modelReply = choice(['tax-ob-zus-11', 'next-tax'], 'Taxes are not negotiable, so put that money aside first.');
+    const r = await askAs('marek', 'When do I pay ZUS?');
+    expect(r.status).toBe(200);
+    expect(r.text).toBe(`${point('marek', 'next-tax')} ${point('marek', 'tax-ob-zus-11')} Taxes are not negotiable, so put that money aside first.`);
+  });
+
+  it('a detail point is enough when nothing is critical (Tomasz: one car)', async () => {
+    const id = cfoFacts('tomasz').points.find((p) => p.id.startsWith('car-'))!.id;
+    modelReply = choice([id], 'bill every hour you work, your skill is worth it');
+    expect((await askAs('tomasz', 'What about the Passat?')).text).toBe(`${point('tomasz', id)} Bill every hour you work, your skill is worth it.`);
+  });
+
+  it('a critical point is always shown: "what is my balance?" never hides the cash gap', async () => {
+    modelReply = choice(['balance'], 'I would rather chase the money owed to you before borrowing anything.');
+    const r = await askAs('anna', 'What is my balance today?');
+    expect(r.text).toBe(`${point('anna', 'gap')} ${point('anna', 'balance')} I would rather chase the money owed to you before borrowing anything.`);
+  });
+
+  it('unknown ids and repeats are dropped, at most 3 points; nothing valid → the conclusion (summary)', async () => {
+    modelReply = choice(['nope', 'ksef', 'ksef', 'tax-ob-vat-10', 'tax-ob-zus-11', 'tax-ob-pit-11']);
+    expect((await askAs('marek', 'Taxes?')).text).toBe(
+      [point('marek', 'next-tax'), point('marek', 'ksef'), point('marek', 'tax-ob-vat-10'), point('marek', 'tax-ob-zus-11')].join(' '),
+    ); // ksef, vat, zus picked (3); next-tax is critical (VAT in 5 days), so it is added
+    modelReply = choice(['nope', 'gap-fake']);
+    expect((await askAs('anna', 'Cash?')).text).toBe(ruleAnswer('anna'));
+  });
+
+  it('broken JSON, free text, an empty reply → the conclusion; fences and single quotes are repaired', async () => {
+    for (const bad of ['{"points": ["fx-EUR"', 'You have 1500 EUR to pay.', '']) {
+      modelReply = bad;
+      expect((await askAs('kasia', 'Euro?')).text).toBe(ruleAnswer('kasia'));
+    }
+    modelReply = "```json\n{'points': ['rate-EUR'], 'comment': 'I trust certainty more than predictions.',}\n```";
+    expect((await askAs('kasia', 'Euro?')).text).toBe(`${point('kasia', 'fx-EUR')} ${point('kasia', 'rate-EUR')} I trust certainty more than predictions.`);
+  });
+
+  it('a comment with a fact, a done claim or false calm is dropped; the points stay', async () => {
+    for (const comment of ['Pay the 14 230 zł now.', 'The VAT was paid.', 'Remind FlotaTrans first.', "Don't worry, it can wait."]) {
+      modelReply = choice(['next-tax'], comment);
+      expect((await askAs('marek', 'VAT?')).text).toBe(point('marek', 'next-tax'));
+    }
+  });
+
+  it('a model timeout → the conclusion, within the time budget', async () => {
+    Object.assign(config.llm, { timeoutMs: 50 });
+    setModelCallForTests((_m, _o, signal) => new Promise((_, reject) => signal.addEventListener('abort', () => reject(new Error('aborted')))), 'openai_compat');
+    const t0 = Date.now();
+    expect((await askAs('anna', 'Cash?')).text).toBe(ruleAnswer('anna'));
+    expect(Date.now() - t0).toBeLessThan(2000);
+  });
+
+  it('emergency switch off → no model call, the rule conclusion', async () => {
+    agentModel.enabled = false;
+    modelReply = choice(['balance'], 'I would rather chase the money owed to you before borrowing anything.');
+    expect((await askAs('anna', 'Cash?')).text).toBe(ruleAnswer('anna'));
+    expect(calls).toBe(0);
   });
 });

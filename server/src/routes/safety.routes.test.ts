@@ -121,14 +121,15 @@ describe('POST /api/ask: unsafe → exact English rule fallback, HTTP 200, one m
   });
 });
 
-describe('POST /api/ask: safe English → shown unchanged', () => {
+// Rebuild M4: /api/ask never shows the model's free text, even a true one; only rule points (agents/answer.ts).
+describe('POST /api/ask: safe English free text → still the rule conclusion', () => {
   it.each(SAFE)('$name', async ({ question, cfo, text, before }) => {
     before?.();
     reply = () => text;
     const r = await ask(question);
     expect(r.status).toBe(200);
     expect(r.body.cfo).toBe(cfo);
-    expect(r.body.text).toBe(text);
+    expect(r.body.text).toBe(rule(cfo));
   });
 });
 
@@ -194,8 +195,8 @@ describe('FX direction after settling Krause (the shop is owed EUR: the loss com
   ])('safe: %s', async (text) => {
     settle();
     expect(rule('kasia')).toMatch(/If EUR falls 5%/);
-    reply = () => text;
-    expect((await ask('Is the euro rate a problem?')).body.text).toBe(text);
+    reply = (m) => (speaker(m) === 'kasia' ? text : ''); // free text is still checked in the conference turn (until M5)
+    expect((await conference()).body.turns[3].text).toBe(text);
   });
 });
 
@@ -262,17 +263,17 @@ describe('review of f5f7df5', () => {
       reply = () => c.text;
       const r = await ask(c.question);
       expect(r.body.cfo).toBe(c.cfo);
-      return { status: r.status, shown: r.body.text, fallback: rule(c.cfo) };
+      return { status: r.status, shown: r.body.text, fallback: rule(c.cfo), free: false }; // never free text (M4)
     }],
     ['agent turn', async (c: Case) => {
       reply = (m) => (speaker(m) === c.cfo ? c.text : '');
       const r = await conference();
-      return { status: r.status, shown: r.body.turns.find((t) => t.cfo === c.cfo)!.text, fallback: rule(c.cfo) };
+      return { status: r.status, shown: r.body.turns.find((t) => t.cfo === c.cfo)!.text, fallback: rule(c.cfo), free: true };
     }],
     ['chair summary', async (c: Case) => {
       reply = chairSays(c.text);
       const r = await conference();
-      return { status: r.status, shown: r.body.summary, fallback: chairFallback() };
+      return { status: r.status, shown: r.body.summary, fallback: chairFallback(), free: true };
     }],
   ] as const)('%s', (_, run) => {
     it.each(UNSAFE2)('unsafe → fallback: $name', async (c) => {
@@ -281,11 +282,11 @@ describe('review of f5f7df5', () => {
       expect(status).toBe(200);
       expect(shown).toBe(fallback);
     });
-    it.each(SAFE2)('safe → unchanged: $name', async (c) => {
+    it.each(SAFE2)('safe → unchanged (rule text in /api/ask): $name', async (c) => {
       c.before?.();
-      const { status, shown } = await run(c);
+      const { status, shown, fallback, free } = await run(c);
       expect(status).toBe(200);
-      expect(shown).toBe(c.text);
+      expect(shown).toBe(free ? c.text : fallback); // /api/ask shows rule text only, even for a true reply (rebuild M4)
     });
   });
 
@@ -311,7 +312,7 @@ describe('review of f5f7df5', () => {
     it.each(['If EUR falls 5%, you do not gain 448,35 zł. You lose that amount.', 'If EUR falls 5%, you lose 448,35 zł.'])('safe: %s', async (text) => {
       settle();
       reply = () => text;
-      expect((await ask('Is the euro rate a problem?')).body.text).toBe(text);
+      expect((await ask('Is the euro rate a problem?')).body.text).toBe(rule('kasia')); // rebuild M4: rule text only
       reply = (m) => (speaker(m) === 'kasia' ? text : '');
       expect((await conference()).body.turns[3].text).toBe(text);
     });
@@ -349,17 +350,17 @@ describe('review of 1bdce05', () => {
       reply = () => c.text;
       const r = await ask(c.question);
       expect(r.body.cfo).toBe(c.cfo);
-      return { status: r.status, shown: r.body.text, fallback: rule(c.cfo) };
+      return { status: r.status, shown: r.body.text, fallback: rule(c.cfo), free: false }; // never free text (M4)
     }],
     ['agent turn', async (c: Case) => {
       reply = (m) => (speaker(m) === c.cfo ? c.text : '');
       const r = await conference();
-      return { status: r.status, shown: r.body.turns.find((t) => t.cfo === c.cfo)!.text, fallback: rule(c.cfo) };
+      return { status: r.status, shown: r.body.turns.find((t) => t.cfo === c.cfo)!.text, fallback: rule(c.cfo), free: true };
     }],
     ['chair summary', async (c: Case) => {
       reply = chairSays(c.text); // every speaker gives safe rule text, only the chair says the case
       const r = await conference();
-      return { status: r.status, shown: r.body.summary, fallback: chairFallback() };
+      return { status: r.status, shown: r.body.summary, fallback: chairFallback(), free: true };
     }],
   ] as const)('%s', (route, run) => {
     it.each(UNSAFE3)('unsafe → fallback: $name', async (c) => {
@@ -367,10 +368,10 @@ describe('review of 1bdce05', () => {
       expect(status).toBe(200);
       expect(shown).toBe(fallback);
     });
-    it.each(SAFE3.filter((c) => route !== 'chair summary' || c.chair !== false))('safe → unchanged: $name', async (c) => {
-      const { status, shown } = await run(c);
+    it.each(SAFE3.filter((c) => route !== 'chair summary' || c.chair !== false))('safe → unchanged (rule text in /api/ask): $name', async (c) => {
+      const { status, shown, fallback, free } = await run(c);
       expect(status).toBe(200);
-      expect(shown).toBe(c.text);
+      expect(shown).toBe(free ? c.text : fallback); // /api/ask shows rule text only, even for a true reply (rebuild M4)
     });
   });
 
@@ -397,8 +398,8 @@ describe('review of 1bdce05', () => {
       ['VAT of 14,230 zł is due on November 25, 2026.', false],
       ['VAT of 6100 zł is due on November 24, 2026.', false],
     ] as const) {
-      reply = () => text;
-      expect([text, (await ask('How much VAT do I owe?')).body.text]).toEqual([text, ok ? text : rule('marek')]);
+      reply = (m) => (speaker(m) === 'marek' ? text : ''); // the conference turn still checks free text (until M5)
+      expect([text, (await conference()).body.turns[0].text]).toEqual([text, ok ? text : rule('marek')]);
     }
   });
 
@@ -410,7 +411,7 @@ describe('review of 1bdce05', () => {
       settlePayment(15372, 'inv-p-002');
       expect(rule('kasia')).toMatch(/If EUR falls 5%, you lose 448,35/);
       reply = () => text;
-      expect((await ask('Is the euro rate a problem?')).body.text).toBe(ok ? text : rule('kasia'));
+      expect((await ask('Is the euro rate a problem?')).body.text).toBe(rule('kasia')); // rebuild M4: rule text only
       reply = (m) => (speaker(m) === 'kasia' ? text : '');
       expect((await conference()).body.turns[3].text).toBe(ok ? text : rule('kasia'));
       reply = chairSays(text);
@@ -437,17 +438,17 @@ describe('review of eb55a16', () => {
       reply = () => c.text;
       const r = await ask(c.question);
       expect(r.body.cfo).toBe(c.cfo);
-      return { status: r.status, shown: r.body.text, fallback: rule(c.cfo) };
+      return { status: r.status, shown: r.body.text, fallback: rule(c.cfo), free: false }; // never free text (M4)
     }],
     ['agent turn', async (c: Case) => {
       reply = (m) => (speaker(m) === c.cfo ? c.text : '');
       const r = await conference();
-      return { status: r.status, shown: r.body.turns.find((t) => t.cfo === c.cfo)!.text, fallback: rule(c.cfo) };
+      return { status: r.status, shown: r.body.turns.find((t) => t.cfo === c.cfo)!.text, fallback: rule(c.cfo), free: true };
     }],
     ['chair summary', async (c: Case) => {
       reply = chairSays(c.text);
       const r = await conference();
-      return { status: r.status, shown: r.body.summary, fallback: chairFallback() };
+      return { status: r.status, shown: r.body.summary, fallback: chairFallback(), free: true };
     }],
   ] as const)('%s', (_, run) => {
     it.each(UNSAFE4)('unsafe → fallback: $name', async (c) => {
@@ -455,10 +456,10 @@ describe('review of eb55a16', () => {
       expect(status).toBe(200);
       expect(shown).toBe(fallback);
     });
-    it.each(SAFE4)('safe → unchanged: $name', async (c) => {
-      const { status, shown } = await run(c);
+    it.each(SAFE4)('safe → unchanged (rule text in /api/ask): $name', async (c) => {
+      const { status, shown, fallback, free } = await run(c);
       expect(status).toBe(200);
-      expect(shown).toBe(c.text);
+      expect(shown).toBe(free ? c.text : fallback); // /api/ask shows rule text only, even for a true reply (rebuild M4)
     });
   });
 });

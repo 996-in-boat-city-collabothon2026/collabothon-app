@@ -187,8 +187,24 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
   - **Good comments not used for tuning:** 4 of 30 are refused, all for a stated reason. "today" is a date word; "being paid" and "money left on the table" use past forms; "the rate is locked" is refused on purpose, because it is exactly the done-claim shape.
   - **Accepted cost:** an over-strict refusal only hides the comment. The rule text is still shown.
 
-- [ ] **M4 `/api/ask` in the new format** (`routes/boardroom.ts`, prompt in `agents/personas.ts`)
+- [x] **M4 `/api/ask` in the new format** (`routes/boardroom.ts`, new `agents/answer.ts`)
   Done when: route tests cover a valid JSON reply, broken JSON, unknown ids, a bad comment, a model timeout and the emergency switch.
+
+  Result: **590/590 tests in 24 files**, typecheck clean, build OK.
+  - **New `agents/answer.ts`** (shared with the conference in M5):
+    - `CHOICE_FORMAT`, `pointList`, `parseChoice` (`extractJson` + zod) and `renderAnswer`;
+    - unknown and repeated ids are dropped, at most 3 picked; with no valid id the core points are shown (= the summary);
+    - **every critical point is always added**, so "What is my balance?" never hides the cash gap;
+    - points keep the facts' order, and the comment is shown only when `commentProblem` passes;
+    - emergency switch: `agentModel.enabled = false` means no model call, only the conclusion.
+  - **`/api/ask`:**
+    - the prompt lists the points as `- id: text` and asks for JSON (`ASK_MAX_TOKENS` 120, was 160);
+    - the model's free text is never shown, even when it is true;
+    - log line `[guard] ask:<cfo> <note>`.
+  - **Tests:**
+    - 8 new route tests: valid JSON in the facts' order, a detail point, the critical gap always shown, unknown/extra/repeated ids, broken JSON / free text / empty, fenced and single-quoted JSON repaired, a bad comment dropped, a timeout, the switch;
+    - free-text `/ask` assertions in `ask.test.ts` and `safety.routes.test.ts` now expect the rule text. The same free texts are still checked on the conference turn until M5.
+  - **Mock mode:** the canned replies in `llm/mock.ts` (Pair 1) are not JSON, so `/ask` shows the conclusion. Curl on the mock server: 5 questions → 200 with the right CFO's conclusion. To demo comments without the model, Pair 1 could add canned JSON for `ask:*` / `advice:*`.
 
 - [ ] **M5 Conference in the new format** (`agents/boardroom.ts`): turns and chair.
   Done when: route tests as in M4. The chair never offers a stale card. The conference stays under 24 s with a hanging model.
