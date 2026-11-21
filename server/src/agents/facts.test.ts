@@ -46,6 +46,9 @@ describe('facts as points (seed, 2026-11-20)', () => {
     expect(text('marek', 'taxes-total')).toBe('All your taxes due in the next 30 days come to 22 130,00 zł in total.');
     expect(cfoFacts('anna').lines.map(sp)).toContain('Late customers owe you in total: 19 680,00 zł');
     expect(cfoFacts('marek').lines.map(sp)).toContain('All taxes due in 30 days together: 22 130,00 zł');
+    // Test copy log (PR #38 run): Tomasz added labour + parts (1700 + 237,50) himself.
+    expect(text('tomasz', 'missing-total')).toBe('Labour and parts markup together: 1937,50 zł is missing.');
+    expect(cfoFacts('tomasz').lines.map(sp)).toContain('Labour and parts markup together: 1937,50 zł missing');
     expect(text('tomasz', 'top-cost')).toBe('You spend most on parts: 17 850,00 zł in 30 days. Ask other suppliers for a quote.');
     expect(cfoFacts('tomasz').points.filter((p) => p.id.startsWith('car-')).map((p) => sp(p.text))).toEqual([
       'VW Passat 2015: 800,00 zł of labour is missing.',
