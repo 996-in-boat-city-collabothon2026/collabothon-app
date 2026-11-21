@@ -1,6 +1,6 @@
 // Owner: Pair 2.
 import type { FastifyPluginAsync } from 'fastify';
-import { CFOS, type AskRequest, type AskResult, type CfoId } from '@cfo/shared';
+import { CFOS, type AskRequest, type AskResult, type ChatLine, type CfoId } from '@cfo/shared';
 import { runBoardroom } from '../agents/boardroom';
 import { askCfo } from '../agents/cfo';
 import { followUpCfo, pickCfo } from '../agents/topic';
@@ -37,8 +37,18 @@ const ASK_BODY = {
     history: { type: 'array', maxItems: 6, items: CHAT_LINE },
   },
 } as const;
-/** The prompt gets only the last few lines: enough for "Why?", and the prompt stays small. */
+/** The prompt gets at least this many of the last lines: enough for "Why?", and the prompt stays small. */
 export const PROMPT_HISTORY_LINES = 4;
+
+/**
+ * The chat lines for the prompt: from the owner's last question on, so after a meeting the lead sees the topic and
+ * their own answer (review of PR #28), but never fewer than the last 4. The API allows at most 6 lines.
+ */
+export function promptHistory(history: ChatLine[]): ChatLine[] {
+  const lastOwner = history.map((line) => line.from).lastIndexOf('owner');
+  const start = Math.min(Math.max(lastOwner, 0), history.length - PROMPT_HISTORY_LINES);
+  return history.slice(Math.max(start, 0));
+}
 
 const routes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { topic?: string } }>('/boardroom', { schema: { body: BOARDROOM_BODY } }, async (req) =>
@@ -63,7 +73,7 @@ const routes: FastifyPluginAsync = async (app) => {
     // It looks at all lines (up to 6), so after a meeting it still sees the lead before the others' reactions.
     const cfo = named ?? followUpCfo(question, history);
     // askCfo never throws: the model's reply if the guard accepts it, otherwise the rule summary.
-    const { text } = await askCfo(cfo, question, { history: history.slice(-PROMPT_HISTORY_LINES) });
+    const { text } = await askCfo(cfo, question, { history: promptHistory(history) });
     return { cfo, text } satisfies AskResult;
   });
 };

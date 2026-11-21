@@ -12,7 +12,7 @@ import Icon from './Icon';
 import { CfoAvatar } from './ui';
 
 const AGENTS: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];
-const HISTORY = 6; // the API maximum: a whole meeting (topic, 4 turns, chair) fits, so the server sees who led
+const HISTORY = 6; // the API maximum: a whole meeting (topic, 4 turns, chair) fits, so the lead sees the topic
 
 /** The last messages as /api/ask history. Error bubbles (no CFO) are left out; long texts are cut to the API limit. */
 function toHistory(messages: ChatMsg[]): ChatLine[] {

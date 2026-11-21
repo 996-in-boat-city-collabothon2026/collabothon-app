@@ -2,12 +2,12 @@
 // model writes the answer (agents/cfo.ts); the routing cases moved to agents/topic.test.ts. Fake model, no GPU.
 import Fastify from 'fastify';
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AskResult } from '@cfo/shared';
+import type { AskResult, ChatLine } from '@cfo/shared';
 import { config } from '../config';
 import { resetDb } from '../domain/store';
 import { setModelCallForTests, type ChatMessage } from '../llm/provider';
 import { cfoFacts } from '../agents/facts';
-import boardroom from './boardroom';
+import boardroom, { promptHistory } from './boardroom';
 
 // The real guard (agents/guard.ts, Person A) checks every reply, so these are end-to-end through the route.
 
@@ -128,7 +128,7 @@ describe('POST /api/ask: follow-ups use the history', () => {
     expect((await ask({ question: 'When is VAT due?', history: afterKasia })).cfo).toBe('marek');
   });
 
-  it('only the last 4 lines reach the prompt', async () => {
+  it('owner lines only: the last 4 reach the prompt (never fewer than 4)', async () => {
     const history = ['one', 'two', 'three', 'four', 'five', 'six'].map((text) => ({ from: 'owner', text }));
     await ask({ question: 'Why?', history });
     expect(lastPrompt[1].content).not.toContain('Owner: two');
@@ -136,7 +136,7 @@ describe('POST /api/ask: follow-ups use the history', () => {
     expect(lastPrompt[1].content).toContain('Owner: six');
   });
 
-  it('after a full meeting (6 lines) "Why?" goes to the lead, and only the last 4 lines reach the prompt', async () => {
+  it('after a full meeting (6 lines) "Why?" goes to the lead, and the lead sees the topic and their own answer', async () => {
     const history = [
       { from: 'owner', text: 'Should we lock the EUR rate?' },
       { from: 'cfo', cfo: 'kasia', text: 'Lock the rate with a forward contract.' },
@@ -146,8 +146,9 @@ describe('POST /api/ask: follow-ups use the history', () => {
       { from: 'cfo', text: 'Joint recommendation: lock the rate first.' },
     ];
     expect((await ask({ question: 'Why?', history })).cfo).toBe('kasia');
-    expect(lastPrompt[1].content).not.toContain('Owner: Should we lock');
-    expect(lastPrompt[1].content).toContain('Anna: Cash is tight.');
+    expect(lastPrompt[1].content).toContain('Owner: Should we lock the EUR rate?');
+    expect(lastPrompt[1].content).toContain('Kasia: Lock the rate with a forward contract.');
+    expect(lastPrompt[1].content).toContain('CFO: Joint recommendation: lock the rate first.');
   });
 
   it('a chat as the web sends it (chair line without a CFO, a long turn cut to 500) → 200, stays with the last CFO', async () => {
@@ -172,6 +173,25 @@ describe('POST /api/ask: follow-ups use the history', () => {
     expect(r.cfo).toBe('marek');
     expect(r.text).not.toContain('99 999');
     expect(r.text).toBe(cfoFacts('marek').summary);
+  });
+});
+
+describe('promptHistory: which chat lines the model sees', () => {
+  const o = (text: string): ChatLine => ({ from: 'owner', text });
+  const k = (text: string): ChatLine => ({ from: 'cfo', cfo: 'kasia', text });
+
+  it('from the owner\'s last question on, when that is more than 4 lines (a meeting)', () => {
+    const h = [o('topic'), k('lead'), k('r1'), k('r2'), k('r3'), k('chair')];
+    expect(promptHistory(h)).toEqual(h);
+    expect(promptHistory(h.slice(1))).toEqual(h.slice(1)); // no owner line: all of them (max 6)
+  });
+  it('never fewer than the last 4', () => {
+    const h = [o('q1'), k('a1'), o('q2'), k('a2'), o('q3'), k('a3')];
+    expect(promptHistory(h)).toEqual(h.slice(-4));
+  });
+  it('short histories are kept whole', () => {
+    expect(promptHistory([])).toEqual([]);
+    expect(promptHistory([o('q'), k('a')])).toEqual([o('q'), k('a')]);
   });
 });
 
