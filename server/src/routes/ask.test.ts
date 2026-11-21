@@ -124,6 +124,11 @@ describe('POST /api/ask: follow-ups use the history', () => {
     expect(lastPrompt[1].content).toContain('Kasia: Yes, a forward contract would protect the Krause invoice.');
   });
 
+  it('B4 live check: "How much would it cost?" and "OK, what first?" after Kasia → kasia', async () => {
+    expect((await ask({ question: 'How much would it cost?', history: afterKasia })).cfo).toBe('kasia');
+    expect((await ask({ question: 'OK, what first?', history: afterKasia })).cfo).toBe('kasia');
+  });
+
   it('"When is VAT due?" after Kasia → marek', async () => {
     expect((await ask({ question: 'When is VAT due?', history: afterKasia })).cfo).toBe('marek');
   });

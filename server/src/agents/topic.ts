@@ -67,6 +67,11 @@ export function pickCfo(question: string): CfoId {
   return leadFor(question) ?? 'anna';
 }
 
+// "How much would IT cost?" points back at the chat: there "cost" or "how much" is about what was just said, not
+// Tomasz's costs (B4 live check: it went to Tomasz after Kasia's EUR answer).
+const POINTS_BACK = /\b(?:it|that|this|those|them)\b/i;
+const MONEY_WORDS = /\b(?:how much|costs?|price[sd]?|cheap\w*|expensive|sav(?:e|ing)s?)\b/gi;
+
 /**
  * Who answers a follow-up in a chat ("Why?", "And next month?"). A named CFO or a keyword match wins, so
  * "When is VAT due?" still goes to Marek. Otherwise the CFO who answered the owner's last question stays: the FIRST
@@ -74,12 +79,12 @@ export function pickCfo(question: string): CfoId {
  * pickCfo (Anna).
  */
 export function followUpCfo(question: string, history: ChatLine[] = []): CfoId {
-  const byTopic = leadFor(question);
-  if (byTopic) return byTopic;
   const isCfo = (line: ChatLine) => line.from === 'cfo' && line.cfo;
   const lastOwner = history.map((line) => line.from).lastIndexOf('owner');
   const answer = history.slice(lastOwner + 1).find(isCfo) ?? [...history].reverse().find(isCfo);
-  return answer?.cfo ?? pickCfo(question);
+  // With "it/that/this" and someone to point back at, money words alone do not switch the CFO.
+  const topic = answer && POINTS_BACK.test(question) ? question.replace(MONEY_WORDS, ' ') : question;
+  return leadFor(topic) ?? answer?.cfo ?? pickCfo(question);
 }
 
 // Greetings and thanks (English and Polish, with or without Polish letters).
