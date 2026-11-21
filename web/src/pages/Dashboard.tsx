@@ -120,7 +120,8 @@ export default function Dashboard() {
         ) : <div className="skeleton h-12 w-2/3" />}
         {open[0] && (
           <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
-            <p className="min-w-0 flex-1 text-lg"><span className="font-semibold text-stone-700">{t('next_step')}</span> <strong>{open[0].title}</strong></p>
+            {/* Phone: full width, so the button drops under the text instead of squeezing it */}
+            <p className="min-w-0 basis-full text-lg sm:basis-0 sm:flex-1"><span className="font-semibold text-stone-700">{t('next_step')}</span> <strong>{open[0].title}</strong></p>
             <Link to="/approvals" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-6 text-lg font-bold text-white hover:brightness-95">
               {t('decide_now')} <span aria-hidden="true">→</span>
             </Link>

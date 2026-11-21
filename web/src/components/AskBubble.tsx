@@ -21,9 +21,12 @@ export function TypingDots() {
   );
 }
 
-export default function AskBubble() {
+/**
+ * open/setOpen come from App: on phones and tablets the chat button sits in the header (App.tsx),
+ * on desktop it is the round button at the bottom right (below). Both open the same chat.
+ */
+export default function AskBubble({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => void }) {
   const { t } = useT();
-  const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -107,8 +110,9 @@ export default function AskBubble() {
         </div>
       )}
 
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? t('close') : t('ask_title')}
-        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-accent ring-4 ring-accent-soft text-2xl text-white shadow-md hover:bg-zinc-800 md:bottom-6">
+      {/* Desktop only: on smaller screens a floating button would cover text, so the header has the chat button */}
+      <button onClick={() => setOpen(!open)} aria-expanded={open} aria-label={open ? t('close') : t('ask_title')}
+        className="fixed bottom-24 right-4 z-40 hidden h-12 w-12 lg:flex items-center justify-center rounded-full bg-accent ring-4 ring-accent-soft text-2xl text-white shadow-md hover:bg-zinc-800 md:bottom-6">
         <Icon name={open ? 'close' : 'chat'} size={24} />
       </button>
     </>

@@ -30,6 +30,7 @@ export default function App() {
   const navigate = useNavigate();
   // undefined = still checking, null = not logged in
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [askOpen, setAskOpen] = useState(false); // the advice chat (AskBubble)
 
   useEffect(() => {
     api.me().then((r) => setUser(r.user)).catch(() => setUser(null));
@@ -59,7 +60,8 @@ export default function App() {
       <div className="pb-40 md:pb-24">
         {/* Floating top bar: logo, menu pills (desktop), model, sign out */}
         <header className="sticky top-0 z-30 bg-paper/95">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 py-1 pl-4 pr-2">
+          {/* flex-wrap: with big text (Settings → A++) the buttons go to a second line instead of off the screen */}
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 py-1 pl-4 pr-2">
             <span className="whitespace-nowrap font-display text-[28px] font-extrabold leading-none tracking-tight sm:text-[32px]"><span aria-hidden="true" className="sm:hidden">M</span><span className="sr-only sm:not-sr-only">MANI</span></span>
             <nav aria-label="Menu" className="hidden items-center gap-1 lg:flex">
               {NAV.map((n) => (
@@ -69,8 +71,13 @@ export default function App() {
                 </NavLink>
               ))}
             </nav>
-            <div className="flex items-center gap-1.5">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
               <LlmStatusBadge health={health} />
+              {/* Phones and tablets: the chat button lives here, so it never floats over the page */}
+              <button onClick={() => setAskOpen(!askOpen)} aria-expanded={askOpen} aria-label={askOpen ? t('close') : t('ask_title')}
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent text-white hover:brightness-95 lg:hidden">
+                <Icon name={askOpen ? 'close' : 'chat'} size={22} />
+              </button>
 
               <button onClick={logout} title={`${user.name} · demo`}
                 className="min-h-12 whitespace-nowrap rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-zinc-800">{t('logout')}</button>
@@ -92,7 +99,7 @@ export default function App() {
         </main>
       </div>
 
-      <AskBubble />
+      <AskBubble open={askOpen} setOpen={setAskOpen} />
 
       {/* Mobile bottom tabs */}
       <nav aria-label="Menu" className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-5 rounded-full bg-ink p-1.5 shadow-xl lg:hidden">
