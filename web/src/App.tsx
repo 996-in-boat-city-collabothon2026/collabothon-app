@@ -12,6 +12,7 @@ import Login from './pages/Login';
 import Report from './pages/Report';
 import Approvals from './pages/Approvals';
 import Boardroom from './pages/Boardroom';
+import Chats from './pages/Chats';
 import Ksef from './pages/Ksef';
 import SettingsPage from './pages/Settings';
 
@@ -83,6 +84,8 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/boardroom" element={<Boardroom />} />
+            <Route path="/chat" element={<Chats />} />
+            <Route path="/chat/:id" element={<Chats />} />
             <Route path="/ksef" element={<Ksef />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/report" element={<Report />} />
