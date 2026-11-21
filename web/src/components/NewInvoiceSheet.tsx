@@ -288,10 +288,10 @@ function VoicePanel({ form, onFill }: { form: ClerkForm; onFill: (f: InvoiceFill
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const { listening, interim, error, start, stop } = useListen(lang, (s) => setText((prev) => (prev ? `${prev} ${s}` : s)));
+  const { listening, interim, error, start, stop, abort } = useListen(lang, (s) => setText((prev) => (prev ? `${prev} ${s}` : s)));
 
   async function fill() {
-    stop();
+    abort(); // the live words are in `said` already; late results would come back as duplicates
     const said = `${text} ${interim}`.trim();
     if (!said) return;
     setBusy(true);
@@ -313,7 +313,7 @@ function VoicePanel({ form, onFill }: { form: ClerkForm; onFill: (f: InvoiceFill
         <div role="group" aria-label={t('voice_lang')} className="flex rounded-full bg-white p-1 text-sm font-semibold">
           {(['pl-PL', 'en-US'] as ListenLang[]).map((l) => (
             <button key={l} type="button" aria-pressed={lang === l} disabled={listening} onClick={() => setLang(l)}
-              className={`min-h-9 rounded-full px-3 ${lang === l ? 'bg-ink text-white' : ''}`}>{l.slice(0, 2).toUpperCase()}</button>
+              className={`min-h-12 min-w-12 rounded-full px-3 ${lang === l ? 'bg-ink text-white' : ''}`}>{l.slice(0, 2).toUpperCase()}</button>
           ))}
         </div>
       </div>

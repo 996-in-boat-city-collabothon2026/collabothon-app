@@ -15,6 +15,7 @@ interface Recognition {
   onend: (() => void) | null;
   start(): void;
   stop(): void;
+  abort(): void;
 }
 type RecognitionCtor = new () => Recognition;
 
@@ -40,6 +41,13 @@ export function useListen(lang: ListenLang, onFinal: (text: string) => void) {
   finalRef.current = onFinal;
 
   const stop = useCallback(() => rec.current?.stop(), []);
+  /** Stop at once and throw away results that are still on the way (no late "final" words). */
+  const abort = useCallback(() => {
+    const r = rec.current;
+    if (!r) return;
+    r.onresult = null;
+    r.abort();
+  }, []);
 
   const start = useCallback(() => {
     if (!Ctor || rec.current) return;
@@ -76,7 +84,7 @@ export function useListen(lang: ListenLang, onFinal: (text: string) => void) {
     }
   }, [lang]);
 
-  useEffect(() => () => rec.current?.stop(), []); // stop the mic when the form closes
+  useEffect(() => () => { rec.current?.abort(); }, []); // stop the mic at once when the form closes
 
-  return { listening, interim, error, start, stop };
+  return { listening, interim, error, start, stop, abort };
 }
