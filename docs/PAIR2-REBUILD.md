@@ -287,6 +287,28 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
   Done when: 20 questions × 4 CFOs + 3 conferences are run, and the JSON valid rate, comment pass rate and conference
   time are written here, with the comments read by hand.
 
+  **Status: the tooling is ready; it waits for model access from Pair 1.** The model has only an in-cluster address (`llama-32-3b-instruct-predictor.my-first-model.svc.cluster.local:8080/v1`, no route, no token).
+
+  - **The check, `server/src/agents/live.test.ts`:**
+    - skipped in `npm test`;
+    - runs 80 questions (20 per CFO: plain, traps from the reviews, Polish, prompt injection, numbers in the question) and 3 conferences;
+    - asserts only the safety property (every number on screen is a rule number) and each conference < 24 s;
+    - reports: valid JSON, valid ids, comments written / shown / refused by reason, routing, latency p50/p95, conference times;
+    - writes the full report (raw reply and shown text per question) to `LIVE_REPORT`.
+  - **Two ways to run it**, from `server/`. With `oc port-forward svc/llama-32-3b-instruct-predictor 8080:8080 -n my-first-model` running, raw replies are recorded:
+    ```bash
+    LIVE_LLM_BASE_URL=http://localhost:8080/v1 npx vitest run src/agents/live.test.ts
+    ```
+    Against the test deploy of this branch (`deploy/README.md` section 4), you see only what the owner sees:
+    ```bash
+    LIVE_APP_URL=https://warsztat-cfo-test-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com npx vitest run src/agents/live.test.ts
+    ```
+  - **Dry run against a fake vLLM** (rotating good JSON, fenced JSON, free text, bad id plus a name, broken JSON, a calming comment). Every count matched the rotation, so the measuring works:
+    - valid JSON 53/80 (66%);
+    - comments 39 written, 16 shown, refused: 13 for a name, 10 for false calm;
+    - conferences about 220 ms; 3/3 tests pass.
+  - **Found without the model:** with no CFO given, 3 of 16 questions go to the wrong CFO. "What rate would you lock?" and "Should I worry about the złoty?" go to Anna instead of Kasia; "What is the cheapest quick win?" goes to Anna instead of Tomasz. `pickCfo` has no "złoty" or "lock". This is minor, because the web always sends the chosen CFO.
+
 ---
 
 ## 6. How to verify
