@@ -89,6 +89,12 @@ export default function Boardroom() {
     }
   }
 
+  /** Back to the topic picker. The finished meeting stays saved under "Previous chats". */
+  function newMeeting() {
+    run.current++; // stop revealing a meeting that is still running
+    setPhase('idle'); setResult(null); setShown(0); setTyping(null); setDecisions([]); setDecided({}); setChat(null);
+  }
+
   async function decide(a: Action, approve: boolean) {
     try {
       await (approve ? api.approve(a.id) : api.reject(a.id));
@@ -105,11 +111,41 @@ export default function Boardroom() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <PageHeader title={t('boardroom_title')}>
-        <Link to="/chat" className="inline-flex min-h-12 items-center gap-2 rounded-full border border-zinc-300 bg-white px-4 font-semibold hover:bg-zinc-50">
-          <Icon name="chat" size={18} /> {t('chat_previous')}
-        </Link>
-      </PageHeader>
+      {/* Chat mode (after "Start meeting"): a compact header instead of the topic picker */}
+      {phase !== 'idle' && (
+        <section className="surface space-y-3 p-4 sm:p-5 lg:sticky lg:top-16 lg:z-20">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button onClick={newMeeting} className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-zinc-300 bg-white px-4 font-semibold hover:bg-zinc-50">
+              ← {t('chat_new_meeting')}
+            </button>
+            <Link to="/chat" className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 font-semibold text-blue hover:bg-zinc-50">
+              <Icon name="chat" size={18} /> {t('chat_previous')}
+            </Link>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <ul className="flex -space-x-2" aria-label={t('topic')}>
+              {ORDER.map((c) => <li key={c} className={speaking === c ? 'z-10' : busy ? 'opacity-60' : ''}><Person cfo={c} size={40} active={speaking === c} /></li>)}
+            </ul>
+            {/* Phones: the topic gets its own line under the avatars */}
+            <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
+              <h1 className="break-words text-xl font-semibold leading-tight sm:text-2xl">„{subject}”</h1>
+              <p className="text-sm text-zinc-700" aria-live="polite">
+                {phase === 'thinking' && <span className="ai-shimmer font-semibold">{t('cfos_thinking')} {secs > 0 && `${secs} s`}</span>}
+                {phase === 'talking' && t('meeting_running')}
+                {phase === 'done' && t('meeting_done')}
+                {phase === 'error' && <span className="font-semibold text-accent-ink">{t('meeting_failed')}</span>}
+              </p>
+            </div>
+            {phase === 'error' && (
+              <button onClick={() => void start()} className="min-h-11 rounded-full bg-ink px-5 font-semibold text-white">{t('chat_retry')}</button>
+            )}
+          </div>
+          {phase === 'thinking' && <p className="text-sm text-stone-600">{t('thinking_note')}</p>}
+        </section>
+      )}
+
+      {phase === 'idle' && <>
+      <PageHeader title={t('boardroom_title')} />
       <p className="-mt-3 text-lg text-zinc-700">{t('boardroom_intro')}</p>
 
       {/* AI orb + topic chips */}
@@ -119,14 +155,8 @@ export default function Boardroom() {
             ? <span className="wave">{[0, 120, 240, 120, 0].map((d, i) => <span key={i} style={{ animationDelay: `${d}ms` }} />)}</span>
             : <Icon name="users" size={34} className="text-white" />}
         </div>
-        <p className="mt-3 text-lg font-semibold" aria-live="polite">
-          {phase === 'idle' && t('pick_topic')}
-          {phase === 'thinking' && <span className="ai-shimmer">{t('cfos_thinking')} {secs > 0 && `${secs} s`}</span>}
-          {phase === 'talking' && `„${subject}”`}
-          {phase === 'done' && t('meeting_done')}
-          {phase === 'error' && <span className="text-accent-ink">{t('meeting_failed')}</span>}
-        </p>
-        {phase === 'thinking' && <p className="mt-1 text-sm text-stone-600">{t('thinking_note')}</p>}
+        {/* Only shown before a meeting: once it starts, the chat-mode header above takes over */}
+        <p className="mt-3 text-lg font-semibold">{t('pick_topic')}</p>
 
         <form onSubmit={start} className="mt-4 w-full space-y-3">
           <div className="flex flex-wrap justify-center gap-2" role="radiogroup" aria-label={t('topic')}>
@@ -152,7 +182,7 @@ export default function Boardroom() {
         </form>
 
         {/* Who is at the table */}
-        <ul className={`mt-6 grid w-full grid-cols-2 gap-4 sm:grid-cols-4 ${phase === 'thinking' ? 'agents-thinking' : ''}`}>
+        <ul className="mt-6 grid w-full grid-cols-2 gap-4 sm:grid-cols-4">
           {ORDER.map((c) => (
             <li key={c} className={`flex flex-col items-center gap-2 rounded-2xl px-2 pb-3 pt-6 text-center transition ${speaking === c ? 'bg-accent-soft' : ''} ${busy && speaking !== c ? 'opacity-60' : ''}`}>
               <Person cfo={c} size={56} active={speaking === c} />
@@ -164,6 +194,7 @@ export default function Boardroom() {
           ))}
         </ul>
       </section>
+      </>}
 
       {/* The conversation */}
       {result && shown + (typing ? 1 : 0) > 0 && (
@@ -236,12 +267,7 @@ export default function Boardroom() {
       {/* Keep talking: follow-up questions to the agents, saved with the meeting */}
       {phase === 'done' && result && chat && (
         <section className="surface pop-in space-y-4 p-6" aria-label={t('chat_keep_talking')}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-2xl font-semibold tracking-tight">{t('chat_keep_talking')}</h2>
-            <Link to={`/chat/${chat.id}`} className="inline-flex min-h-12 items-center gap-2 rounded-full bg-ink px-5 font-semibold text-white">
-              {t('chat_open_full')} <Icon name="arrow-up-right" size={18} />
-            </Link>
-          </div>
+          <h2 className="text-2xl font-semibold tracking-tight">{t('chat_keep_talking')}</h2>
           <ChatThread chat={chat} onChange={setChat} skip={result.turns.length + 1} />
         </section>
       )}

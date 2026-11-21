@@ -60,6 +60,8 @@ const DICT: Record<string, { pl: string; en: string }> = {
   chat_not_found: { pl: 'Tej rozmowy nie ma na tym urządzeniu.', en: 'This chat is not on this device.' },
   chat_pick: { pl: 'Wybierz rozmowę z listy albo zacznij nową.', en: 'Pick a chat from the list or start a new one.' },
   chat_keep_talking: { pl: 'Rozmawiaj dalej', en: 'Keep talking' },
+  chat_new_meeting: { pl: 'Nowa narada', en: 'New meeting' },
+  chat_retry: { pl: 'Spróbuj ponownie', en: 'Try again' },
   chat_open_full: { pl: 'Otwórz na cały ekran', en: 'Open full screen' },
   chat_ask_who: { pl: 'Zapytaj:', en: 'Ask:' },
   chat_anyone: { pl: 'Dowolnego agenta', en: 'Any agent' },

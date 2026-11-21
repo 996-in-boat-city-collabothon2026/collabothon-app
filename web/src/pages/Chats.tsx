@@ -13,7 +13,9 @@ export default function Chats() {
   const { t, lang } = useT();
   const { id } = useParams();
   const navigate = useNavigate();
-  const [chats, setChats] = useState<Chat[]>(listChats);
+  const [allChats, setChats] = useState<Chat[]>(listChats);
+  // A "New chat" nobody typed in is not worth listing (it still opens while it is the current one).
+  const chats = allChats.filter((c) => c.messages.length > 0 || c.id === id);
   const [current, setCurrent] = useState<Chat | undefined>(() => (id ? getChat(id) : undefined));
 
   useEffect(() => { setCurrent(id ? getChat(id) : undefined); }, [id]);
