@@ -2,13 +2,15 @@
 // send() → "processing" now → after ~2 s "accepted" (KSeF number + UPO) or "rejected" (reason).
 import type { Invoice } from '@cfo/shared';
 import { db, logActivity, nowIso } from '../domain/store';
+import { nipError } from './nip';
 
 const hex = (n: number) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('').toUpperCase();
 
-/** Basic checks a real KSeF would also do. Pair 3: add more (dates, totals, NIP checksum). */
+/** Basic checks a real KSeF would also do. Pair 3: add more (dates, totals). */
 export function validate(inv: Invoice): string | null {
-  if (!/^\d{10}$/.test(inv.counterparty.nip)) return 'Nieprawidłowy NIP nabywcy (Podmiot2): wymagane 10 cyfr';
-  if (inv.lines.length === 0) return 'Faktura bez pozycji (FaWiersz)';
+  const nip = nipError(inv.counterparty.nip);
+  if (nip) return nip;
+  if (inv.lines.length === 0) return 'Invoice has no lines (FaWiersz)';
   return null;
 }
 

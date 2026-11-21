@@ -5,6 +5,9 @@ import type {
   Forecast, Invoice, LlmHealth, Settings, Upo, User,
 } from '@cfo/shared';
 
+/** GET /ksef/invoices adds totals computed on the server (Pair 3 route), so the UI never does money maths. */
+export type KsefInvoiceRow = Invoice & { gross: number; grossPLN: number };
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
@@ -34,7 +37,7 @@ export const api = {
   boardroom: (topic?: string) => post<BoardroomResult>('/boardroom', { topic }),
   /** Quick advice: leave cfo out and the server picks the right CFO by topic. */
   ask: (question: string, cfo?: CfoId) => post<AskResult>('/ask', { question, cfo }),
-  invoices: () => call<Invoice[]>('/ksef/invoices'),
+  invoices: () => call<KsefInvoiceRow[]>('/ksef/invoices'),
   sendInvoice: (id: string, fix?: Pick<Invoice, 'counterparty'>) => post<Invoice>(`/ksef/invoices/${id}/send`, fix ?? {}),
   invoiceXml: (id: string) => call<string>(`/ksef/invoices/${id}/xml`),
   invoiceUpo: (id: string) => call<Upo>(`/ksef/invoices/${id}/upo`),
