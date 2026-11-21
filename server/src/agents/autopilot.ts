@@ -13,6 +13,9 @@ const fingerprint = (a: DraftAction) => JSON.stringify([a.cfo, a.kind, a.tier, a
  */
 const withdrawn = new Set<string>();
 
+/** True for a card the watchdog withdrew (its numbers changed), not one the owner rejected. */
+export const isWithdrawn = (id: string) => withdrawn.has(id);
+
 /** Same proposal = same kind and target (the invoice or obligation, or the title when there is no target). */
 const sameProposal = (x: Action, a: DraftAction) => x.kind === a.kind && (a.refId ? x.refId === a.refId : x.title === a.title);
 

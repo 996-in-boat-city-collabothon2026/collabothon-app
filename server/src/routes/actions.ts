@@ -4,7 +4,7 @@ import type { Action, ActionKind } from '@cfo/shared';
 import { db, logActivity } from '../domain/store';
 import { fmtPLN } from '../domain/money';
 import { openCreditLine, settlePayment } from '../domain/settle';
-import { isCurrentCard, runAutopilot } from '../agents/autopilot';
+import { isCurrentCard, isWithdrawn, runAutopilot } from '../agents/autopilot';
 import { fmtFx, fmtRate, fxExposures } from '../rules/fx';
 import { latestRate } from '../domain/fx';
 
@@ -43,8 +43,12 @@ function simulateExecution(a: Action): string {
   return NOTE[a.kind] ?? 'Simulated';
 }
 
-/** Golden rule 3: a card that was already approved, rejected or auto-done is answered with 409 (an unknown id: 404). */
-const alreadyHandled = (a: Action) => ({ error: `This card is already ${a.status === 'auto_done' ? 'done' : a.status}.` });
+/** Golden rule 3: a card that was already approved, rejected, withdrawn or auto-done is answered with 409 (an unknown id: 404). */
+const alreadyHandled = (a: Action) => ({
+  error: isWithdrawn(a.id)
+    ? 'This card was withdrawn: its numbers changed. Run the check for a fresh one.'
+    : `This card is already ${a.status === 'auto_done' ? 'done' : a.status}.`,
+});
 
 const routes: FastifyPluginAsync = async (app) => {
   app.post('/autopilot/run', async () => runAutopilot());

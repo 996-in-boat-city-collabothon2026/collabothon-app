@@ -111,4 +111,28 @@ describe('facts as points in other data states', () => {
     expect(usd).not.toContain('EUR');
     expect(usd).toMatch(/You decide, everything is simulated\.$/);
   });
+
+  it('F5: several small currencies → one "small risk" point; next to a hedged one it names the small ones', () => {
+    const base = db.invoices.find((i) => i.currency === 'EUR' && i.direction === 'purchase')!;
+    const small = (id: string, currency: 'EUR' | 'USD') =>
+      ({ ...structuredClone(base), id, number: id, currency, lines: [{ name: 'part', kind: 'part' as const, qty: 1, unitNet: 100, vatRate: 0 as const }] });
+    db.invoices.push(small('inv-usd-small', 'USD'));
+    expect(ids('kasia', true)).toEqual(['fx-EUR', 'hedge-EUR', 'fx-USD', 'small-risk']);
+    expect(text('kasia', 'small-risk')).toBe('The USD risk is small, no action needed for now.');
+
+    db.invoices = db.invoices.filter((i) => i.currency !== 'EUR');
+    db.invoices.push(small('inv-eur-small', 'EUR'));
+    const points = cfoFacts('kasia').points;
+    expect(points.filter((p) => p.text.includes('risk is small'))).toHaveLength(1);
+    expect(text('kasia', 'small-risk')).toBe('The risk is small, no action needed for now.');
+    expect(points.some((p) => p.id.startsWith('hedge-'))).toBe(false);
+  });
+
+  it('F5: no labour gap → the markup point does not start with "Also,"', () => {
+    for (const o of db.repairOrders) o.labourBilledPLN = o.labourHours * db.shop.labourRatePLN;
+    expect(ids('tomasz', true)[0]).toBe('markup');
+    expect(text('tomasz', 'markup')).toMatch(/^A parts markup below/);
+    resetDb();
+    expect(text('tomasz', 'markup')).toMatch(/^Also, a parts markup below/);
+  });
 });

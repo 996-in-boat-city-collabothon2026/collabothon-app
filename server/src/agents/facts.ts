@@ -127,10 +127,14 @@ function kasia(): Built {
     );
     const hedge = e.shockPLN > FX_SHOCK_THRESHOLD_PLN;
     if (hedge) lines.push(`Proposal: a forward contract for ${amount} (simulated), the rate stays at ${rate}`);
-    points.push(
-      point(`fx-${c}`, `You have ${amount} ${weOwe ? 'to pay' : 'to receive'}. If ${c} ${weOwe ? 'rises' : 'falls'} 5%, you lose ${fmtPLN(e.shockPLN)}${to > from && weOwe ? `, and the rate is going up (from ${fmtNum(from, 4)} zł to ${rate})` : ''}.`, true, hedge),
-      point(`hedge-${c}`, hedge ? `I suggest locking the rate with a forward contract for ${amount}.` : 'The risk is small, no action needed for now.'),
-    );
+    points.push(point(`fx-${c}`, `You have ${amount} ${weOwe ? 'to pay' : 'to receive'}. If ${c} ${weOwe ? 'rises' : 'falls'} 5%, you lose ${fmtPLN(e.shockPLN)}${to > from && weOwe ? `, and the rate is going up (from ${fmtNum(from, 4)} zł to ${rate})` : ''}.`, true, hedge));
+    if (hedge) points.push(point(`hedge-${c}`, `I suggest locking the rate with a forward contract for ${amount}.`));
+  }
+  // One "small risk" point for all small currencies, not one per currency. Named only next to a hedged one.
+  const small = exposures.filter((e) => e.shockPLN <= FX_SHOCK_THRESHOLD_PLN).map((e) => e.currency);
+  if (small.length) {
+    const which = small.length < exposures.length ? `The ${list(small)} risk is` : 'The risk is';
+    points.push(point('small-risk', `${which} small, no action needed for now.`));
   }
   // The value in złoty was only in the old prompt lines (found in M8).
   for (const e of exposures) {
@@ -219,7 +223,7 @@ function tomasz(): Built {
     const cars = list(labour.map(({ o }) => o.car));
     points.push(point('labour', `On ${labour.length} orders you billed customers too little for labour: ${fmtPLN(sumMissing(labour))} missing (${cars}). Bill the full hours at ${rate}.`));
   }
-  if (markup.length) points.push(point('markup', `Also, a parts markup below ${target} cost you ${fmtPLN(sumMissing(markup))}.`));
+  if (markup.length) points.push(point('markup', `${labour.length ? 'Also, a' : 'A'} parts markup below ${target} cost you ${fmtPLN(sumMissing(markup))}.`));
   // The biggest cost is the conclusion only when nothing else is wrong; otherwise it is a detail the owner may ask about.
   if (top) {
     points.push(point('top-cost', `You spend most on ${CATEGORY_EN[top.category]}: ${fmtPLN(top.amount)} in 30 days. Ask other suppliers for a quote.`, points.length === 0));

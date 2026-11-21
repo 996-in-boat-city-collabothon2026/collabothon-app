@@ -141,6 +141,11 @@ describe('stale cards are withdrawn for every agent', () => {
     const open = (kind: string) => db.actions.filter((a) => a.kind === kind && a.status === 'open');
     expect(open('credit_line').map((a) => a.amountPLN)).toEqual([29000]);
     expect(db.actions.find((a) => a.id === oldCredit.id)!.status).toBe('rejected');
+    // F5: a withdrawn card says why, not "already rejected" (the owner did not reject it).
+    for (const res of [await approve(app, oldCredit.id), await app.inject({ method: 'POST', url: `/api/actions/${oldCredit.id}/reject` })]) {
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error).toBe('This card was withdrawn: its numbers changed. Run the check for a fresh one.');
+    }
     expect(open('pricing').filter((a) => a.title.startsWith('Labour billed under your rate'))).toHaveLength(1);
     expect(open('pricing').filter((a) => a.title.startsWith('Parts markup'))).toHaveLength(1);
 
