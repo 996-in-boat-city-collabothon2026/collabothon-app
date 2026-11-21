@@ -6,7 +6,9 @@ import { Link } from 'react-router-dom';
 import { CFOS, type Action, type BoardroomResult, type CfoId } from '@cfo/shared';
 import { TypingDots } from '../components/AskBubble';
 import ChatThread from '../components/ChatThread';
+import SpeakButton from '../components/SpeakButton';
 import { newChat, saveChat, type Chat } from '../lib/chats';
+import { canSpeak, speakAll, stopSpeaking } from '../lib/speech';
 import { api } from '../api/client';
 import Icon from '../components/Icon';
 import { CfoAvatar, PageHeader, fmtDay, fmtPLN, useToast } from '../components/ui';
@@ -45,6 +47,16 @@ export default function Boardroom() {
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [shown, typing, phase]);
   useEffect(() => () => { run.current++; }, []); // stop revealing when leaving the page
+
+  // "▶ Play the meeting": index of the turn being read aloud (turns.length = the joint recommendation), null = silent
+  const [reading, setReading] = useState<number | null>(null);
+  const readingCfo = reading !== null && result ? result.turns[reading]?.cfo ?? null : null;
+  useEffect(() => () => { stopSpeaking(); }, []); // leaving the page stops the voice
+  function togglePlay() {
+    if (reading !== null || !result) { stopSpeaking(); setReading(null); return; }
+    const parts = [...result.turns.map((turn) => ({ text: turn.text, cfo: turn.cfo })), { text: result.summary }];
+    speakAll(parts, lang, (i) => setReading(i), () => setReading(null));
+  }
 
   // While the model on OpenShift AI is thinking (up to ~24 s), count the seconds so the page never looks frozen.
   const [secs, setSecs] = useState(0);
@@ -92,6 +104,7 @@ export default function Boardroom() {
   /** Back to the topic picker. The finished meeting stays saved under "Previous chats". */
   function newMeeting() {
     run.current++; // stop revealing a meeting that is still running
+    stopSpeaking(); setReading(null);
     setPhase('idle'); setResult(null); setShown(0); setTyping(null); setDecisions([]); setDecided({}); setChat(null);
   }
 
@@ -124,7 +137,7 @@ export default function Boardroom() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <ul className="flex -space-x-2" aria-label={t('topic')}>
-              {ORDER.map((c) => <li key={c} className={speaking === c ? 'z-10' : busy ? 'opacity-60' : ''}><Person cfo={c} size={40} active={speaking === c} /></li>)}
+              {ORDER.map((c) => <li key={c} className={speaking === c || readingCfo === c ? 'z-10' : busy ? 'opacity-60' : ''}><Person cfo={c} size={40} active={speaking === c || readingCfo === c} /></li>)}
             </ul>
             {/* Phones: the topic gets its own line under the avatars */}
             <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
@@ -138,6 +151,13 @@ export default function Boardroom() {
             </div>
             {phase === 'error' && (
               <button onClick={() => void start()} className="min-h-11 rounded-full bg-ink px-5 font-semibold text-white">{t('chat_retry')}</button>
+            )}
+            {/* Listen to the whole meeting: every agent in their own voice, then the joint recommendation */}
+            {phase === 'done' && result && canSpeak && (
+              <button onClick={togglePlay} aria-pressed={reading !== null}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-full px-5 font-semibold ${reading !== null ? 'bg-accent text-white' : 'bg-ink text-white'}`}>
+                <span aria-hidden="true">{reading !== null ? '■' : '▶'}</span> {t(reading !== null ? 'speak_stop' : 'meeting_play')}
+              </button>
             )}
           </div>
           {phase === 'thinking' && <p className="text-sm text-stone-600">{t('thinking_note')}</p>}
@@ -201,11 +221,12 @@ export default function Boardroom() {
         <section className="surface p-5" aria-label={t('transcript')}>
           <ol className="space-y-4" aria-live="polite">
             {result.turns.slice(0, shown).map((turn, i) => (
-              <li key={i} className="turn-in flex items-start gap-3">
-                <Person cfo={turn.cfo} size={44} />
+              <li key={i} className={`turn-in flex items-start gap-3 rounded-3xl ${reading === i ? 'bg-accent-soft p-2' : ''}`}>
+                <Person cfo={turn.cfo} size={44} active={reading === i} />
                 <div className="min-w-0 flex-1">
-                  <p className="mb-1 font-semibold">
-                    {CFOS[turn.cfo].name} <span className="font-normal text-zinc-700">· {lang === 'pl' ? CFOS[turn.cfo].rolePl : CFOS[turn.cfo].role}</span>
+                  <p className="mb-1 flex items-center justify-between gap-2 font-semibold">
+                    <span>{CFOS[turn.cfo].name} <span className="font-normal text-zinc-700">· {lang === 'pl' ? CFOS[turn.cfo].rolePl : CFOS[turn.cfo].role}</span></span>
+                    {phase === 'done' && <SpeakButton text={turn.text} cfo={turn.cfo} compact />}
                   </p>
                   <p className="rounded-3xl rounded-tl-md bg-zinc-100 px-4 py-3 text-[17px] leading-relaxed">{turn.text}</p>
                 </div>

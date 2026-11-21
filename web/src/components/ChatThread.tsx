@@ -9,6 +9,8 @@ import { useT } from '../i18n';
 import { saveChat, type Chat, type ChatMsg } from '../lib/chats';
 import { TypingDots } from './AskBubble';
 import Icon from './Icon';
+import MicButton from './MicButton';
+import SpeakButton from './SpeakButton';
 import { CfoAvatar } from './ui';
 
 const AGENTS: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];
@@ -32,7 +34,7 @@ export function ChatMessage({ m }: { m: ChatMsg }) {
       <li className="flex items-start gap-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-white"><Icon name="sparkle" size={20} /></span>
         <div className="min-w-0 flex-1">
-          <p className="mb-1 font-semibold">{t('joint_recommendation')}</p>
+          <p className="mb-1 flex items-center justify-between gap-2 font-semibold">{t('joint_recommendation')} <SpeakButton text={m.text} compact /></p>
           <p className="rounded-3xl rounded-tl-md bg-accent-soft px-4 py-3 text-[17px] leading-relaxed">{m.text}</p>
         </div>
       </li>
@@ -43,7 +45,12 @@ export function ChatMessage({ m }: { m: ChatMsg }) {
     <li className="flex items-start gap-3">
       {m.cfo ? <CfoAvatar cfo={m.cfo} size={44} /> : <span className="ai-orb h-11 w-11 shrink-0" aria-hidden="true" />}
       <div className="min-w-0 flex-1">
-        {c && <p className="mb-1 font-semibold">{c.name} <span className="font-normal text-zinc-700">· {lang === 'pl' ? c.rolePl : c.role}</span></p>}
+        {c && (
+          <p className="mb-1 flex items-center justify-between gap-2 font-semibold">
+            <span>{c.name} <span className="font-normal text-zinc-700">· {lang === 'pl' ? c.rolePl : c.role}</span></span>
+            <SpeakButton text={m.text} cfo={m.cfo} compact />
+          </p>
+        )}
         <p className="rounded-3xl rounded-tl-md bg-zinc-100 px-4 py-3 text-[17px] leading-relaxed">{m.text}</p>
       </div>
     </li>
@@ -121,6 +128,7 @@ export default function ChatThread({ chat, onChange, skip = 0, autoFocus = false
           <input value={input} onChange={(e) => setInput(e.target.value)} autoFocus={autoFocus}
             placeholder={t('chat_followup_ph')} aria-label={t('chat_followup_ph')}
             className="min-h-12 min-w-0 flex-1 rounded-full bg-zinc-100 px-5 text-base" />
+          <MicButton disabled={busy} onText={(heard) => setInput((cur) => (cur.trim() ? `${cur.trim()} ${heard}` : heard))} />
           <button disabled={busy || !input.trim()} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-ink px-5 font-semibold text-white disabled:opacity-40">
             {t('send')} <Icon name="arrow" size={18} />
           </button>
