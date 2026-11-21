@@ -70,7 +70,7 @@ export function pickCfo(question: string): CfoId {
 // "How much would IT cost?" points back at the chat: there "cost" or "how much" is about what was just said, not
 // Tomasz's costs (B4 live check: it went to Tomasz after Kasia's EUR answer).
 const POINTS_BACK = /\b(?:it|that|this|those|them)\b/i;
-const MONEY_WORDS = /\b(?:how much|costs?|price[sd]?|cheap\w*|expensive|sav(?:e|ing)s?)\b/gi;
+const MONEY_WORDS = /\b(?:how much|costs?|price[sd]?|cheap\w*|expensive|sav(?:e|ing)s?|money)\b/gi; // money: review of #30
 
 /**
  * Who answers a follow-up in a chat ("Why?", "And next month?"). A named CFO or a keyword match wins, so
