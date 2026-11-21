@@ -117,6 +117,7 @@ MANI runs live on Red Hat OpenShift with Llama 3.1 8B on OpenShift AI (demo comp
 
 - 250+ automated tests (Vitest) for the rules, the agents' safety checks, the approval API and the simulated KSeF gateway, run on every change; pull requests reviewed by another pair before merging.
 - Live runs on the cluster with the real model: we measured meeting time (21.1 s down to 12.4 s after the parallel change) and answer variety, and fixed what we found (repeated answers, money formats, false "done" claims).
+- An evaluation notebook ([notebooks/agent-evaluation.ipynb](notebooks/agent-evaluation.ipynb)) runs in a Jupyter workbench on OpenShift AI, next to the model, and keeps its results: questions reach the right agent 90% of the time when the agent is picked by topic, 42 of 43 amounts the agents say are found in the app's own data (the one left is a real ZUS amount from the seed data), agents' meeting 10.7 s, and the model returns usable JSON 10/10 times.
 - Smoke and demo-duty scripts check the health endpoint and the model before rehearsals; a rollback to an older image was tested on OpenShift.
 - Manual UI checks at phone (375 px), laptop (1024 px) and wide screens: no horizontal scroll, touch targets of 44–48 px, no console errors.
 
@@ -141,11 +142,11 @@ MANI runs live on Red Hat OpenShift with Llama 3.1 8B on OpenShift AI (demo comp
 
 ## Technology stack
 
-- **Languages:** TypeScript, HTML, CSS, JSON, PowerShell (deploy and demo scripts)
+- **Languages:** TypeScript, HTML, CSS, JSON, PowerShell (deploy and demo scripts), Python (evaluation notebook: Jupyter, pandas, matplotlib)
 - **Frontend:** React 19, React Router, Vite, Tailwind CSS v4, Recharts, Red Hat fonts; browser APIs: Web Speech API, speechSynthesis (read-aloud), MediaRecorder
 - **Backend:** Node.js 22, Fastify, tsx, Zod, npm workspaces (`shared` / `server` / `web`), Vitest, in-memory state from JSON seed data
 - **AI / models:** Llama 3.1 8B Instruct (open weights) served by vLLM (KServe ServingRuntime) on Red Hat OpenShift AI via an OpenAI-compatible API; deterministic rules engine for all numbers, the LLM only explains and chooses points; number guard; mock/fallback mode; Whisper speech-to-text on OpenShift AI (prepared, not yet deployed)
-- **Platform / cloud:** Red Hat OpenShift (Red Hat-provided cluster), Red Hat OpenShift AI, Red Hat UBI 9 Node.js 22 images, OpenShift BuildConfig (Docker strategy) with a GitHub webhook, ImageStream, Route, Secrets
+- **Platform / cloud:** Red Hat OpenShift (Red Hat-provided cluster), Red Hat OpenShift AI (model serving, Jupyter workbench), Red Hat UBI 9 Node.js 22 images, OpenShift BuildConfig (Docker strategy) with a GitHub webhook, ImageStream, Route, Secrets
 - **Hardware:** NVIDIA GPU node on the OpenShift AI cluster (provided by Red Hat)
 - **Domain data / integrations (simulated):** KSeF e-invoicing (FA(3) XML, UPO receipts, simulated gateway), NBP table A exchange rates (seeded), Polish tax deadlines (VAT/JPK_V7M, ZUS, PIT), NIP checksum validation, Commerzbank products (credit line, FX forward, term deposit; simulated)
 - **Tools:** GitHub (repository, pull requests), `oc` CLI, Claude Code (AI coding assistant)
