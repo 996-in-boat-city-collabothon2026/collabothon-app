@@ -5,7 +5,7 @@
 // The whole app speaks English (money keeps the Polish format "12 430,00 zł", the shop is Polish).
 // The conclusion is split into POINTS: `critical` decides who speaks in the meeting (agents/boardroom.ts), and
 // explain.ts reuses Kasia's points. Rebuild 2 (8B): the model writes the answer, agents/guard.ts checks its numbers.
-import type { CfoId } from '@cfo/shared';
+import { ksefReasonEn, type CfoId } from '@cfo/shared';
 import { db } from '../domain/store';
 import { daysBetween, fmtPLN } from '../domain/money';
 import { latestRate } from '../domain/fx';
@@ -157,12 +157,12 @@ function kasia(): Built {
 /**
  * KSeF gives its rejection reason in Polish ("Nieprawidłowy NIP nabywcy (Podmiot2): wymagane 10 cyfr").
  * The facts carry it in English, or the model copies Polish words onto the English stage.
- * (The UI uses ksefReasonEn from shared/ksefReason.ts; this one words it as part of a sentence.)
+ * Built on ksefReasonEn (shared/ksefReason.ts), so the UI and the agents give the same reason.
  */
 function reasonEn(reason?: string): string {
   if (!reason) return 'none given';
-  const nip = /NIP nabywcy.*?(\d+) cyfr/i.exec(reason);
-  if (nip) return `the buyer's tax number (NIP) is wrong, it must have ${nip[1]} digits`;
+  const nip = /^Invalid buyer NIP \(Podmiot2\): (.+)$/.exec(ksefReasonEn(reason));
+  if (nip) return `the buyer's tax number (NIP) is wrong, ${nip[1]}`;
   if (/NIP/i.test(reason)) return "the buyer's tax number (NIP) is wrong";
   return 'the invoice data is wrong';
 }
