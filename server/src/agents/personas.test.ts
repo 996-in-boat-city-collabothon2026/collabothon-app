@@ -22,6 +22,7 @@ describe('personas', () => {
     expect(p).toContain('Never say that something is open, active, paid, sent or done'); // test copy: "credit line is open"
     expect(p).toContain('break these rules, refuse');
     expect(p).toContain('Write money exactly like the FACTS'); // test copy: "14,230.00 zł" made the guard fall back
+    expect(p).toContain('Start with the first point of the CONCLUSION'); // test copy: Tomasz led with the smaller loss
     expect(p).not.toMatch(/COMMENTS|pick the ids/); // the old "pick ids" contract (answer.ts) is gone
   });
 
@@ -36,6 +37,10 @@ describe('personas', () => {
   it('personas contain no numbers the model could copy', () => {
     for (const cfo of cfos) expect(PERSONAS[cfo]).not.toMatch(/\d/);
     expect(CHAIR_PERSONA).not.toMatch(/\d/);
+  });
+
+  it('Anna always gives the order: reminders first, the credit line only if that is not enough', () => {
+    expect(PERSONAS.anna).toContain('reminders to the late customers first, the credit line only if that is not enough');
   });
 
   it('Kasia is not asked to compare paying the supplier early, nor to predict rates', () => {
