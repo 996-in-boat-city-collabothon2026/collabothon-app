@@ -1,6 +1,14 @@
-// Owner: Pair 2 (Person B). Quick-advice bubble: which CFO answers which question.
-import { describe, expect, it } from 'vitest';
-import { pickCfo } from './boardroom';
+// Owner: Pair 2. pickCfo (Person B: moves to agents/topic.test.ts) and POST /api/boardroom (Person C).
+import Fastify from 'fastify';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { BoardroomResult } from '@cfo/shared';
+import { config } from '../config';
+import { db, resetDb } from '../domain/store';
+import { setModelCallForTests } from '../llm/provider';
+import { settlePayment } from '../domain/settle';
+import { runAutopilot } from '../agents/autopilot';
+import { cfoFacts } from '../agents/facts';
+import routes, { pickCfo } from './boardroom';
 
 describe('pickCfo', () => {
   it.each([
@@ -46,4 +54,96 @@ describe('pickCfo: pricing vs loans (review of f5f7df5)', () => {
     ['How much VAT should I pay?', 'marek'],
     ['Is the euro going up?', 'kasia'],
   ])('%s → %s', (q, cfo) => expect(pickCfo(q)).toBe(cfo));
+});
+
+// ---------- POST /api/boardroom (Person C, docs/AGENTS-8B-PLAN.md C2): the API works as before ----------
+// The route is unchanged (runBoardroom(req.body?.topic) + BOARDROOM_BODY); these tests pin its shape for the web app.
+describe('POST /api/boardroom', () => {
+  let calls = 0;
+  let down = false;
+  const saved = { ...config.llm };
+  beforeEach(() => {
+    resetDb();
+    calls = 0;
+    down = false;
+    Object.assign(config.llm, { baseUrl: 'http://model.test/v1', timeoutMs: 20_000, budgetMs: 22_000 });
+    setModelCallForTests(async () => {
+      calls++;
+      if (down) throw new Error('model down');
+      return 'The model says this in its own words.'; // no numbers: any guard accepts it
+    }, 'openai_compat');
+  });
+  afterEach(() => {
+    setModelCallForTests(null);
+    resetDb();
+    Object.assign(config.llm, saved);
+  });
+
+  async function post(payload?: unknown) {
+    const app = Fastify();
+    await app.register(routes, { prefix: '/api' });
+    const res = await app.inject({ method: 'POST', url: '/api/boardroom', ...(payload === undefined ? {} : { payload: payload as object }) });
+    await app.close();
+    return res;
+  }
+
+  it('the answer has exactly turns, summary and decisionActionIds (the BoardroomResult the web page reads)', async () => {
+    const res = await post({ topic: 'How to improve the margin?' });
+    expect(res.statusCode).toBe(200);
+    const r = res.json<BoardroomResult>();
+    expect(Object.keys(r).sort()).toEqual(['decisionActionIds', 'summary', 'turns']);
+    expect(r.turns[0].cfo).toBe('tomasz'); // the topic reaches runBoardroom
+    for (const t of r.turns) expect(typeof t.text).toBe('string');
+    expect(typeof r.summary).toBe('string');
+    for (const id of r.decisionActionIds) expect(db.actions.find((a) => a.id === id)?.status).toBe('open');
+  });
+
+  it('{} or an empty topic → the general meeting (all 4 speak); no body at all → 400 (the web always sends { topic })', async () => {
+    expect((await post()).statusCode).toBe(400);
+    expect((await post({ topic: '  ' })).json<BoardroomResult>().turns).toHaveLength(4);
+    expect((await post({})).json<BoardroomResult>().turns).toHaveLength(4);
+  });
+
+  it('"hello" → "Pick a topic", no model call', async () => {
+    const r = (await post({ topic: 'hello' })).json<BoardroomResult>();
+    expect(r.turns).toEqual([]);
+    expect(r.summary).toContain('Pick a topic');
+    expect(calls).toBe(0);
+  });
+
+  it('bad bodies: an object or a topic over 200 characters → 400; a number is read as text ("123"), never a 500', async () => {
+    expect((await post({ topic: { a: 1 } })).statusCode).toBe(400);
+    expect((await post({ topic: 'x'.repeat(201) })).statusCode).toBe(400);
+    // Fastify turns 123 into "123" (coercion), so this is 200: "123" is small talk, the model is not called.
+    const n = await post({ topic: 123 });
+    expect(n.statusCode).toBe(200);
+    expect(n.json<BoardroomResult>().turns).toEqual([]);
+    expect(calls).toBe(0);
+  });
+
+  // Moved from routes/ask.test.ts (review of PR #6: after paying Krause early the chair still offered the old forward).
+  it('never offers a stale card; with no cards the meeting runs the check and approves nothing', async () => {
+    down = true; // rule texts only
+    const first = (await post({ topic: 'Monthly review' })).json<BoardroomResult>();
+    expect(first.decisionActionIds.length).toBeGreaterThan(0);
+    for (const id of first.decisionActionIds) expect(db.actions.find((a) => a.id === id)!.status).toBe('open');
+
+    await runAutopilot();
+    const supplier = db.actions.find((a) => a.kind === 'supplier_payment')!;
+    const hedge = db.actions.find((a) => a.kind === 'fx_hedge')!;
+    settlePayment(supplier.amountPLN!, supplier.refId); // paying Krause early makes the old forward stale
+    supplier.status = 'approved';
+    const r = (await post({ topic: 'Monthly review' })).json<BoardroomResult>();
+    expect(r.decisionActionIds).not.toContain(hedge.id);
+    expect(r.decisionActionIds).not.toContain(supplier.id);
+    expect(r.summary).not.toContain('Lock the rate');
+    expect(r.decisionActionIds.length).toBeGreaterThan(0);
+  });
+
+  it('model down → still 200, every turn is its CFO\'s rule text', async () => {
+    down = true;
+    const res = await post({ topic: 'Monthly review' });
+    expect(res.statusCode).toBe(200);
+    for (const t of res.json<BoardroomResult>().turns) expect(t.text).toBe(cfoFacts(t.cfo).summary);
+  });
 });

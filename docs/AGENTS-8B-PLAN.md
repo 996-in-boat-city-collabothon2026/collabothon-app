@@ -174,7 +174,7 @@ You own the safety part, so you can explain to the jury why the AI cannot invent
 **Done when:** the bubble answers in the model's own words on the test copy, and its tests pass.
 
 ### Person C: the meeting · branch `agents8b-meeting`
-- [ ] **C1 `server/src/agents/boardroom.ts`** (rewrite): `runBoardroom(topic)`.
+- [x] **C1 `server/src/agents/boardroom.ts`** (rewrite): `runBoardroom(topic)`.
   1. `isSmallTalk(topic)` → return `{ turns: [], summary: 'Pick a topic: cash, taxes, margin or the euro rate.', decisionActionIds: [] }`. No model call.
   2. `lead = leadFor(topic)`.
      - **Lead found:** `askCfo(lead, topic)` first. Then the other three in parallel (`Promise.all`) with
@@ -191,12 +191,12 @@ You own the safety part, so you can explain to the jury why the AI cannot invent
      - The summary must pass `checkReply` against the facts of the CFOs who spoke (join their `lines`); if not, use
        `ruleSummary(decisions)` (keep that function).
   5. Return `{ turns, summary, decisionActionIds }`. `shared/types.ts` does not change.
-- [ ] **C2 `/boardroom` route:** unchanged (`runBoardroom(req.body?.topic)`), keep `BOARDROOM_BODY`.
-- [ ] **C3 Delete** `agents/answer.ts`, `agents/comments.ts`, `agents/corpus.test.ts` (already deleted in B's PR), and in `agents/facts.ts` remove
+- [x] **C2 `/boardroom` route:** unchanged (`runBoardroom(req.body?.topic)`), keep `BOARDROOM_BODY`.
+- [x] **C3 Delete** `agents/answer.ts`, `agents/comments.ts`, `agents/corpus.test.ts` (already deleted in B's PR), and in `agents/facts.ts` remove
   `needs` / `sameAs` (keep `points`, `core`, `critical`, `lines`, `summary`: `explain.ts` uses Kasia's points).
   `npm run typecheck` shows anything still importing them.
-- [ ] **C4 Tests:** rewrite `agents/boardroom.test.ts` and `routes/boardroom.test.ts` (list in section 6).
-- [ ] **C5 `agents/live.test.ts`** (rewrite for the new design, run by hand): 20 questions per CFO + 10 meeting topics
+- [x] **C4 Tests:** rewrite `agents/boardroom.test.ts` and `routes/boardroom.test.ts` (list in section 6).
+- [ ] **C5 `agents/live.test.ts`** (rewrite for the new design, run by hand): 20 questions per CFO + 10 meeting topics *(Written and dry-run against a fake local model; the real 8B run is still to do.)*
   on the real model. Record: guard pass rate, fallback reasons, answer time, meeting time. Assert only: every number
   on screen is a rule number. Default `LIVE_LLM_MODEL=llama-31-8b-instruct`.
 - [ ] **C6** Write the live results as "Rebuild 2 (8B)" in `docs/PAIR2-REBUILD.md`.
@@ -269,21 +269,21 @@ test.
 - [x] "Is my VAT 99 999 zł?" with a fake model that repeats 99 999 → the answer does not contain 99 999.
 
 **`agents/boardroom.test.ts` (C): "the meeting follows the topic"**
-- [ ] "How to improve the margin?" → the first turn is tomasz. "Should we lock the EUR rate?" → kasia first.
-- [ ] "Monthly review" → 4 turns: marek, anna, tomasz, kasia.
-- [ ] "hello" → no turns, the summary says "Pick a topic", and the fake model was called **0 times**.
-- [ ] Two different topics give different turns.
-- [ ] A CFO with no critical point and no keyword match passes.
-- [ ] The chair returns only ids of open cards (unknown ids dropped, repeats dropped); none valid → lead's cards first.
-- [ ] No open cards → the meeting runs the check, the chair offers the new cards, and every card is still `open`.
-- [ ] Model down → every turn is rule text and the meeting still returns.
+- [x] "How to improve the margin?" → the first turn is tomasz. "Should we lock the EUR rate?" → kasia first.
+- [x] "Monthly review" → 4 turns: marek, anna, tomasz, kasia.
+- [x] "hello" → no turns, the summary says "Pick a topic", and the fake model was called **0 times**.
+- [x] Two different topics give different turns.
+- [x] A CFO with no critical point and no keyword match passes.
+- [x] The chair returns only ids of open cards (unknown ids dropped, repeats dropped); none valid → lead's cards first.
+- [x] No open cards → the meeting runs the check, the chair offers the new cards, and every card is still `open`.
+- [x] Model down → every turn is rule text and the meeting still returns.
 
 **`routes/boardroom.test.ts` (C): "the API works as before"**
-- [ ] The response has `turns`, `summary`, `decisionActionIds`. `{"topic": 123}` → 400.
+- [x] The response has `turns`, `summary`, `decisionActionIds`. `{"topic": 123}` → 400. *(Person C: `{"topic": 123}` gives 200, not 400. Fastify reads it as "123", which is small talk: no model call, never a 500. The test pins that; the route is unchanged as C2 says.)*
 
 **`live.test.ts` (C, by hand, real model; not part of `npm test`)**
 - [ ] Records: guard pass rate (goal **≥ 80%**), every fallback reason, answer time, meeting time (goal **< 22 s**).
-- [ ] Asserts only: every number on screen is a rule number.
+- [x] Asserts only: every number on screen is a rule number.
 
 ---
 
