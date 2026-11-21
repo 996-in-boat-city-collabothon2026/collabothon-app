@@ -43,3 +43,15 @@ Suggested shape: `GET /api/kpis?period=week|month` → `{ refreshedAt, items: [{
 ## Printable report (/report)
 Uses the same fields as above. Legal updates are static text in `web/src/lib/lawUpdates.ts` (checked 20.11.2026, with sources) –
 ideally Pair 1/2 would expose a small `GET /api/law-updates` maintained by the team.
+
+## Everyday-life numbers (added 21.11, from the dashboard storytelling review)
+
+The UI must not compute, so these should come ready from the rules engine (`/api/state` → `kpis`):
+
+| Field | Example | Meaning |
+|---|---|---|
+| `cashRunwayDays` | `26` | How many days the money lasts with no new income (balance ÷ average daily outflow). |
+| `costPer100PLN` | `83` | Out of every 100 zł of sales, how many złoty go to costs this month. |
+| `overdueDaysAvg` | `48` | Average number of days the overdue invoices are late. |
+
+Shown next to the big amounts as one plain sentence, e.g. "Cash lasts about 26 days".

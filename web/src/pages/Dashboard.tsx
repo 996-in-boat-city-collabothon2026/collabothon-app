@@ -95,6 +95,9 @@ export default function Dashboard() {
       {view !== 'review' && <div key={view} className="page-in"><PeriodView view={view} /></div>}
       {view === 'review' && (<div key="review" className="page-in space-y-5">
 
+      {/* 0. One line that says what this page is and where the numbers come from (article: the dashboard explains itself) */}
+      <p className="max-w-3xl text-[17px] text-stone-700">{t('intro_line')}</p>
+
       {/* 1. The headline in one line: money today → lowest point of the 13-week forecast (numbers from the rules engine) */}
       <section className={`alert-first surface grp p-6 sm:p-7 grp-alert`} aria-live="polite">
         {state.data?.shop.today && <p className="hero-date mb-4">{t('refreshed_at')} {fmtDay(state.data.shop.today)}</p>}
@@ -162,7 +165,15 @@ export default function Dashboard() {
             </span>
           </div>
           <Status loading={forecast.loading && !f} error={forecast.error} />
+          {f && <p className="mt-1 text-sm text-stone-600">{t('chart_axis_note')}</p>}
           {f && <CashChart f={f} />}
+          {f && (
+            <p className="mt-3 text-[17px] leading-snug"><strong>{t('takeaway')}</strong>{' '}
+              {f.lowest.balancePLN < 0
+                ? `${t('takeaway_low_1')} ${fmtDay(f.lowest.date)} (${fmtPLN(f.lowest.balancePLN)}). ${t('takeaway_low_2')}`
+                : t('takeaway_ok')}
+            </p>
+          )}
           <Term id="low_point" />
           <p className="mt-2 text-sm text-stone-600">{t('src_prefix')} {t('src_bank')}, {t('src_ksef')}, {t('src_rules')}</p>
         </section>
@@ -185,13 +196,13 @@ export default function Dashboard() {
                       paddingAngle={2} cornerRadius={6} stroke="none" isAnimationActive={false}
                       activeIndex={activeCat} onMouseEnter={(_, i) => setActiveCat(i)} onMouseLeave={() => setActiveCat(undefined)}
                       activeShape={(p: any) => <Sector {...p} outerRadius={p.outerRadius + 7} />}>
-                      {ex.byCategory.map((c) => <Cell key={c.category} fill={CAT_COLOR[c.category]} />)}
+                      {ex.byCategory.map((c, i) => <Cell key={c.category} fill={i < 4 ? CAT_COLOR[c.category] : '#d4d4d4'} />)}
                     </Pie>
                   </PieChart>
                 </ResponsiveContainer>
               </div>
               <ul className="w-full min-w-0 space-y-2 text-[16px]">
-                {ex.byCategory.slice(0, 5).map((c) => (
+                {ex.byCategory.slice(0, 4).map((c) => (
                   <li key={c.category} onMouseEnter={() => setActiveCat(ex.byCategory.indexOf(c))} onMouseLeave={() => setActiveCat(undefined)}
                     className={`flex items-center justify-between gap-3 rounded-lg px-1 transition-colors ${activeCat === ex.byCategory.indexOf(c) ? 'bg-accent-soft' : ''}`}>
                     <span className="flex items-center gap-2">
@@ -201,8 +212,19 @@ export default function Dashboard() {
                     <span className="tabular-nums"><strong>{Math.round(c.share * 100)}%</strong> · {fmtPLN(c.amountPLN)}</span>
                   </li>
                 ))}
+                {ex.byCategory.length > 4 && (
+                  <li className="flex items-center gap-2 px-1 text-stone-700">
+                    <span className="h-3 w-3 shrink-0 rounded-full bg-[#d4d4d4]" aria-hidden="true" />
+                    {t('cat_others')}: {ex.byCategory.slice(4).map((c) => t(`cat_${c.category}`)).join(', ')}
+                  </li>
+                )}
               </ul>
             </div>
+          )}
+          {ex && ex.byCategory[0] && (
+            <p className="mt-3 text-[17px] leading-snug"><strong>{t('takeaway')}</strong>{' '}
+              {t('takeaway_cost')} {t(`cat_${ex.byCategory[0].category}`)}, {Math.round(ex.byCategory[0].share * 100)}% {t('takeaway_cost_2')}
+            </p>
           )}
           <p className="mt-3 text-sm text-stone-600">{t('src_prefix')} {t('src_ksef')}, {t('src_bank')}</p>
         </section>
