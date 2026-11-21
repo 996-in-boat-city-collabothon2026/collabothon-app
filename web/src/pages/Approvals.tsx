@@ -5,11 +5,9 @@ import { api, useApi } from '../api/client';
 import { ActionCard, Card, CfoAvatar, FlowStrip, Status, fmtPLN, useToast } from '../components/ui';
 import { useT } from '../i18n';
 import Icon from '../components/Icon';
-import StandingAgent from '../components/StandingAgent';
-import { CFOS, type CfoId } from '@cfo/shared';
 
 export default function Approvals() {
-  const { t, lang } = useT();
+  const { t } = useT();
   const { data, loading, error, reload } = useApi(() => api.actions('open'));
   const state = useApi(api.state);
   const log = useApi(api.activity);
@@ -39,26 +37,6 @@ export default function Approvals() {
 
       <FlowStrip steps={[t('flow_agent'), t('flow_action'), t('flow_you')]} />
 
-      {/* The team, standing: whoever has a proposal for you nods */}
-      <section className="surface px-4 pb-4 pt-5" aria-label={t('team_stage')}>
-        <h2 className="px-1 text-xl font-semibold">{t('team_stage')}</h2>
-        <ul className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {(Object.keys(CFOS) as CfoId[]).map((id) => {
-            const n = queue.filter((a) => a.cfo === id).length;
-            return (
-              <li key={id} className="flex flex-col items-center text-center">
-                <StandingAgent cfo={id} height={170} speaking={n > 0} />
-                <span className="mt-2 text-lg font-bold leading-tight">{CFOS[id].name}</span>
-                <span className="text-[15px] leading-tight text-stone-700">{lang === 'pl' ? CFOS[id].rolePl : CFOS[id].role}</span>
-                <span className={`mt-2 rounded-full px-3 py-1 text-[15px] font-semibold ${n > 0 ? 'bg-ink text-white' : 'bg-zinc-100 text-stone-700'}`}>
-                  {n > 0 ? `${n} ${t('to_decide')}` : t('nothing_waiting')}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
       <div aria-live="polite" className="flex items-baseline justify-between surface px-5 py-4">
         <span className="text-stone-600">{t('balance')}</span>
         <strong className="text-xl tabular-nums">{state.data ? fmtPLN(state.data.kpis.balancePLN) : '…'}</strong>
@@ -70,7 +48,7 @@ export default function Approvals() {
         <div className="space-y-3">
           {queue.map((a) => (
             <div key={a.id} className={busy === a.id ? 'pointer-events-none opacity-60' : ''}>
-              <ActionCard action={a} onApprove={() => void decide(a, true)} onReject={() => void decide(a, false)} />
+              <ActionCard action={a} onApprove={() => decide(a, true)} onReject={() => decide(a, false)} />
             </div>
           ))}
         </div>

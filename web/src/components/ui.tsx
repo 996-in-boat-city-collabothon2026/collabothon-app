@@ -4,6 +4,7 @@ import { CFOS, HATS, type Action, type CfoId, type Currency, type Execution, typ
 import { Link } from 'react-router-dom';
 import { useT } from '../i18n';
 import Icon, { type IconName } from './Icon';
+import SpeakButton from './SpeakButton';
 
 /** 4920 → „4 920,00 zł”. Hand-made because pl-PL Intl does not group 4-digit numbers („4920,00 zł”). */
 export function fmtPLN(n: number): string {
@@ -99,7 +100,7 @@ export function CfoAvatar({ cfo, size = 40, live = false }: { cfo: CfoId; size?:
 /** Animated "agent → action → you" strip: shows how a decision flows. Decorative, labels are readable text. */
 export function FlowStrip({ steps }: { steps: string[] }) {
   return (
-    <div className="surface glow-mint flex items-center gap-2 overflow-hidden p-4 sm:gap-3 sm:p-5" aria-label={steps.join(' → ')}>
+    <div className="surface glow-mint flex flex-wrap items-center gap-2 overflow-hidden p-4 sm:gap-3 sm:p-5" aria-label={steps.join(' → ')}>
       {steps.map((s, i) => (
         <span key={s} className="contents">
           {i > 0 && <span className="flow-line min-w-3 flex-1" aria-hidden="true" />}
@@ -169,15 +170,25 @@ export function HatAvatar({ letter, color, hat: hatId, label, size = 40 }: {
   );
 }
 
-export function ActionCard({ action, onApprove, onReject }: { action: Action; onApprove?: () => void; onReject?: () => void }) {
+export function ActionCard({ action, onApprove, onReject }: {
+  action: Action; onApprove?: () => void | Promise<unknown>; onReject?: () => void | Promise<unknown>;
+}) {
   const { t } = useT();
   const [open, setOpen] = useState(false);
+  const [done, setDone] = useState<'approve' | 'reject' | null>(null);
+  // On success the parent reloads and this card goes away. If the card is still here afterwards (the call failed),
+  // drop the "Approved" state so the buttons work again.
+  const finish = (kind: 'approve' | 'reject', fn?: () => void | Promise<unknown>) => {
+    if (done) return;
+    setDone(kind);
+    setTimeout(() => void Promise.resolve(fn?.()).finally(() => setDone(null)), 750);
+  };
   const canDecide = action.tier === 'NEEDS_APPROVAL' && action.status === 'open';
   return (
-    <article className="rounded-3xl bg-white p-4">
-      <div className="flex items-start gap-3">
+    <article className="flex h-full flex-col rounded-3xl bg-white p-4">
+      <div className="flex flex-1 items-start gap-3">
         <span className="flex w-20 shrink-0 flex-col items-center pt-3 text-center">
-          <CfoAvatar cfo={action.cfo} size={36} live />
+          <span className="agent-hello"><CfoAvatar cfo={action.cfo} size={36} live /></span>
           <span className="mt-1 text-base font-bold leading-tight">{CFOS[action.cfo].name}</span>
           <span className="text-sm leading-tight text-zinc-700">{CFOS[action.cfo].role}</span>
         </span>
@@ -199,14 +210,32 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
             <div className="mt-1 text-sm text-stone-700">
               {action.explanation && <p className="mb-1">{action.explanation}</p>}
               <ul className="list-disc pl-5">{action.why.map((w) => <li key={w}>{w}</li>)}</ul>
+              <div className="mt-2">
+                <SpeakButton text={[
+                  action.title,
+                  action.amountPLN !== undefined ? fmtPLN(action.amountPLN) : '',
+                  action.dueDate ? `${t('due')} ${fmtDay(action.dueDate)}` : '',
+                  action.explanation ?? '',
+                  ...action.why,
+                ].map((s) => s.trim().replace(/\.+$/, '')).filter(Boolean).join('. ')} />
+              </div>
             </div>
           )}
         </div>
       </div>
       {canDecide && (
-        <div className="mt-3 flex gap-2">
-          <button onClick={onApprove} className="min-h-12 flex-1 rounded-full bg-accent py-2 text-lg font-bold text-white">{t('approve')} →</button>
-          <button onClick={onReject} className="min-h-12 flex-1 rounded-full border border-stone-300 bg-white py-2 font-semibold">{t('reject')}</button>
+        // mt-auto: the buttons stay on the card's bottom edge, so they line up in a row of cards
+        <div className="mt-auto flex gap-2 pt-3">
+          <button onClick={() => finish('approve', onApprove)} disabled={!!done} aria-live="polite"
+            className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-accent py-2 text-lg font-bold text-white">
+            {done === 'approve'
+              ? <><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path className="check-draw" pathLength={1} d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>{t('done_approved')}</>
+              : <>{t('approve')} →</>}
+          </button>
+          <button onClick={() => finish('reject', onReject)} disabled={!!done}
+            className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full border border-stone-300 bg-white py-2 font-semibold">
+            {done === 'reject' ? <>{t('done_rejected')}</> : t('reject')}
+          </button>
         </div>
       )}
     </article>
@@ -216,7 +245,7 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
 export function LlmStatusBadge({ health }: { health: LlmHealth | null }) {
   if (!health) return null;
   const live = health.mode === 'openai_compat';
-  const cls = !health.ok ? 'bg-rose-500' : live ? 'bg-accent' : 'bg-amber-400';
+  const cls = !health.ok ? 'bg-warn' : live ? 'bg-accent' : 'bg-zinc-400';
   const ms = live && health.ok && health.latencyMs > 0 ? ` · ${health.latencyMs} ms` : '';
   const label = !health.ok ? 'Model offline' : live ? `Model: OpenShift AI · ${health.model}${ms}` : 'Model: mock (local)';
   // Click → Settings, section "Runs on Red Hat" with the full model and platform details.

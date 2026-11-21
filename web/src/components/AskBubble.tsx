@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { useT } from '../i18n';
 import Icon from './Icon';
 import { CfoAvatar } from './ui';
+import SpeakButton from './SpeakButton';
 
 type Msg = { from: 'me' | 'cfo'; text: string; cfo?: CfoId };
 
@@ -71,7 +72,10 @@ export default function AskBubble() {
             ) : (
               <div key={i} className="flex max-w-[92%] items-end gap-2">
                 {m.cfo && <CfoAvatar cfo={m.cfo} size={30} />}
-                <p className="rounded-2xl rounded-bl-sm bg-stone-100 px-3 py-2 text-base">{m.text}</p>
+                <div className="flex min-w-0 flex-col items-start gap-1.5">
+                  <p className="rounded-2xl rounded-bl-sm bg-stone-100 px-3 py-2 text-base">{m.text}</p>
+                  <SpeakButton text={m.text} />
+                </div>
               </div>
             ))}
             {busy && (

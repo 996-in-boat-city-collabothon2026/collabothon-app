@@ -2,7 +2,7 @@
 // Golden rule 1: the UI computes nothing. Every number comes from the API (server/src/rules); no demo numbers here.
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Area, AreaChart, Cell, Label, Pie, PieChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, Cell, Label, Pie, PieChart, ReferenceDot, ReferenceLine, ResponsiveContainer, Sector, Tooltip, XAxis, YAxis } from 'recharts';
 import type { Action, ExpenseCategory, Forecast, Tier } from '@cfo/shared';
 import { api, useApi } from '../api/client';
 import { TypingDots } from '../components/AskBubble';
@@ -10,17 +10,22 @@ import { ActionCard, PageHeader, Status, fmtDay, fmtPLN, useToast } from '../com
 import { useT } from '../i18n';
 import { GLOSSARY } from '../lib/glossary';
 import Icon from '../components/Icon';
+import PeriodView from './PeriodView';
+import CountUp from '../components/CountUp';
+import { useSweep } from '../components/useSweep';
 
 const RANGES = [30, 60, 90] as const;
 const PRIORITY: Record<Tier, number> = { NEEDS_APPROVAL: 0, RECOMMENDED: 1, ANALYSED: 2 };
 // One accent in tints + greys: the biggest costs are the strongest colour.
 const CAT_COLOR: Record<ExpenseCategory, string> = {
-  payroll: '#0F5132', taxes: '#141414', parts: '#4E8A6B', rent: '#6b6b6b',
-  leasing: '#A9CDB9', utilities: '#a3a3a3', other: '#d4d4d4',
+  payroll: '#D40000', taxes: '#141414', parts: '#1D4ED8', rent: '#6b6b6b',
+  leasing: '#F2B8C0', utilities: '#a3a3a3', other: '#d4d4d4',
 };
 
 export default function Dashboard() {
   const { t } = useT();
+  const [view, setView] = useState<'review' | 'week' | 'month'>('review');
+  const [activeCat, setActiveCat] = useState<number | undefined>(undefined); // hovered slice of the pie
   const [days, setDays] = useState<(typeof RANGES)[number]>(30);
   const state = useApi(api.state);
   const forecast = useApi(() => api.forecast(days), [days]);
@@ -59,6 +64,7 @@ export default function Dashboard() {
   const f = forecast.data;
   const f90 = forecast90.data;
   const ex = expenses.data;
+  const pieEnd = useSweep(Boolean(ex && ex.byCategory.length > 0));
   const open = [...(actions.data ?? [])].sort((a, b) => PRIORITY[a.tier] - PRIORITY[b.tier]);
 
   return (
@@ -71,48 +77,84 @@ export default function Dashboard() {
           <Link to="/ksef" className="no-print inline-flex min-h-12 items-center gap-3 rounded-full bg-accent px-6 text-lg font-bold text-white hover:brightness-95">
             <Icon name="receipt" /> {t('invoices')} <Icon name="arrow-up-right" size={18} />
           </Link>
+          {/* Tabs: Overview = this page as it was; Week and Month = KPI cards (PeriodView.tsx) */}
+          <span className="no-print grid w-full grid-cols-3 items-center gap-1 rounded-2xl border border-black/10 bg-white p-1 sm:flex sm:w-auto sm:rounded-full" role="group" aria-label={t('kpi_view')}>
+            {(['review', 'week', 'month'] as const).map((p) => (
+              <button key={p} onClick={() => setView(p)} aria-pressed={view === p}
+                className={`min-h-12 rounded-full px-3 text-base font-semibold sm:px-5 ${view === p ? 'bg-ink text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
+                <span className="sm:hidden">{t(p === 'review' ? 'view_review_short' : p === 'week' ? 'view_week' : 'view_month')}</span>
+                <span className="hidden sm:inline">{t(p === 'review' ? 'view_review' : p === 'week' ? 'view_week' : 'view_month')}</span>
+              </button>
+            ))}
+          </span>
         </span>
       </PageHeader>
 
       <Status loading={state.loading && !state.data} error={state.error} />
 
-      {/* 1. One sentence about the money (the lowest day of the 13-week forecast, from the rules engine) */}
-      <section className={`surface p-6 ${f90 && f90.lowest.balancePLN < 0 ? 'border-warn/40 bg-warn-soft' : ''}`} aria-live="polite">
-        {f90 ? (
-          f90.lowest.balancePLN < 0 ? (
-            <p className="flex flex-wrap items-center gap-x-3 gap-y-2 text-3xl font-bold leading-tight text-warn sm:text-4xl">
-              <WarnMark />
-              {t('short_on')} {fmtDay(f90.lowest.date)}: {fmtPLN(f90.lowest.balancePLN)}
-            </p>
-          ) : f90.lowest.balancePLN < f90.bufferPLN ? (
-            <p className="text-3xl font-bold leading-tight text-warn sm:text-4xl">{t('verdict_low')} {fmtDay(f90.lowest.date)}.</p>
-          ) : (
-            <p className="text-3xl font-bold leading-tight text-accent-ink sm:text-4xl">{t('status_ok_13w')}</p>
-          )
-        ) : <div className="skeleton h-10 w-2/3" />}
-        <p className="mt-2 text-lg text-stone-700">{t('status_sub')}</p>
+      {view !== 'review' && <div key={view} className="page-in"><PeriodView view={view} /></div>}
+      {view === 'review' && (<div key="review" className="page-in space-y-5">
+
+      {/* 1. The headline in one line: money today → lowest point of the 13-week forecast (numbers from the rules engine) */}
+      <section className={`alert-first surface grp p-6 sm:p-7 grp-alert`} aria-live="polite">
+        {state.data?.shop.today && <p className="hero-date mb-4">{t('refreshed_at')} {fmtDay(state.data.shop.today)}</p>}
+        {k && f90 ? (
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+            <div>
+              <p className="text-base font-semibold text-stone-700">{t('available_today')}</p>
+              <p className="text-3xl font-bold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none"><CountUp text={fmtPLN(k.balancePLN)} /></p>
+            </div>
+            <span aria-hidden="true" className="hidden pb-2 text-3xl text-stone-400 sm:inline">→</span>
+            <div>
+              <p className="text-base font-semibold text-stone-700">{t('forecast_word')} · {fmtDay(f90.lowest.date)}</p>
+              <p className={`text-3xl font-bold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none ${f90.lowest.balancePLN < 0 ? 'text-warn' : 'text-accent-ink'}`}>
+                <CountUp text={fmtPLN(f90.lowest.balancePLN)} />
+              </p>
+            </div>
+            {f90.lowest.balancePLN < 0
+              ? <span className="mb-1 inline-flex flex-wrap items-center gap-1 text-lg font-semibold text-warn"><WarnMark arrow={false} />{t('projected_shortfall')}</span>
+              : f90.lowest.balancePLN < f90.bufferPLN
+                ? <span className="mb-1"><WarnMark />{t('verdict_low')}</span>
+                : <span className="mb-1 rounded-full bg-accent-soft px-3 py-1 font-semibold text-accent-ink">{t('status_ok_13w')}</span>}
+          </div>
+        ) : <div className="skeleton h-12 w-2/3" />}
+        {open[0] && (
+          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
+            <p className="min-w-0 flex-1 text-lg"><span className="font-semibold text-stone-700">{t('next_step')}</span> <strong>{open[0].title}</strong></p>
+            <Link to="/approvals" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-6 text-lg font-bold text-white hover:brightness-95">
+              {t('decide_now')} <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+        )}
+        {k?.nextDeadline && (
+          <p className="mt-5 flex flex-wrap items-center gap-2 border-t border-black/10 pt-4 text-[17px] text-stone-700">
+            <span className="h-2.5 w-2.5 rounded-full bg-ink" aria-hidden="true" />
+            <strong className="text-ink">{k.nextDeadline.label}</strong> · {fmtDay(k.nextDeadline.date)} · <span className="tabular-nums">{fmtPLN(k.nextDeadline.amountPLN)}</span>
+          </p>
+        )}
+        <p className="mt-2 text-sm text-stone-600">{t('status_sub')}</p>
       </section>
 
       {/* 2. Four money tiles – all straight from GET /api/state (kpis) */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile label={t('kpi_balance')} value={k && fmtPLN(k.balancePLN)} term="cash" source="src_bank" />
-        <Tile label={t('kpi_owed_to_you')} value={k && fmtPLN(k.receivablesPLN)} source="src_ksef" term="overdue"
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Tile group="flow" label={t('kpi_owed_to_you')} value={k && fmtPLN(k.receivablesPLN)} source="src_ksef" term="overdue"
           note={k && k.overdueReceivablesPLN > 0 ? `${t('kpi_overdue_now')} ${fmtPLN(k.overdueReceivablesPLN)}` : undefined} warn={!!k && k.overdueReceivablesPLN > 0} />
-        <Tile label={t('kpi_you_owe')} value={k && fmtPLN(k.payablesPLN)} source="src_ksef" term="owed"
+        <Tile group="flow" label={t('kpi_you_owe')} value={k && fmtPLN(k.payablesPLN)} source="src_ksef" term="owed"
           note={k && k.fxExposurePLN !== 0 ? `${t('kpi_fx_net')} ${fmtPLN(k.fxExposurePLN)}` : undefined} />
-        <Tile label={t('next_deadline')} value={k?.nextDeadline && fmtPLN(k.nextDeadline.amountPLN)} source="src_rules"
+        <Tile group="flow" label={t('next_deadline')} value={k?.nextDeadline && fmtPLN(k.nextDeadline.amountPLN)} source="src_rules"
           note={k?.nextDeadline ? `${k.nextDeadline.label} · ${fmtDay(k.nextDeadline.date)}` : k ? t('nothing_waiting') : undefined} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         {/* 3. Cash forecast */}
-        <section className="surface min-w-0 p-6">
+        <section className="surface grp grp-cash min-w-0 p-6">
+          <GroupTag group="cash" />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-xl font-semibold">{t('forecast_title')}</h2>
             <span className="flex gap-1 rounded-full border border-black/10 bg-white p-1" role="group" aria-label={t('forecast_title')}>
               {RANGES.map((d) => (
                 <button key={d} onClick={() => setDays(d)} aria-pressed={days === d}
-                  className={`min-h-10 rounded-full px-4 text-sm font-semibold ${days === d ? 'bg-ink text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
+                  className={`min-h-10 rounded-full px-3 text-sm font-semibold sm:px-4 ${days === d ? 'bg-ink text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
                   {d} {t('days_short')}
                 </button>
               ))}
@@ -125,7 +167,8 @@ export default function Dashboard() {
         </section>
 
         {/* 4. Where the money goes */}
-        <section className="surface min-w-0 p-6">
+        <section className="surface grp grp-cost min-w-0 p-6">
+          <GroupTag group="cost" />
           <h2 className="text-xl font-semibold">{t('where_money_goes')}</h2>
           <Status loading={expenses.loading && !ex} error={expenses.error} />
           {ex && ex.byCategory.length > 0 && (
@@ -137,8 +180,10 @@ export default function Dashboard() {
                 </div>
                 <ResponsiveContainer>
                   <PieChart>
-                    <Pie data={ex.byCategory} dataKey="amountPLN" nameKey="category" innerRadius="64%" outerRadius="100%"
-                      paddingAngle={2} cornerRadius={6} stroke="none" isAnimationActive={false}>
+                    <Pie data={ex.byCategory} dataKey="amountPLN" nameKey="category" startAngle={90} endAngle={pieEnd} innerRadius="64%" outerRadius="100%"
+                      paddingAngle={2} cornerRadius={6} stroke="none" isAnimationActive={false}
+                      activeIndex={activeCat} onMouseEnter={(_, i) => setActiveCat(i)} onMouseLeave={() => setActiveCat(undefined)}
+                      activeShape={(p: any) => <Sector {...p} outerRadius={p.outerRadius + 7} />}>
                       {ex.byCategory.map((c) => <Cell key={c.category} fill={CAT_COLOR[c.category]} />)}
                     </Pie>
                   </PieChart>
@@ -146,7 +191,8 @@ export default function Dashboard() {
               </div>
               <ul className="w-full min-w-0 space-y-2 text-[16px]">
                 {ex.byCategory.slice(0, 5).map((c) => (
-                  <li key={c.category} className="flex items-center justify-between gap-3">
+                  <li key={c.category} onMouseEnter={() => setActiveCat(ex.byCategory.indexOf(c))} onMouseLeave={() => setActiveCat(undefined)}
+                    className={`flex items-center justify-between gap-3 rounded-lg px-1 transition-colors ${activeCat === ex.byCategory.indexOf(c) ? 'bg-accent-soft' : ''}`}>
                     <span className="flex items-center gap-2">
                       <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: CAT_COLOR[c.category] }} aria-hidden="true" />
                       {t(`cat_${c.category}`)}
@@ -161,8 +207,10 @@ export default function Dashboard() {
         </section>
       </div>
 
+      </div>)}
+
       {/* 5. What the agents found – approvals first. Every card shows tier + execution + why (Commerzbank challenge). */}
-      <section className="no-print space-y-4 pt-2">
+      <section className="dark-band no-print space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">{t('agents_found')}</h2>
@@ -188,8 +236,8 @@ export default function Dashboard() {
         {actions.data && open.length === 0 && <p className="surface p-6 text-center text-lg text-stone-700">{t('all_quiet')}</p>}
         <div className="grid gap-5 lg:grid-cols-3">
           {open.slice(0, 3).map((a) => (
-            <div key={a.id} className="surface p-1">
-              <ActionCard action={a} onApprove={() => void decide(a, true)} onReject={() => void decide(a, false)} />
+            <div key={a.id} className="surface flex p-1">
+              <ActionCard action={a} onApprove={() => decide(a, true)} onReject={() => decide(a, false)} />
             </div>
           ))}
         </div>
@@ -200,15 +248,33 @@ export default function Dashboard() {
 }
 
 // ---------- small pieces ----------
+/** Chart dot that slides in from the left edge to the lowest day (display only; ends exactly on the data point). */
+function TravelDot(props: { cx?: number; cy?: number; r?: number; fill?: string; stroke?: string; strokeWidth?: number }) {
+  const { cx = 0, cy = 0, r = 8, fill, stroke, strokeWidth } = props;
+  return (
+    <g className="dot-travel" style={{ ['--dx' as string]: `${Math.max(0, cx - 70)}px` }}>
+      <circle cx={cx} cy={cy} r={r} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
+    </g>
+  );
+}
 /** One money tile: label, big number, one short note, where the number comes from. */
-function Tile({ label, value, note, warn = false, source, term }: {
-  label: string; value?: string | false; note?: string; warn?: boolean; source: string; term?: string;
+type Group = 'cash' | 'flow' | 'cost';
+
+/** Small coloured label that says which group a card belongs to (same shade as the card's left edge). */
+function GroupTag({ group }: { group: Group }) {
+  const { t } = useT();
+  return <p className={`grp-tag grp-tag-${group}`}>{t(`grp_${group}`)}</p>;
+}
+
+function Tile({ label, value, note, warn = false, source, term, group }: {
+  label: string; value?: string | false; note?: string; warn?: boolean; source: string; term?: string; group: Group;
 }) {
   const { t } = useT();
   return (
-    <section className="surface flex min-w-0 flex-col p-5">
+    <section className={`surface grp grp-${group} flex min-w-0 flex-col p-5`}>
+      <GroupTag group={group} />
       <h2 className="text-base font-medium text-stone-700">{label}</h2>
-      {value ? <p className="mt-1 text-3xl font-bold tracking-tight tabular-nums">{value}</p> : <div className="skeleton mt-2 h-8 w-3/4" />}
+      {value ? <p className="mt-1 text-[1.75rem] font-bold tracking-tight tabular-nums"><CountUp text={value} /></p> : <div className="skeleton mt-2 h-8 w-3/4" />}
       {note && <p className={`mt-2 flex flex-wrap items-center gap-2 text-[16px] ${warn ? 'font-semibold text-warn' : 'text-stone-700'}`}>{warn && <WarnMark arrow={false} />}{note}</p>}
       <div className="mt-auto pt-2">
         {term && <Term id={term} />}
@@ -218,7 +284,7 @@ function Tile({ label, value, note, warn = false, source, term }: {
   );
 }
 
-/** Big, simple cash line: dark above zero, amber below, dashed safety buffer, the lowest day labelled on the chart. */
+/** Big, simple cash line: dark above zero, red below, dashed safety buffer, the lowest day labelled on the chart. */
 function CashChart({ f }: { f: Forecast }) {
   const { t } = useT();
   const pts = f.points;
@@ -238,12 +304,12 @@ function CashChart({ f }: { f: Forecast }) {
             <linearGradient id="cashFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset={0} stopColor="#141414" stopOpacity={0.2} />
               <stop offset={zeroAt} stopColor="#141414" stopOpacity={0.05} />
-              <stop offset={zeroAt} stopColor="#B45309" stopOpacity={0.15} />
-              <stop offset={1} stopColor="#B45309" stopOpacity={0.3} />
+              <stop offset={zeroAt} stopColor="#CC0000" stopOpacity={0.15} />
+              <stop offset={1} stopColor="#CC0000" stopOpacity={0.3} />
             </linearGradient>
             <linearGradient id="cashLine" x1="0" y1="0" x2="0" y2="1">
               <stop offset={zeroAt} stopColor="#141414" />
-              <stop offset={zeroAt} stopColor="#B45309" />
+              <stop offset={zeroAt} stopColor="#CC0000" />
             </linearGradient>
           </defs>
           <XAxis dataKey="date" ticks={xTicks} interval={0} tickFormatter={fmtDay} fontSize={16} fontWeight={600}
@@ -252,12 +318,12 @@ function CashChart({ f }: { f: Forecast }) {
           <Tooltip formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
             contentStyle={{ borderRadius: 16, border: '1px solid rgb(0 0 0 / 0.1)', fontSize: 16 }} />
           <ReferenceLine y={0} stroke="#1d1d1f" strokeWidth={2} />
-          <ReferenceLine y={f.bufferPLN} stroke="#0F5132" strokeDasharray="8 6" strokeWidth={2}>
-            <Label value={`${t('buffer')} ${short(f.bufferPLN)}`} position="insideTopRight" fontSize={14} fontWeight={600} fill="#0F5132" />
+          <ReferenceLine y={f.bufferPLN} stroke="#D40000" strokeDasharray="8 6" strokeWidth={2}>
+            <Label value={`${t('buffer')} ${short(f.bufferPLN)}`} position="insideTopRight" fontSize={14} fontWeight={600} fill="#D40000" />
           </ReferenceLine>
           <Area type="stepAfter" dataKey="balancePLN" stroke="url(#cashLine)" strokeWidth={4} fill="url(#cashFill)" isAnimationActive={false} />
-          <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={8} fill="#B45309" stroke="#fff" strokeWidth={3}>
-            <Label value={`${t('lowest_point')} ${fmtDay(f.lowest.date)}`} position="left" fontSize={15} fontWeight={700} fill="#B45309" offset={12} />
+          <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={8} fill="#CC0000" stroke="#fff" strokeWidth={3} shape={TravelDot}>
+            <Label value={`${t('lowest_point')} ${fmtDay(f.lowest.date)}`} position="left" fontSize={15} fontWeight={700} fill="#CC0000" offset={12} />
           </ReferenceDot>
         </AreaChart>
       </ResponsiveContainer>
@@ -265,12 +331,12 @@ function CashChart({ f }: { f: Forecast }) {
   );
 }
 
-/** Amber light is never colour alone: always the word "Attention" next to it. */
+/** Alert colour is never colour alone: always the word "Attention" next to it. */
 function WarnMark({ arrow = true }: { arrow?: boolean }) {
   const { t } = useT();
   return (
-    <span className="mr-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-warn-soft px-2 py-0.5 text-base font-bold text-warn">
-      <span className="h-3 w-3 rounded-full bg-warn" aria-hidden="true" /> {t('attention')} {arrow && <span aria-hidden="true">▼</span>}
+    <span className="mr-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-warn px-2.5 py-0.5 text-base font-bold text-white">
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3z" fill="currentColor"/><path d="M12 10v5M12 18v.5" stroke="#cc0000" strokeWidth="2.4" strokeLinecap="round"/></svg> {t('attention')} {arrow && <span aria-hidden="true">▼</span>}
     </span>
   );
 }

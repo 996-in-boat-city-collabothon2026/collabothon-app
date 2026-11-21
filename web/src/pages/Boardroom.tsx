@@ -18,7 +18,7 @@ type Phase = 'idle' | 'thinking' | 'talking' | 'done' | 'error';
 /** Neutral round avatar with initials; the speaker gets an accent ring. */
 function Person({ cfo, size = 44, active = false }: { cfo: CfoId; size?: number; active?: boolean }) {
   return (
-    <span className={`relative inline-flex shrink-0 rounded-full ${active ? 'ring-4 ring-accent' : ''}`}>
+    <span className={`relative inline-flex shrink-0 rounded-full ${active ? 'agent-speaking ring-4 ring-accent' : ''}`}>
       <CfoAvatar cfo={cfo} size={size} />
       {active && <span className="live-dot absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-white bg-accent" />}
     </span>
@@ -126,10 +126,10 @@ export default function Boardroom() {
               );
             })}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input value={custom} onChange={(e) => setCustom(e.target.value)} disabled={busy}
               placeholder={t('topic_custom')} aria-label={t('topic_custom')}
-              className="min-h-12 min-w-0 flex-1 rounded-full bg-zinc-100 px-5 text-base" />
+              className="min-h-12 min-w-40 flex-1 rounded-full bg-zinc-100 px-5 text-base" />
             <button disabled={busy} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-ink px-5 font-semibold text-white disabled:opacity-50">
               {busy ? t('meeting_running') : t('start_meeting')} <Icon name="arrow" size={18} />
             </button>
@@ -137,7 +137,7 @@ export default function Boardroom() {
         </form>
 
         {/* Who is at the table */}
-        <ul className="mt-6 grid w-full grid-cols-2 gap-4 sm:grid-cols-4">
+        <ul className={`mt-6 grid w-full grid-cols-2 gap-4 sm:grid-cols-4 ${phase === 'thinking' ? 'agents-thinking' : ''}`}>
           {ORDER.map((c) => (
             <li key={c} className={`flex flex-col items-center gap-2 rounded-2xl px-2 pb-3 pt-6 text-center transition ${speaking === c ? 'bg-accent-soft' : ''} ${busy && speaking !== c ? 'opacity-60' : ''}`}>
               <Person cfo={c} size={56} active={speaking === c} />
@@ -155,7 +155,7 @@ export default function Boardroom() {
         <section className="surface p-5" aria-label={t('transcript')}>
           <ol className="space-y-4" aria-live="polite">
             {result.turns.slice(0, shown).map((turn, i) => (
-              <li key={i} className="pop-in flex items-start gap-3">
+              <li key={i} className="turn-in flex items-start gap-3">
                 <Person cfo={turn.cfo} size={44} />
                 <div className="min-w-0 flex-1">
                   <p className="mb-1 font-semibold">
