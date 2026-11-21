@@ -224,6 +224,9 @@ function tomasz(): Built {
     );
   }
   if (markup.length) lines.push(`Parts markup below ${target}: ${markup.length} orders, ${fmtPLN(sumMissing(markup))} missing in total`);
+  // Live run on 8B (test copy log): the model added labour + parts itself (1937.5) and the guard rejected the sum.
+  const bothMissing = sumMissing(labour) + sumMissing(markup);
+  if (labour.length && markup.length) lines.push(`Labour and parts markup together: ${fmtPLN(bothMissing)} missing`);
   if (top) lines.push(`Biggest cost you can change: ${CATEGORY_EN[top.category]}, ${fmtPLN(top.amount)} in 30 days (${top.sharePct}% of all costs)`);
   if (lines.length === 0) lines.push('Margins and costs are in order');
 
@@ -238,6 +241,7 @@ function tomasz(): Built {
     points.push(point('top-cost', `You spend most on ${CATEGORY_EN[top.category]}: ${fmtPLN(top.amount)} in 30 days. Ask other suppliers for a quote.`, points.length === 0));
   }
   if (!points.length) points.push(point('ok', 'Margins and costs are in order.'));
+  if (labour.length && markup.length) points.push(point('missing-total', `Labour and parts markup together: ${fmtPLN(bothMissing)} is missing.`, false));
   for (const { o, missing } of labour) points.push(point(`car-${o.id}`, `${o.car}: ${fmtPLN(missing)} of labour is missing.`, false));
   return { lines, points };
 }
