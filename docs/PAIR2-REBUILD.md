@@ -334,6 +334,21 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
   - **No dangling sentence:** a point can say `needs`. "If that is not enough, a credit line…" needs `reminders` and always comes with it.
   - ~~Comments off by default~~ (`agentModel.comments`): replaced in F2 by comments the model picks from a fixed list.
 
+- [x] **F1–F6 Fixes from live run 1** (one commit each, on top of M10; `origin/main` merged in at `52c290f`)
+  Result: **476/476 tests in 24 files** after the merge, typecheck clean, build OK.
+  - **F1** only detail points picked → the first core point is added; the prompt marks points `(main)` / `(detail)`.
+  - **F2** the model picks its comment by id from `agents/comments.ts` (4 per CFO and 4 for the chair, in the hat's voice, no facts). Calm ones are never offered or shown next to a critical point; an unknown or another speaker's id gives no comment. `commentProblem`, `agents/text.ts` and their tests are deleted (that is why the test count dropped by about 95). `looksPolish` stays for the corpus test.
+  - **F3** the next CFO and the chair read only rule text; a comment id already said is dropped.
+  - **F4** `pickCfo`: Kasia gets złoty/zloty, "lock", exchange; Tomasz gets quick win, cheap, save money, waste. A tie still goes to Anna ("Where do I waste money?" → Anna, because of "money").
+  - **F5** withdrawn card → 409 "This card was withdrawn…"; no "Also," without a labour point; one "small risk" point for Kasia.
+  - **F6** temperature 0.4 for `/api/ask` and the turns, 0.1 for the chair.
+- [ ] **Live run 2** (real model): **not run yet.** The test deploy has no webhook and still serves the old build
+  (2026-11-21: "What rate would you lock?" → Anna, so F4 is not deployed). Results against it would describe `27e26d7`, not F1–F6.
+  To do: `oc start-build warsztat-cfo-test --follow -n my-first-model`, then from `server/`
+  `LIVE_APP_URL=https://warsztat-cfo-test-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com npx vitest run src/agents/live.test.ts`.
+  Record: main point shown per CFO (`[R2]` line, must be 100%), comments on screen, conference times. The valid-JSON %
+  needs raw replies, which only the `LIVE_LLM_BASE_URL` run (with `oc port-forward`) records; below 80% → temperature 0.2.
+
 ---
 
 ## 6. How to verify
