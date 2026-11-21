@@ -2,11 +2,32 @@
 import { useCallback, useEffect, useState } from 'react';
 import type {
   Action, ActivityEntry, Alert, AppState, AskResult, AutopilotResult, BoardroomResult, CfoId, ExpenseBreakdown,
-  Forecast, Invoice, LlmHealth, Settings, Upo, User,
+  Currency, Forecast, Invoice, InvoiceLine, LlmHealth, Settings, Upo, User, VatRate,
 } from '@cfo/shared';
 
 /** GET /ksef/invoices adds totals computed on the server (Pair 3 route), so the UI never does money maths. */
 export type KsefInvoiceRow = Invoice & { gross: number; grossPLN: number };
+
+/** The form as sent to the Invoice clerk agent. Empty string = a gap. assumed = guessed earlier, may be replaced. */
+export interface ClerkForm {
+  counterparty: { name: string; nip: string };
+  currency: Currency | '';
+  dueDate: string;
+  paymentMethod: PaymentMethod | '';
+  lines: Array<{ name: string; kind: InvoiceLine['kind']; qty: string; unitNet: string; vatRate: VatRate; assumed: ('qty' | 'vatRate')[] }>;
+}
+export type PaymentMethod = 'transfer' | 'cash' | 'card';
+/** POST /invoices/parse-voice (Pair 2, server/src/agents/invoiceClerk.ts – keep in sync). Only the gaps are filled. */
+export interface InvoiceFill {
+  agent: 'clerk';
+  source: 'llm' | 'fallback';
+  set: { name?: string; nip?: string; currency?: Currency; paymentMethod?: PaymentMethod; dueDate?: string };
+  lineUpdates: Array<{ index: number; name?: string; kind?: InvoiceLine['kind']; qty?: number; unitNet?: number; vatRate?: VatRate }>;
+  newLines: Array<Omit<InvoiceLine, 'unitNet'> & { unitNet: number | null; assumed: ('qty' | 'vatRate')[] }>;
+  skipped: Array<{ field: string; value: string; reason: 'already_filled' | 'wrong_type' | 'not_said' | 'invalid_nip' | 'used_twice' | 'bad_value' }>;
+  missing: Array<{ field: 'name' | 'nip' | 'dueDate' } | { field: 'line.name' | 'line.qty' | 'line.unitNet'; line: number }>;
+}
+export type NewInvoice = Omit<Invoice, 'id' | 'ksef' | 'paid'>;
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
@@ -39,6 +60,10 @@ export const api = {
   ask: (question: string, cfo?: CfoId) => post<AskResult>('/ask', { question, cfo }),
   invoices: () => call<KsefInvoiceRow[]>('/ksef/invoices'),
   sendInvoice: (id: string, fix?: Pick<Invoice, 'counterparty'>) => post<Invoice>(`/ksef/invoices/${id}/send`, fix ?? {}),
+  createInvoice: (inv: NewInvoice) => post<Invoice>('/ksef/invoices', inv),
+  /** Dictated text → form fields. Fills the form only, saves nothing. */
+  /** Invoice clerk agent: dictated text + the form → values for the EMPTY fields only. Saves nothing. */
+  fillInvoiceGaps: (text: string, form: ClerkForm) => post<InvoiceFill>('/invoices/parse-voice', { text, form }),
   invoiceXml: (id: string) => call<string>(`/ksef/invoices/${id}/xml`),
   invoiceUpo: (id: string) => call<Upo>(`/ksef/invoices/${id}/upo`),
   settings: () => call<Settings>('/settings'),

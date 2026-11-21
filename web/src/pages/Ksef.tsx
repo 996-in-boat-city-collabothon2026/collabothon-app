@@ -6,6 +6,7 @@ import { Card, Sheet, Status, fmtDay, fmtMoney, fmtPLN, useToast } from '../comp
 import { useT } from '../i18n';
 import Icon, { type IconName } from '../components/Icon';
 import { normalizeNip, nipProblem } from '../lib/nip';
+import NewInvoiceSheet from '../components/NewInvoiceSheet';
 
 const CHIP: Record<KsefStatus, { icon: IconName; cls: string }> = {
   draft: { icon: 'pen' as IconName, cls: 'bg-zinc-200 text-ink' },
@@ -25,6 +26,8 @@ export default function Ksef() {
   const { data, loading, error, reload } = useApi(api.invoices);
   const [fixing, setFixing] = useState<KsefInvoiceRow | null>(null);
   const [viewer, setViewer] = useState<Viewer | null>(null);
+  const [creating, setCreating] = useState(false);
+  const today = useApi(api.state).data?.shop.today;
   const { toast, showToast } = useToast();
   const watching = useRef(new Set<string>()); // invoices we sent and wait for KSeF's answer
 
@@ -72,6 +75,11 @@ export default function Ksef() {
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">{t('ksef_title')}</h1>
         <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-sm font-medium text-ink">{t('ksef_sim_badge')}</span>
+        {today && (
+          <button onClick={() => setCreating(true)} className={`${BTN} ml-auto flex items-center gap-1.5 bg-ink text-white`}>
+            <Icon name="plus" size={18} />{t('new_invoice')}<Icon name="mic" size={18} className="opacity-70" />
+          </button>
+        )}
       </div>
       <p className="rounded-xl bg-zinc-100 px-4 py-3 text-ink">{t('ksef_sim_notice')}</p>
 
@@ -98,6 +106,10 @@ export default function Ksef() {
         <FixSheet inv={fixing} onClose={() => setFixing(null)}
           onSubmit={(counterparty) => { const inv = fixing; setFixing(null); void send(inv, { counterparty }); }} />
       )}
+      {creating && today && (
+        <NewInvoiceSheet number={nextNumber(sales, today)} today={today} onClose={() => setCreating(false)}
+          onSaved={(number) => { setCreating(false); showToast(`${t('inv_saved')} ${number}`); void reload(); }} />
+      )}
       {viewer && <DocSheet viewer={viewer} onClose={() => setViewer(null)} />}
       {flight && (
         <div role="status" className="pop-in fixed inset-x-4 bottom-28 z-50 mx-auto flex max-w-md items-center gap-3 rounded-full border border-black/10 bg-white px-4 py-3 shadow-lg md:bottom-8">
@@ -114,6 +126,13 @@ export default function Ksef() {
       {toast}
     </div>
   );
+}
+
+/** Next free number for this month: FV/2026/11/013 after FV/2026/11/012. */
+function nextNumber(sales: Invoice[], today: string): string {
+  const prefix = `FV/${today.slice(0, 4)}/${today.slice(5, 7)}/`;
+  const used = sales.filter((i) => i.number.startsWith(prefix)).map((i) => Number(i.number.slice(prefix.length)) || 0);
+  return `${prefix}${String(Math.max(0, ...used) + 1).padStart(3, '0')}`;
 }
 
 function InvoiceTable({ rows, onSend, onFix, onView }: {
