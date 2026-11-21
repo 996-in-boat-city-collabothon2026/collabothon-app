@@ -39,6 +39,7 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
           </span>
           <h1 className="text-gradient mt-3 pb-1 text-4xl font-semibold tracking-tight">MANI</h1>
           <p className="mt-2 text-lg text-stone-700">{t('login_tagline')}</p>
+          <p className="mt-1 text-base font-medium text-stone-500">{t('login_subtag')}</p>
         </div>
 
         <div id="login" className="mt-8 space-y-4 reveal glow-mint rounded-[22px] border border-black/10 p-6 shadow-sm">
