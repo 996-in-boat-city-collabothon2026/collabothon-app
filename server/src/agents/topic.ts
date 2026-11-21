@@ -52,6 +52,11 @@ function bestByKeywords(text: string): CfoId | null {
   return best;
 }
 
+/** True when the text names this CFO or hits one of its keyword groups. The meeting uses it to decide who passes. */
+export function matchesTopic(cfo: CfoId, text: string): boolean {
+  return namedCfo(text) === cfo || TOPICS[cfo].some((re) => re.test(text));
+}
+
 /** Who leads a meeting. null = a general topic ("Monthly review"): everyone speaks. */
 export function leadFor(topic: string): CfoId | null {
   return namedCfo(topic) ?? bestByKeywords(topic);

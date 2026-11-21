@@ -1,6 +1,6 @@
 // Owner: Pair 2 (Person B). "The right CFO leads": keyword routing, general topics and small talk. No model involved.
 import { describe, expect, it } from 'vitest';
-import { isSmallTalk, leadFor, pickCfo } from './topic';
+import { isSmallTalk, leadFor, matchesTopic, pickCfo } from './topic';
 
 describe('leadFor: the CFO who owns the topic leads the meeting', () => {
   it.each([
@@ -23,6 +23,26 @@ describe('leadFor: the CFO who owns the topic leads the meeting', () => {
   it('pickCfo is leadFor with Anna when nothing matches', () => {
     expect(pickCfo('Monthly review')).toBe('anna');
     expect(pickCfo('Should we lock the EUR rate?')).toBe(leadFor('Should we lock the EUR rate?'));
+  });
+});
+
+describe('matchesTopic: does the topic touch this CFO? (the meeting lets the others pass)', () => {
+  it('true for every CFO whose keywords match, not only the winner', () => {
+    // "margin" is Tomasz's, "credit" is Anna's: both match, Tomasz does not win alone.
+    const topic = 'Is a credit line better than a bigger margin?';
+    expect(matchesTopic('tomasz', topic)).toBe(true);
+    expect(matchesTopic('anna', topic)).toBe(true);
+    expect(matchesTopic('kasia', topic)).toBe(false);
+    expect(matchesTopic('marek', topic)).toBe(false);
+  });
+
+  it('a CFO named in the topic matches, the others only by keyword', () => {
+    expect(matchesTopic('kasia', 'Kasia, what do you think?')).toBe(true);
+    expect(matchesTopic('anna', 'Kasia, what do you think?')).toBe(false);
+  });
+
+  it('a general topic matches nobody', () => {
+    for (const cfo of ['anna', 'kasia', 'marek', 'tomasz'] as const) expect(matchesTopic(cfo, 'Monthly review')).toBe(false);
   });
 });
 

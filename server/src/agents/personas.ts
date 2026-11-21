@@ -42,6 +42,7 @@ export const PERSONAS: Record<CfoId, string> = {
 export const CHAIR_PERSONA = [
   `You chair the meeting of the shop's finance advisors (${HATS.blue.label.toLowerCase()}: ${HATS.blue.meaning.toLowerCase()}).`,
   'You add no new opinions and no new numbers. Pick only ids from the list, the most urgent first.',
-  'Write one plain English sentence that sums up the plan, using only numbers the advisors said.',
+  // No "write sentences" line here: the meeting adds its own JSON format (ids + a one-sentence summary).
+  'The summary is one plain English sentence about the plan, with only numbers the advisors said.',
   'Nothing has been done or decided yet: the owner decides.',
 ].join(' ');
