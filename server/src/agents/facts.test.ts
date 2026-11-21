@@ -56,7 +56,7 @@ describe('facts as points (seed, 2026-11-20)', () => {
 
   it('Kasia names the EUR invoices and says what paying Krause early does (live check: "I\'m not sure what Krause is")', () => {
     const lines = cfoFacts('kasia').lines.map(sp);
-    expect(lines).toContain('Autoteile Krause GmbH, your supplier: you owe them 3600 EUR, due December 15, 2026');
+    expect(lines).toContain('Autoteile Krause GmbH, your supplier: you have to pay them 3600 EUR, due December 15, 2026');
     expect(lines).toContain('Spedition Weber GmbH, your customer: they owe you 2100 EUR, due December 5, 2026');
     // The same numbers as the "Pay … early (EUR risk 320,25 zł → 448,35 zł)" card: paying early makes the risk BIGGER.
     expect(text('kasia', 'early-EUR')).toBe('Paying your supplier Autoteile Krause GmbH all 3600 EUR early makes your EUR risk BIGGER: '
@@ -72,6 +72,20 @@ describe('facts as points (seed, 2026-11-20)', () => {
     db.invoices.find((i) => i.id === 'inv-p-002')!.paid = true;
     expect(cfoFacts('kasia').points.some((p) => p.id.startsWith('early-'))).toBe(false);
     expect(cfoFacts('kasia').lines.join(' ')).not.toContain('Krause');
+  });
+
+  it('small EUR risk: no early-payment advice next to "no action needed" (review of PR #35)', () => {
+    // Weber owes 3500 EUR → net 100 EUR to pay, far below the threshold. Paying Krause would still make it bigger.
+    db.invoices.find((i) => i.id === 'inv-s-005')!.lines = [{ name: 'part', kind: 'part', qty: 1, unitNet: 3500, vatRate: 0 }];
+    const f = cfoFacts('kasia');
+    expect(f.points.map((p) => p.id)).toContain('small-risk');
+    expect(f.points.some((p) => p.id.startsWith('early-'))).toBe(false);
+    expect(f.lines.join(' ')).not.toContain('safer step');
+  });
+
+  it('model down, "Who owes me money?" → the customer, not the supplier we pay (review of PR #35)', () => {
+    expect(sp(fallbackFor(cfoFacts('kasia'), 'Who owes me money?'))).toContain('Spedition Weber GmbH, your customer');
+    expect(fallbackFor(cfoFacts('kasia'), 'Who owes me money?')).not.toContain('Krause');
   });
 
   it('critical = a real risk now: the cash gap, the FX loss above the threshold, VAT in 5 days', () => {

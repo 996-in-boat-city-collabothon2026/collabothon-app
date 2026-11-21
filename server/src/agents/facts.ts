@@ -168,20 +168,22 @@ function kasia(): Built {
 const openFx = (c: string) =>
   db.invoices.filter((i) => !i.paid && i.currency === c).sort((a, b) => invoiceGross(b) - invoiceGross(a));
 
-/** "Autoteile Krause GmbH, your supplier: you owe them 3600 EUR, due December 15, 2026". */
+/** "Autoteile Krause GmbH, your supplier: you have to pay them 3600 EUR, due December 15, 2026".
+ * Not "you owe them": fallbackFor would then answer "Who owes me money?" with the supplier. */
 const fxInvoiceText = (i: Invoice) => i.direction === 'purchase'
-  ? `${noDemo(i.counterparty.name)}, your supplier: you owe them ${fmtNum(invoiceGross(i))} ${i.currency}, due ${fmtDateEn(i.dueDate)}`
+  ? `${noDemo(i.counterparty.name)}, your supplier: you have to pay them ${fmtNum(invoiceGross(i))} ${i.currency}, due ${fmtDateEn(i.dueDate)}`
   : `${noDemo(i.counterparty.name)}, your customer: they owe you ${fmtNum(invoiceGross(i))} ${i.currency}, due ${fmtDateEn(i.dueDate)}`;
 
 /**
  * What paying the biggest foreign supplier invoice in full today does to the risk: the same rule as Kasia's
  * "Pay … early" card (rules/fx.ts exposureAfterPaying). In the demo it makes the risk BIGGER, because the 2100 EUR from
  * Spedition Weber GmbH then stays open on its own; the 8B chair recommended that card anyway.
+ * Only above the hedge threshold, like the card: below it the "small risk, no action needed" point stands alone.
  */
 function payEarlyText(e: FxExposure): string | undefined {
   const c = e.currency;
   const supplier = openFx(c).find((i) => i.direction === 'purchase');
-  if (e.net <= 0 || !supplier) return undefined;
+  if (e.net <= 0 || e.shockPLN <= FX_SHOCK_THRESHOLD_PLN || !supplier) return undefined;
   const after = exposureAfterPaying(e, supplier);
   const pay = `Paying your supplier ${noDemo(supplier.counterparty.name)} all ${fmtNum(invoiceGross(supplier))} ${c} early`;
   if (after.shockPLN > e.shockPLN) {
