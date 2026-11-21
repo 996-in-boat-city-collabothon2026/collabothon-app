@@ -99,6 +99,25 @@ describe('general topic and small talk', () => {
     expect(sent.filter((c) => !isChair(c.m)).some((c) => isShort(c.m))).toBe(false);
   });
 
+  it('"Monthly review" asks all 4 at the same time; the order on screen stays fixed when replies come back out of order', async () => {
+    let running = 0;
+    let most = 0;
+    // Marek is the slowest and Kasia the fastest, so they finish in the opposite order.
+    const delay: Record<string, number> = { Marek: 40, Anna: 30, Tomasz: 20, Kasia: 10 };
+    setModelCallForTests(async (m) => {
+      if (isChair(m)) return '';
+      const name = Object.keys(delay).find((n) => m[0].content.startsWith(`You are ${n},`)) ?? '';
+      running++;
+      most = Math.max(most, running);
+      await new Promise((r) => setTimeout(r, delay[name]));
+      running--;
+      return `${name} says this in its own words.`;
+    }, 'openai_compat');
+    const r = await runBoardroom('Monthly review');
+    expect(most).toBe(4);
+    expect(r.turns.map((t) => t.text)).toEqual(['Marek', 'Anna', 'Tomasz', 'Kasia'].map((n) => `${n} says this in its own words.`));
+  });
+
   it('no topic → the same general meeting', async () => {
     expect(speakers(await runBoardroom())).toEqual(ORDER);
   });

@@ -1,7 +1,7 @@
 // Owner: Pair 2 (Person C). The meeting ("hat conference"): it follows the topic (docs/AGENTS-8B-PLAN.md, C1).
 // - small talk ("hello")  → "Pick a topic", no model call
 // - a topic with a lead   → the lead answers in full, the others react in one sentence (in parallel) or pass
-// - a general topic       → all 4 answer in full: Marek → Anna → Tomasz → Kasia
+// - a general topic       → all 4 answer in full, in parallel; shown as Marek → Anna → Tomasz → Kasia
 // - the chair (blue hat)  → picks from the lead's open cards (all cards in a general meeting) and writes one summary
 //                           sentence, checked by the number guard; a topic with no cards ends without the chair
 // Every text on screen is the model's text only if the guard accepts it; otherwise it is rule text.
@@ -48,10 +48,10 @@ const hasSomethingToSay = (cfo: CfoId, topic: string) =>
 /** The CFOs' turns for this topic (no chair yet). */
 async function debate(topic: string, lead: CfoId | null): Promise<BoardroomTurn[]> {
   if (!lead) {
-    // General topic: everyone, full answers, one after another (a hanging model then uses the time budget only once).
-    const turns: BoardroomTurn[] = [];
-    for (const cfo of ORDER) turns.push({ cfo, text: (await askCfo(cfo, topic)).text });
-    return turns;
+    // General topic: everyone, full answers, at the same time (live run on 8B: one after another took 20,8 s of the
+    // 22 s goal). All 4 calls share the request's time budget, so a hanging model still costs one timeout, not four.
+    const answers = await Promise.all(ORDER.map((cfo) => askCfo(cfo, topic)));
+    return ORDER.map((cfo, i) => ({ cfo, text: answers[i].text }));
   }
   const first = await askCfo(lead, topic);
   const others = ORDER.filter((c) => c !== lead && hasSomethingToSay(c, topic));

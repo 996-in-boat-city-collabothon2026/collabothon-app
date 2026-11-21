@@ -475,3 +475,9 @@ After the review of #30, `money` was added to the money words ("Is that a lot of
 
 **Seen in passing (not B's files):** the chair writes "36,000 zł" and "14,230.00 zł" (English format) and lists all open cards, not the
 EUR topic; Marek and Anna say "not my area" instead of passing (`agents/boardroom.ts`, Person C).
+(Fixed in PR #32: `tidyMoney`, a topic meeting decides only the lead's cards, `NOT_MY_AREA` reactions pass.)
+
+**Monthly review in parallel** (branch `agents8b-meeting-parallel`): the general meeting took 20,8 s of the 22 s goal
+because the 4 full answers ran one after another. They now run at the same time, like the reactions in a topic
+meeting; the order on screen stays Marek → Anna → Tomasz → Kasia. A hanging model still costs one budget, but now 4
+requests are cancelled instead of 1 (`llm/provider.test.ts` updated). To check on the test copy: Monthly review < 10 s.
