@@ -12,9 +12,10 @@ import { extractJson } from '../llm/json';
 import { cfoFacts, type CfoFacts } from './facts';
 import { CHAIR_PERSONA } from './personas';
 import { allDrafts, isCurrentCard, runAutopilot } from './autopilot';
-// TODO stub: after Person A's and B's merges, import checkReply from './guard', askCfo from './cfo',
-// isSmallTalk / leadFor (and a keyword-match helper) from './topic', then delete './stubs'.
-import { askCfo, checkReply, isSmallTalk, leadFor, matchesTopic } from './stubs';
+import { checkReply } from './guard';
+// TODO stub: after Person B's merge, import askCfo from './cfo' and isSmallTalk / leadFor (and a keyword-match
+// helper) from './topic', then delete './stubs'.
+import { askCfo, isSmallTalk, leadFor, matchesTopic } from './stubs';
 
 /** The order of a general meeting: White → Black → Green → Red. The Blue chair sums up. */
 export const ORDER: CfoId[] = ['marek', 'anna', 'tomasz', 'kasia'];

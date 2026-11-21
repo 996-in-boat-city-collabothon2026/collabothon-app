@@ -1,10 +1,10 @@
 // Owner: Pair 2 (Person C). TEMPORARY stand-ins with the exact signatures from docs/AGENTS-8B-PLAN.md section 3.
-// The meeting (agents/boardroom.ts) imports them from here until Person A's and Person B's PRs are merged.
-// Then: delete this file and import from './guard', './topic' and './cfo' instead.
+// The meeting (agents/boardroom.ts) imports them from here until Person B's PR is merged.
+// Then: delete this file and import from './topic' and './cfo' instead. (Person A's guard is merged: './guard'.)
 import { CFOS, type CfoId } from '@cfo/shared';
 import { chatOr } from '../llm/provider';
 import { cfoFacts, type CfoFacts } from './facts';
-import { looksPolish } from './safety';
+import { checkReply } from './guard';
 import { PERSONAS } from './personas';
 
 // ---------- topic.ts (Person B) ----------
@@ -37,21 +37,6 @@ export function leadFor(topic: string): CfoId | null {
 export function isSmallTalk(text: string): boolean {
   if (/^\s*(hello|hi|hey|thanks|thank you|cześć|dzień dobry)\b/i.test(text)) return true;
   return (text.match(/\p{L}{3,}/gu) ?? []).length < 2;
-}
-
-// ---------- guard.ts (Person A) ----------
-/** Every number in a text as a value: "14 230,00 zł" → 14230, "4,27" → 4.27. A rough version of Person A's numbersIn. */
-const numbersIn = (text: string): number[] =>
-  (text.replace(/ /g, ' ').replace(/(\d) (?=\d{3}\b)/g, '$1').match(/\d+(?:,\d+)?/g) ?? []).map((n) => Math.abs(Number(n.replace(',', '.'))));
-
-// TODO stub, Person A replaces it.
-export function checkReply(reply: string, facts: CfoFacts): { ok: boolean; reason: string } {
-  if (!reply.trim()) return { ok: false, reason: 'empty' };
-  if (reply.length > 400 || (reply.match(/[.!?](\s|$)/g) ?? []).length > 3) return { ok: false, reason: 'too long' };
-  if (looksPolish(reply)) return { ok: false, reason: 'polish' };
-  const allowed = new Set(numbersIn(`${facts.lines.join(' ')} ${facts.summary}`));
-  const wrong = numbersIn(reply).find((n) => !allowed.has(n));
-  return wrong === undefined ? { ok: true, reason: '' } : { ok: false, reason: `number not in facts: ${wrong}` };
 }
 
 // ---------- cfo.ts (Person B) ----------
