@@ -126,10 +126,10 @@ export default function Boardroom() {
               );
             })}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input value={custom} onChange={(e) => setCustom(e.target.value)} disabled={busy}
               placeholder={t('topic_custom')} aria-label={t('topic_custom')}
-              className="min-h-12 min-w-0 flex-1 rounded-full bg-zinc-100 px-5 text-base" />
+              className="min-h-12 min-w-40 flex-1 rounded-full bg-zinc-100 px-5 text-base" />
             <button disabled={busy} className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-ink px-5 font-semibold text-white disabled:opacity-50">
               {busy ? t('meeting_running') : t('start_meeting')} <Icon name="arrow" size={18} />
             </button>

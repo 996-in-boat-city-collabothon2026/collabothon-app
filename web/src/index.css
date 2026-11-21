@@ -12,7 +12,7 @@
   --color-ink: #151515;
   --color-muted: #666666;
   --color-hairline: #e5e5e5;
-  --color-accent: #ee0000;       /* signal red, Red Hat style (Ewelina 21.11: red + black, a little blue) */
+  --color-accent: #d40000;       /* signal red, Red Hat style (Ewelina 21.11: red + black, a little blue) */
   --color-accent-ink: #a30000;
   --color-blue: #0066cc;         /* small blue accent: links, the Costs group, one chart colour */
   --color-accent-soft: #fdeeee;
@@ -22,6 +22,20 @@
 
 /* Big, readable base for owners of every age (18px) */
 html { font-size: 18px; }
+
+/* Comfort mode (Settings → Easier to read, lib/comfort.ts). Everything is in rem, so one value scales the app. */
+html[data-text="120"] { font-size: 21.6px; }
+html[data-text="140"] { font-size: 25.2px; }
+/* High contrast: grey text becomes near-black, hairlines darker. The accent stays as it is. */
+html[data-contrast="high"] {
+  --color-muted: #111;
+  --color-hairline: #555;
+  --color-stone-500: #111; --color-stone-600: #111; --color-stone-700: #111;
+  --color-zinc-500: #111; --color-zinc-600: #111;
+  --color-stone-200: #555; --color-stone-300: #555;
+  --color-zinc-200: #555; --color-zinc-300: #555;
+}
+
 body {
   font-family: var(--font-sans);
   background: var(--color-paper);
@@ -46,7 +60,6 @@ button, a { transition-property: color, background-color, border-color; transiti
   border: 1px solid var(--color-hairline);
   border-radius: 14px;
 }
-.surface:hover { border-color: #d4d4d4; transition: border-color 150ms ease; }
 
 /* Kept for older markup: now plain */
 .glow-mint { background: #fff; }
@@ -126,8 +139,8 @@ button, a { transition-property: color, background-color, border-color; transiti
   transition: opacity 200ms ease;
 }
 @media (hover: hover) {
-  .agent-card:hover { transform: translateY(-3px); border-color: #EE0000; }
-  .agent-card:hover::before { opacity: 1; }
+  .agent-card:hover { border-color: #d2d2d2; }
+
   .agent-card:hover .agent-icon { border-color: #EE0000; color: #EE0000; transform: rotate(-6deg) scale(1.04); }
 }
 .agent-icon { transition: transform 250ms ease, color 150ms ease, border-color 150ms ease; }
@@ -183,7 +196,7 @@ main .surface:nth-of-type(n+4) { animation-delay: 150ms; }
 /* Cards: a quiet lift and a soft shadow on hover */
 .surface { transition: border-color 200ms ease; }
 @media (hover: hover) {
-  main .surface:hover { border-color: #f3b8b8; }
+  
 }
 
 /* Buttons and pill links: lift on hover, press in on click, smooth colour change */
@@ -280,20 +293,7 @@ details[open]::details-content { block-size: auto; }
   .agent-speaking, .agent-speaking .avatar-fig, .agents-thinking .avatar-fig, .turn-in, .turn-in .rounded-tl-md, .agent-hello { animation: none !important; }
 }
 
-/* ---------- Dashboard finish: a soft green sheen passes over each card once, green line on hover (cards never move) ---------- */
-main .surface { position: relative; }
-main .surface::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(105deg, transparent 35%, rgb(238 0 0 / .10) 50%, transparent 65%);
-  background-size: 250% 100%; background-position: 120% 0; opacity: 0;
-  animation: sheen 1.6s .5s ease-out 1;
-}
-@keyframes sheen { 0% { opacity: 1; background-position: 120% 0; } 100% { opacity: 1; background-position: -120% 0; } }
-main .surface::before {
-  content: ""; position: absolute; left: 18px; right: 18px; top: -1px; height: 2px; border-radius: 2px; pointer-events: none;
-  background: var(--color-accent); transform: scaleX(0); transform-origin: left; transition: transform 450ms cubic-bezier(.2,.7,.2,1);
-}
-@media (hover: hover) { main .surface:hover::before { transform: scaleX(1); } }
+/* Cards stay calm: no sheen, no hover line (Ewelina 21.11). */
 
 /* Header menu and tab pills: colour glides instead of jumping */
 header nav a, [role="group"] > button { transition: background-color 250ms ease, color 250ms ease; }
@@ -307,23 +307,22 @@ header nav a, [role="group"] > button { transition: background-color 250ms ease,
 /* ---------- Groups by colour (all greens): left edge + small label. Darkest = most important. ---------- */
 .grp { border-left-width: 8px; }
 .grp-alert { border-left-color: #cc0000; background: #111111; }
-.grp-cash { border-left-color: #ee0000; }
+.grp-cash { border-left-color: #d40000; }
 .grp-flow { border-left-color: #111111; }
 .grp-cost { border-left-color: #0066cc; }
 .grp-tag { display: inline-block; align-self: flex-start; margin-bottom: 6px; padding: 2px 10px; border-radius: 9999px; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.grp-tag-cash { background: #ee0000; color: #fff; }
+.grp-tag-cash { background: #d40000; color: #fff; }
 .grp-tag-flow { background: #111111; color: #fff; }
 .grp-tag-cost { background: #e7f1fa; color: #0066cc; }
 
 /* ---------- Hero: the cash headline as a dark banner (white text), like a product page hero ---------- */
-.grp-alert { background: #111111 !important; border-color: #111111 !important; border-left-color: #ee0000 !important; color: #fff; }
+.grp-alert { background: #111111 !important; border-color: #111111 !important; border-left-color: #d40000 !important; color: #fff; }
 .grp-alert .text-stone-700, .grp-alert .text-stone-600 { color: #d4d4d4; }
 .grp-alert .text-warn { color: #ff5c5c; }          /* the shortfall amount, readable on black */
 .grp-alert .text-ink, .grp-alert strong { color: #fff; }
-.grp-alert .bg-ink { background: #ee0000; }
+.grp-alert .bg-ink { background: #d40000; }
 .grp-alert .border-black\/10 { border-color: rgb(255 255 255 / .15); }
 .grp-alert .text-stone-400 { color: #8a8a8a; }
-.grp-alert::after { background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / .06) 50%, transparent 65%); background-size: 250% 100%; }
 
 /* ---------- Red Hat look (redhat.com as reference; no logo or artwork copied) ---------- */
 /* Cards: white, thin grey line, 16px corners, no shadow */
@@ -342,13 +341,13 @@ main details > summary.underline { color: var(--color-blue) !important; text-dec
 .dark-band h2 { color: #fff; }
 .dark-band .surface { border-color: #383838; }
 .dark-band article, .dark-band .surface { color: #151515; }
-.dark-band > div button.bg-ink { background: #ee0000; }
+.dark-band > div button.bg-ink { background: #d40000; }
 .dark-band > div a.rounded-full { background: transparent; color: #fff; border-color: #fff; }
 .dark-band p.surface { background: #1f1f1f; color: #e0e0e0; border-color: #383838; }
 /* Group tags: small grey pills with a coloured dot, like content-type labels */
 .grp-tag { background: #f2f2f2 !important; color: #151515 !important; border: 0 !important; font-weight: 600; letter-spacing: .02em; text-transform: none; font-size: 14px; }
 .grp-tag::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 9999px; vertical-align: 1px; }
-.grp-tag-cash::before { background: #ee0000; }
+.grp-tag-cash::before { background: #d40000; }
 .grp-tag-flow::before { background: #151515; }
 .grp-tag-cost::before { background: #0066cc; }
 /* Left-edge colour stays as a thin red-bar callout, like the stat block on redhat.com */
@@ -357,7 +356,7 @@ main details > summary.underline { color: var(--color-blue) !important; text-dec
 /* ---------- "Drukuj A4": the dashboard on one sheet, readable without a magnifier ---------- */
 @media print {
   @page { size: A4; margin: 12mm; }
-  html { font-size: 12px; }
+  html, html[data-text] { font-size: 12px; }
   body { background: #fff !important; }
   header, nav, .no-print, [role="dialog"], button[aria-label] { display: none !important; }
   main { padding: 0 !important; max-width: none !important; }

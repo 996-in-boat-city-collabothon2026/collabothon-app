@@ -37,7 +37,7 @@ export default function Login({ onLogin }: { onLogin: (u: User) => void }) {
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-white"><Icon name="bolt" size={14} /></span>
             {t('login_demo_note')}
           </span>
-          <h1 className="text-gradient mt-3 pb-1 text-4xl font-semibold tracking-tight">WarsztatCFO</h1>
+          <h1 className="text-gradient mt-3 pb-1 text-4xl font-semibold tracking-tight">MANI</h1>
           <p className="mt-2 text-lg text-stone-700">{t('login_tagline')}</p>
         </div>
 

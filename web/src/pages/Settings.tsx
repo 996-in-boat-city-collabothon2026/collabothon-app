@@ -6,6 +6,7 @@ import { api, useApi } from '../api/client';
 import { Card, Status, useToast } from '../components/ui';
 import { useT } from '../i18n';
 import Icon, { type IconName } from '../components/Icon';
+import { applyComfort, loadComfort, type Comfort, type TextSize } from '../lib/comfort';
 
 /**
  * What the autopilot really does with each operation – a copy of the server rules in
@@ -51,6 +52,8 @@ export default function SettingsPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-gradient pb-1 text-3xl font-semibold tracking-tight sm:text-4xl">{t('settings')}</h1>
+
+      <ComfortCard />
 
       <Card title={t('autonomy_title')}>
         <p className="mb-4 text-stone-600">{t('autonomy_note')}</p>
@@ -108,6 +111,51 @@ export default function SettingsPage() {
       </Card>
       {toast}
     </div>
+  );
+}
+
+const SIZES: { size: TextSize; label: string }[] = [
+  { size: 100, label: 'A' },
+  { size: 120, label: 'A+' },
+  { size: 140, label: 'A++' },
+];
+
+/** "Easier to read": text size A / A+ / A++ and a high-contrast switch. Saved on this device (lib/comfort.ts). */
+function ComfortCard() {
+  const { t } = useT();
+  const [c, setC] = useState<Comfort>(loadComfort);
+  const change = (next: Comfort) => {
+    setC(next);
+    applyComfort(next);
+  };
+  return (
+    <Card title={t('comfort_title')}>
+      <p className="mb-4 text-stone-600">{t('comfort_note')}</p>
+      <p className="mb-2 font-medium" id="comfort-size">{t('comfort_size')}</p>
+      <div role="group" aria-labelledby="comfort-size" className="mb-5 flex flex-wrap gap-2">
+        {SIZES.map(({ size, label }) => (
+          <button key={size} type="button" onClick={() => change({ ...c, textSize: size })}
+            aria-pressed={c.textSize === size} aria-label={t(`comfort_size_${size}`)}
+            className={`min-h-12 min-w-16 rounded-full border px-5 font-bold ${
+              c.textSize === size ? 'border-ink bg-ink text-white' : 'border-stone-300 bg-white text-ink hover:bg-stone-100'}`}
+            style={{ fontSize: `${size / 100}rem` }}>
+            {label}
+          </button>
+        ))}
+      </div>
+      <button type="button" role="switch" aria-checked={c.highContrast}
+        onClick={() => change({ ...c, highContrast: !c.highContrast })}
+        className="flex min-h-12 w-full items-center justify-between gap-4 rounded-2xl border border-stone-200 p-3 text-left">
+        <span>
+          <span className="block font-medium">{t('comfort_contrast')}</span>
+          <span className="block text-sm text-stone-600">{t('comfort_contrast_hint')}</span>
+        </span>
+        <span aria-hidden="true"
+          className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-colors ${c.highContrast ? 'bg-ink' : 'bg-stone-300'}`}>
+          <span className={`h-6 w-6 rounded-full bg-white shadow transition-transform ${c.highContrast ? 'translate-x-7' : 'translate-x-1'}`} />
+        </span>
+      </button>
+    </Card>
   );
 }
 

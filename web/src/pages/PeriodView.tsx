@@ -14,7 +14,7 @@ import { useSweep } from '../components/useSweep';
 
 // One accent in tints + greys: the biggest costs are the strongest colour.
 const CAT_COLOR: Record<ExpenseCategory, string> = {
-  payroll: '#EE0000', taxes: '#141414', parts: '#1D4ED8', rent: '#6b6b6b',
+  payroll: '#D40000', taxes: '#141414', parts: '#1D4ED8', rent: '#6b6b6b',
   leasing: '#F2B8C0', utilities: '#a3a3a3', other: '#d4d4d4',
 };
 
@@ -41,23 +41,23 @@ export default function PeriodView({ view }: { view: 'week' | 'month' }) {
   return (
     <div className="space-y-5">
       <Status loading={state.loading && !state.data} error={state.error} />
+      {/* Week/Month mix real API numbers with demo figures: say so up front, once, in plain words */}
+      <p className="rounded-2xl border border-black/15 bg-white px-4 py-3 text-[17px]">
+        <strong>{t('demo_banner_title')}</strong> {t('demo_banner_text')}
+      </p>
       {/* ---------- Week: 6 numbers, details on click ---------- */}
       {view === 'week' && (
         <>
           {/* 1. Cash first */}
           <h2 className="text-lg font-semibold uppercase tracking-wide text-stone-700">{t('row_cash')}</h2>
           <div className="grid gap-5 md:grid-cols-2">
-            <KpiCard term="cash" owner="anna" label={t('kpi_free_cash')} source="bank" demoRef
-              value={DEMO_CASH.freePLN[L]} valueKind="estimate"
-              note={`${t('free_cash_how')} ${k ? fmtPLN(k.balancePLN) : '…'} − ${DEMO_CASH.plannedPLN[L]}`}
-              trend={DEMO_REFS.cash.trend[L]} why={DEMO_REFS.cash.why[L]} stress={DEMO_REFS.cash.stress[L]}
-              extraLine={`${t('credit_line')}: ${DEMO_CASH.creditPLN[L]} – ${t('credit_line_note')}`}
-              warn={DEMO_RULES[1].hit ? DEMO_RULES[1].text[L] : undefined}
+            {/* Same number as "Available today" on Overview: straight from the API, no demo figure */}
+            <KpiCard term="cash" owner="anna" label={t('available_today')} source="bank"
+              value={k ? fmtPLN(k.balancePLN) : undefined}
               todo={t('todo_cash')} action={{ label: t('act_cash'), to: '/approvals' }} />
-            <KpiCard term="low_point" owner="anna" label={t('kpi_low_point')} source="bank" demoRef
+            <KpiCard term="low_point" owner="anna" label={t('kpi_low_point')} source="bank"
               value={f90 ? fmtPLN(f90.lowest.balancePLN) : undefined} valueKind="estimate"
               compare={f90 ? { label: '', text: `${t('low_point_when')} ${fmtDay(f90.lowest.date)} – ${t('low_point_before')}`, good: f90.lowest.balancePLN >= 0, neutral: true } : undefined}
-              note={DEMO_CASH.forecastMiss[L]}
               warn={f90 && f90.lowest.balancePLN < 0 ? t('low_point_warn') : undefined}
               todo={t('todo_low_point')} action={{ label: t('act_cash'), to: '/approvals' }} />
           </div>
@@ -288,8 +288,8 @@ function CashChart({ f }: { f: Forecast }) {
           <Tooltip formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
             contentStyle={{ borderRadius: 16, border: '1px solid rgb(0 0 0 / 0.1)', fontSize: 18 }} />
           <ReferenceLine y={0} stroke="#1d1d1f" strokeWidth={2} />
-          <ReferenceLine y={f.bufferPLN} stroke="#EE0000" strokeDasharray="8 6" strokeWidth={2}>
-            <Label value={`${t('buffer')} ${tys(f.bufferPLN)}`} position="insideTopRight" fontSize={16} fontWeight={600} fill="#EE0000" />
+          <ReferenceLine y={f.bufferPLN} stroke="#D40000" strokeDasharray="8 6" strokeWidth={2}>
+            <Label value={`${t('buffer')} ${tys(f.bufferPLN)}`} position="insideTopRight" fontSize={16} fontWeight={600} fill="#D40000" />
           </ReferenceLine>
           <Area type="stepAfter" dataKey="balancePLN" stroke="url(#cashLine)" strokeWidth={5} fill="url(#cashFill)" isAnimationActive={false} />
           <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={9} fill="#CC0000" stroke="#fff" strokeWidth={3} shape={TravelDot}>
@@ -351,7 +351,7 @@ function WarnMark({ arrow = true }: { arrow?: boolean }) {
   const { t } = useT();
   return (
     <span className="mr-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-warn px-2.5 py-0.5 text-base font-bold text-white">
-      <span className="h-2.5 w-2.5 rounded-full bg-white" aria-hidden="true" /> {t('attention')} {arrow && <span aria-hidden="true">▼</span>}
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3z" fill="currentColor"/><path d="M12 10v5M12 18v.5" stroke="#cc0000" strokeWidth="2.4" strokeLinecap="round"/></svg> {t('attention')} {arrow && <span aria-hidden="true">▼</span>}
     </span>
   );
 }

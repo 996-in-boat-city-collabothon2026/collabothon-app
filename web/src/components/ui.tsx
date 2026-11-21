@@ -4,6 +4,7 @@ import { CFOS, HATS, type Action, type CfoId, type Currency, type Execution, typ
 import { Link } from 'react-router-dom';
 import { useT } from '../i18n';
 import Icon, { type IconName } from './Icon';
+import SpeakButton from './SpeakButton';
 
 /** 4920 → „4 920,00 zł”. Hand-made because pl-PL Intl does not group 4-digit numbers („4920,00 zł”). */
 export function fmtPLN(n: number): string {
@@ -99,7 +100,7 @@ export function CfoAvatar({ cfo, size = 40, live = false }: { cfo: CfoId; size?:
 /** Animated "agent → action → you" strip: shows how a decision flows. Decorative, labels are readable text. */
 export function FlowStrip({ steps }: { steps: string[] }) {
   return (
-    <div className="surface glow-mint flex items-center gap-2 overflow-hidden p-4 sm:gap-3 sm:p-5" aria-label={steps.join(' → ')}>
+    <div className="surface glow-mint flex flex-wrap items-center gap-2 overflow-hidden p-4 sm:gap-3 sm:p-5" aria-label={steps.join(' → ')}>
       {steps.map((s, i) => (
         <span key={s} className="contents">
           {i > 0 && <span className="flow-line min-w-3 flex-1" aria-hidden="true" />}
@@ -201,6 +202,15 @@ export function ActionCard({ action, onApprove, onReject }: { action: Action; on
             <div className="mt-1 text-sm text-stone-700">
               {action.explanation && <p className="mb-1">{action.explanation}</p>}
               <ul className="list-disc pl-5">{action.why.map((w) => <li key={w}>{w}</li>)}</ul>
+              <div className="mt-2">
+                <SpeakButton text={[
+                  action.title,
+                  action.amountPLN !== undefined ? fmtPLN(action.amountPLN) : '',
+                  action.dueDate ? `${t('due')} ${fmtDay(action.dueDate)}` : '',
+                  action.explanation ?? '',
+                  ...action.why,
+                ].map((s) => s.trim().replace(/\.+$/, '')).filter(Boolean).join('. ')} />
+              </div>
             </div>
           )}
         </div>

@@ -60,7 +60,7 @@ export default function App() {
         {/* Floating top bar: logo, menu pills (desktop), model, sign out */}
         <header className="sticky top-0 z-30 bg-paper/95">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 py-1 pl-4 pr-2">
-            <span className="whitespace-nowrap text-lg font-extrabold tracking-tight"><span aria-hidden="true" className="sm:hidden">W</span><span className="sr-only sm:not-sr-only">WarsztatCFO</span></span>
+            <span className="whitespace-nowrap font-display text-[28px] font-extrabold leading-none tracking-tight sm:text-[32px]"><span aria-hidden="true" className="sm:hidden">M</span><span className="sr-only sm:not-sr-only">MANI</span></span>
             <nav aria-label="Menu" className="hidden items-center gap-1 lg:flex">
               {NAV.map((n) => (
                 <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
@@ -77,7 +77,7 @@ export default function App() {
             </div>
           </div>
         </header>
-        <main className="mx-auto min-h-screen max-w-6xl px-4 pt-5 lg:px-8">
+        <main className="mx-auto min-h-screen max-w-6xl px-4 pb-48 pt-5 md:pb-28 lg:px-8">
           <div key={loc.pathname} className="page-in">
           <Routes>
             <Route path="/" element={<Dashboard />} />

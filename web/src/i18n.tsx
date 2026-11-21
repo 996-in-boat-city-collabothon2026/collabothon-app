@@ -348,6 +348,10 @@ const DICT: Record<string, { pl: string; en: string }> = {
   available_today: { pl: 'Dostępne dziś', en: 'Available today' },
   forecast_word: { pl: 'Prognoza', en: 'Forecast' },
   projected_shortfall: { pl: 'Prognozowany brak', en: 'Projected shortfall' },
+  next_step: { pl: 'Najpierw:', en: 'First:' },
+  decide_now: { pl: 'Zdecyduj teraz', en: 'Decide now' },
+  demo_banner_title: { pl: 'Częściowo dane demo.', en: 'Partly demo data.' },
+  demo_banner_text: { pl: 'Kwoty z etykietą „dane demo” są przykładowe. Gotówka, należności, płatności i prognoza są prawdziwe (z API).', en: 'Figures marked “demo data” are examples. Cash, receivables, payments and the forecast are real (from the API).' },
   grp_cash: { pl: 'Gotówka', en: 'Cash' },
   grp_flow: { pl: 'Należności i płatności', en: 'Owed and payments' },
   grp_cost: { pl: 'Koszty', en: 'Costs' },
@@ -433,6 +437,17 @@ const DICT: Record<string, { pl: string; en: string }> = {
     pl: 'Wszystkie liczby liczą reguły w kodzie (bank, faktury KSeF, terminy podatkowe). Wszystkie płatności i wysyłki w aplikacji są symulowane.',
     en: 'All numbers come from rules in code (bank, KSeF invoices, tax deadlines). All payments and submissions in the app are simulated.',
   },
+  // Accessibility: comfort mode (Settings) + read aloud (SpeakButton)
+  comfort_title: { pl: 'Łatwiej czytać', en: 'Easier to read' },
+  comfort_note: { pl: 'Zapisane tylko na tym urządzeniu.', en: 'Saved on this device only.' },
+  comfort_size: { pl: 'Wielkość tekstu', en: 'Text size' },
+  comfort_size_100: { pl: 'Normalny tekst', en: 'Normal text' },
+  comfort_size_120: { pl: 'Większy tekst', en: 'Bigger text' },
+  comfort_size_140: { pl: 'Największy tekst', en: 'Biggest text' },
+  comfort_contrast: { pl: 'Wysoki kontrast', en: 'High contrast' },
+  comfort_contrast_hint: { pl: 'Szary tekst staje się czarny.', en: 'Grey text becomes black.' },
+  speak_read: { pl: 'Czytaj na głos', en: 'Read aloud' },
+  speak_stop: { pl: 'Stop', en: 'Stop' },
 };
 
 const LangCtx = createContext<{ lang: Lang; setLang: (l: Lang) => void }>({ lang: 'en', setLang: () => {} });

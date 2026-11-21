@@ -18,7 +18,7 @@ const RANGES = [30, 60, 90] as const;
 const PRIORITY: Record<Tier, number> = { NEEDS_APPROVAL: 0, RECOMMENDED: 1, ANALYSED: 2 };
 // One accent in tints + greys: the biggest costs are the strongest colour.
 const CAT_COLOR: Record<ExpenseCategory, string> = {
-  payroll: '#EE0000', taxes: '#141414', parts: '#1D4ED8', rent: '#6b6b6b',
+  payroll: '#D40000', taxes: '#141414', parts: '#1D4ED8', rent: '#6b6b6b',
   leasing: '#F2B8C0', utilities: '#a3a3a3', other: '#d4d4d4',
 };
 
@@ -112,12 +112,20 @@ export default function Dashboard() {
               </p>
             </div>
             {f90.lowest.balancePLN < 0
-              ? <span className="mb-1 inline-flex items-center gap-1 whitespace-nowrap text-lg font-semibold text-warn"><WarnMark arrow={false} />{t('projected_shortfall')}</span>
+              ? <span className="mb-1 inline-flex flex-wrap items-center gap-1 text-lg font-semibold text-warn"><WarnMark arrow={false} />{t('projected_shortfall')}</span>
               : f90.lowest.balancePLN < f90.bufferPLN
                 ? <span className="mb-1"><WarnMark />{t('verdict_low')}</span>
                 : <span className="mb-1 rounded-full bg-accent-soft px-3 py-1 font-semibold text-accent-ink">{t('status_ok_13w')}</span>}
           </div>
         ) : <div className="skeleton h-12 w-2/3" />}
+        {open[0] && (
+          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-3">
+            <p className="min-w-0 flex-1 text-lg"><span className="font-semibold text-stone-700">{t('next_step')}</span> <strong>{open[0].title}</strong></p>
+            <Link to="/approvals" className="inline-flex min-h-12 items-center gap-2 rounded-full bg-accent px-6 text-lg font-bold text-white hover:brightness-95">
+              {t('decide_now')} <span aria-hidden="true">→</span>
+            </Link>
+          </div>
+        )}
         {k?.nextDeadline && (
           <p className="mt-5 flex flex-wrap items-center gap-2 border-t border-black/10 pt-4 text-[17px] text-stone-700">
             <span className="h-2.5 w-2.5 rounded-full bg-ink" aria-hidden="true" />
@@ -128,8 +136,7 @@ export default function Dashboard() {
       </section>
 
       {/* 2. Four money tiles – all straight from GET /api/state (kpis) */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile group="cash" label={t('kpi_balance')} value={k && fmtPLN(k.balancePLN)} term="cash" source="src_bank" />
+      <div className="grid gap-4 sm:grid-cols-3">
         <Tile group="flow" label={t('kpi_owed_to_you')} value={k && fmtPLN(k.receivablesPLN)} source="src_ksef" term="overdue"
           note={k && k.overdueReceivablesPLN > 0 ? `${t('kpi_overdue_now')} ${fmtPLN(k.overdueReceivablesPLN)}` : undefined} warn={!!k && k.overdueReceivablesPLN > 0} />
         <Tile group="flow" label={t('kpi_you_owe')} value={k && fmtPLN(k.payablesPLN)} source="src_ksef" term="owed"
@@ -147,7 +154,7 @@ export default function Dashboard() {
             <span className="flex gap-1 rounded-full border border-black/10 bg-white p-1" role="group" aria-label={t('forecast_title')}>
               {RANGES.map((d) => (
                 <button key={d} onClick={() => setDays(d)} aria-pressed={days === d}
-                  className={`min-h-10 rounded-full px-4 text-sm font-semibold ${days === d ? 'bg-ink text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
+                  className={`min-h-10 rounded-full px-3 text-sm font-semibold sm:px-4 ${days === d ? 'bg-ink text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
                   {d} {t('days_short')}
                 </button>
               ))}
@@ -311,8 +318,8 @@ function CashChart({ f }: { f: Forecast }) {
           <Tooltip formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
             contentStyle={{ borderRadius: 16, border: '1px solid rgb(0 0 0 / 0.1)', fontSize: 16 }} />
           <ReferenceLine y={0} stroke="#1d1d1f" strokeWidth={2} />
-          <ReferenceLine y={f.bufferPLN} stroke="#EE0000" strokeDasharray="8 6" strokeWidth={2}>
-            <Label value={`${t('buffer')} ${short(f.bufferPLN)}`} position="insideTopRight" fontSize={14} fontWeight={600} fill="#EE0000" />
+          <ReferenceLine y={f.bufferPLN} stroke="#D40000" strokeDasharray="8 6" strokeWidth={2}>
+            <Label value={`${t('buffer')} ${short(f.bufferPLN)}`} position="insideTopRight" fontSize={14} fontWeight={600} fill="#D40000" />
           </ReferenceLine>
           <Area type="stepAfter" dataKey="balancePLN" stroke="url(#cashLine)" strokeWidth={4} fill="url(#cashFill)" isAnimationActive={false} />
           <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={8} fill="#CC0000" stroke="#fff" strokeWidth={3} shape={TravelDot}>
@@ -329,7 +336,7 @@ function WarnMark({ arrow = true }: { arrow?: boolean }) {
   const { t } = useT();
   return (
     <span className="mr-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-warn px-2.5 py-0.5 text-base font-bold text-white">
-      <span className="h-2.5 w-2.5 rounded-full bg-white" aria-hidden="true" /> {t('attention')} {arrow && <span aria-hidden="true">▼</span>}
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2 21h20L12 3z" fill="currentColor"/><path d="M12 10v5M12 18v.5" stroke="#cc0000" strokeWidth="2.4" strokeLinecap="round"/></svg> {t('attention')} {arrow && <span aria-hidden="true">▼</span>}
     </span>
   );
 }

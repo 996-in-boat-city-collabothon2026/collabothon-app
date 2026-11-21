@@ -1,4 +1,4 @@
-# WarsztatCFO
+# MANI
 
 An AI CFO team for Polish car repair shops, built at Collabothon 2026 for the Commerzbank × Red Hat challenge. It is an autonomous finance watchdog with human approval, a simulated KSeF FA(3)/UPO flow, and a boardroom of 4 CFOs. It runs on Red Hat OpenShift and uses a model served by OpenShift AI (vLLM).
 
