@@ -8,6 +8,7 @@ import { forecast } from '../rules/cashflow';
 import { totalsBetween } from '../rules/expenses';
 import { FX_SHOCK_THRESHOLD_PLN, fxExposures } from '../rules/fx';
 import { taxesDue, taxLabelEn } from '../rules/taxDue';
+import { InvoiceForm, fillInvoiceGaps } from '../agents/invoiceClerk';
 
 function kpis(): Kpis {
   const unpaidSales = db.invoices.filter((i) => i.direction === 'sales' && !i.paid && convertible(i));
@@ -103,6 +104,17 @@ const routes: FastifyPluginAsync = async (app) => {
   app.get<{ Querystring: { days?: string } }>('/expenses', async (req) => expenseBreakdown(Number(req.query.days) || 30));
 
   app.get('/alerts', async (): Promise<Alert[]> => alerts());
+
+  // Voice-to-Invoice: the browser turns speech into text, the Invoice clerk agent fills the form's gaps from it.
+  // Fills a form only: nothing is saved or sent to KSeF here.
+  app.post<{ Body: { text?: unknown; form?: unknown } | undefined }>('/invoices/parse-voice', async (req, reply) => {
+    const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+    if (!text) return reply.code(400).send({ error: 'text is required' });
+    if (text.length > 2000) return reply.code(400).send({ error: 'text is too long (max 2000 characters)' });
+    const form = InvoiceForm.safeParse(req.body?.form ?? {});
+    if (!form.success) return reply.code(400).send({ error: 'form has a wrong shape' });
+    return fillInvoiceGaps(text, form.data, db.shop.today);
+  });
 };
 
 export default routes;
