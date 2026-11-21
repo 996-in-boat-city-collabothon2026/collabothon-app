@@ -459,8 +459,19 @@ with Tomasz, because he had answered last. All numbers on screen were rule numbe
 history has a CFO, money words alone ("cost", "how much", "price", "cheap", "save") no longer switch the CFO. A real
 topic ("Is it time to pay VAT?" → Marek), "cut costs" (→ Tomasz) or a CFO's name still switch.
 
-### Run 2: after the fix
-To do after the merge (production rebuilds from `main`): the same 3 follow-ups must all come from Kasia.
+### Run 2: production after the fix (PR #30, 2026-11-21, 16:59 CET)
+Meeting (10,0 s): Kasia leads (forward contract for 1500 EUR at 4,27 zł), Marek and Anna say "not my area".
 
-**Seen in passing (not B's files):** the chair writes "36,000 zł" (English format) and lists all open cards, not the
+| Owner asks | Answered by | Answer | OK? |
+|---|---|---|---|
+| Why? (5,3 s) | Kasia | "You have 1500 EUR to pay. If EUR rises 5%, you lose 320,25 zł, and the rate is going up (from 4,22 zł to 4,27 zł). I suggest locking the rate with a forward contract for 1500 EUR." | ✅ |
+| How much would it cost? (2,7 s) | Kasia | "The cost of a forward contract is not specified in the FACTS, so I don't know the exact cost. You should decide whether to lock the rate with a forward contract for 1500 EUR." | ✅ |
+| OK, what first? (2,4 s) | Kasia | "First, you should decide whether to lock the rate with a forward contract for 1500 EUR. If you decide to do so, I will help you with the next steps." | ✅ |
+
+All 3 from Kasia, all on topic, every number a rule number. "How much would it cost?" has no answer in the rules, and
+the model says so instead of inventing a price. **B4 done.**
+
+After the review of #30, `money` was added to the money words ("Is that a lot of money?" went to Anna).
+
+**Seen in passing (not B's files):** the chair writes "36,000 zł" and "14,230.00 zł" (English format) and lists all open cards, not the
 EUR topic; Marek and Anna say "not my area" instead of passing (`agents/boardroom.ts`, Person C).
