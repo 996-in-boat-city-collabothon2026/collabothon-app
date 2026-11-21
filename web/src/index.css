@@ -411,3 +411,67 @@ ul.report-list { list-style: disc; }
 
 /* Blue accent for the small "What does it mean?" links */
 main details > summary.text-accent-ink.underline { color: var(--color-blue); }
+
+/* ---------- Login page (Pair 1, Nara): full-colour hero in our brand colours ---------- */
+/* Deep red into black, one big soft circle, a little blue. The four agents float in the background.
+   All motion stops with prefers-reduced-motion (global rule above). */
+.login-hero {
+  position: relative; isolation: isolate; overflow: hidden;
+  background:
+    radial-gradient(900px 600px at 85% -10%, rgba(212, 0, 0, .55), transparent 60%),
+    radial-gradient(700px 500px at -10% 110%, rgba(0, 102, 204, .28), transparent 60%),
+    linear-gradient(150deg, #2a0707 0%, #1a0909 45%, #120c0e 100%);
+}
+.login-hero::before { /* big soft circle, like a sun behind the phone */
+  content: ""; position: absolute; z-index: -1; width: 760px; height: 760px; right: -220px; top: -260px;
+  border-radius: 9999px; background: rgba(255, 255, 255, .05); box-shadow: 0 0 0 90px rgba(255, 255, 255, .025);
+}
+
+.login-headline {
+  font-family: var(--font-display); font-weight: 800; letter-spacing: -0.035em; line-height: 1.02;
+  font-size: clamp(2.4rem, 7.2vw, 5.4rem); overflow-wrap: anywhere;
+}
+.login-accent {
+  background: linear-gradient(100deg, #ff3b3b 0%, #ff8f7a 60%, #ffd2c6 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.login-pill { background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .22); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.login-live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background: #ff4d4d; box-shadow: 0 0 0 4px rgba(255, 77, 77, .25); animation: thinking 1.6s ease-in-out infinite; }
+
+.login-btn-white { background: #fff; color: var(--color-accent-ink); transition: transform 180ms ease, box-shadow 180ms ease; box-shadow: 0 12px 30px -12px rgba(0, 0, 0, .6); }
+.login-btn-white:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 18px 36px -14px rgba(0, 0, 0, .7); }
+.login-btn-white:active:not(:disabled) { transform: none; }
+
+@keyframes login-rise { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+.login-rise { animation: login-rise .8s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 110ms); }
+
+/* Tilted phone mock-up */
+.login-phone {
+  width: 300px; height: 590px; padding: 12px; border-radius: 46px; background: #0b0b0c; transform: rotate(4deg);
+  box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .8), inset 0 0 0 2px rgba(255, 255, 255, .08);
+}
+.login-phone.login-rise { animation-name: login-phone-in; }
+@keyframes login-phone-in { from { opacity: 0; transform: rotate(9deg) translateY(40px); } to { opacity: 1; transform: rotate(4deg); } }
+.login-screen { border-radius: 36px; background: linear-gradient(170deg, #8f0000 0%, #4a0606 55%, #1d0a0b 100%); }
+.login-bubble { animation: login-rise .6s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(var(--i, 0) * 260ms + 300ms); }
+
+/* The agents in their hats, floating in the background */
+.login-float { position: absolute; z-index: -1; pointer-events: none; user-select: none; opacity: .22; filter: saturate(.9) drop-shadow(0 20px 30px rgba(0,0,0,.45)); animation: login-float 9s ease-in-out infinite alternate; }
+.login-float-0 { width: 210px; left: 2%;  top: 58%; animation-delay: -2s; }
+.login-float-1 { width: 150px; left: 40%; top: 6%;  animation-delay: -5s; opacity: .16; }
+.login-float-2 { width: 190px; left: 33%; bottom: -70px; animation-delay: -1s; }
+.login-float-3 { width: 160px; right: 3%; top: 64%; animation-delay: -7s; opacity: .2; }
+@keyframes login-float { from { transform: translateY(0) rotate(-3deg); } to { transform: translateY(-26px) rotate(3deg); } }
+@media (max-width: 1023px) {
+  .login-float { opacity: .14; }
+  .login-float-0 { width: 150px; left: -30px; top: auto; bottom: 18%; }
+  .login-float-1 { width: 110px; left: auto; right: -20px; top: 12%; }
+  .login-float-2, .login-float-3 { display: none; }
+}
+
+/* High contrast (comfort mode): plain black background, white text, no see-through or gradient text */
+html[data-contrast="high"] .login-hero { background: #000; }
+html[data-contrast="high"] .login-hero::before, html[data-contrast="high"] .login-float { display: none; }
+html[data-contrast="high"] .login-accent { background: none; color: #fff; text-decoration: underline; text-decoration-color: #ff4d4d; text-underline-offset: .12em; }
+html[data-contrast="high"] .login-hero .text-white\/70, html[data-contrast="high"] .login-hero .text-white\/75, html[data-contrast="high"] .login-hero .text-white\/85 { color: #fff; }
+html[data-contrast="high"] .login-pill { background: #000; border-color: #fff; backdrop-filter: none; }
