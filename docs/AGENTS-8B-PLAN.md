@@ -46,7 +46,7 @@ number guard is not optional.
 | Project | `cfo-llm` (the app runs in `my-first-model`) |
 | Metrics | The dashboard shows "Metrics not supported" (custom serving runtime). We measure speed from the server log lines `[llm] ok key=… ms=… tokens=…` and from `live.test.ts`. |
 
-- [ ] **0.1 Point the test copy at the 8B model** (someone with `oc`, usually Pair 1). The test copy is a second app on
+- [x] **0.1 Point the test copy at the 8B model** (someone with `oc`, usually Pair 1). The test copy is a second app on
   the same cluster, so production keeps working while we try:
   ```powershell
   oc set env deploy/warsztat-cfo-test -n my-first-model LLM_MODE=openai_compat LLM_MODEL=llama-31-8b-instruct LLM_BASE_URL=http://llama-31-8b-instruct-predictor.cfo-llm.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=25000 LLM_BUDGET_MS=30000
@@ -119,7 +119,7 @@ export const checkReply = (_reply: string, _facts: CfoFacts) => ({ ok: true, rea
 ### Person A (owner): the number guard, the model, the checks · branch `agents8b-guard`
 You own the safety part, so you can explain to the jury why the AI cannot invent a number.
 
-- [ ] **A1 Step 0** (section 2): the 8B model on the test copy.
+- [x] **A1 Step 0** (section 2): the 8B model on the test copy. Checked 21.11 after #25: health on the test copy and production = `llama-31-8b-instruct`, ok (Pair 1 had already switched both).
 - [x] **A2 `server/src/agents/guard.ts`** (new, ~50 lines)
   - `numbersIn(text): number[]` reads every number in a text as a value. These must all give the same value:
     `14 230,00 zł` · `14 230 zł` · `14,230 zł` · `14230` → **14230**; `4,27` → **4.27**; `5%` → **5**;
@@ -316,7 +316,7 @@ reasons into team chat.
 ---
 
 ## 8. Done when
-- [ ] `npm test`, `npm run typecheck` and `npm run build` pass on `main`.
+- [x] `npm test`, `npm run typecheck` and `npm run build` pass on `main` (after #25, 83f5617: 292 passed, 3 skipped).
 - [ ] Live run on 8B written in `docs/PAIR2-REBUILD.md`: guard pass rate ≥ 80%, meeting < 22 s, 0 wrong numbers on screen.
 - [ ] Manual checks 1–14 pass on the test copy, and #1–#8 again on production after the merge.
 - [ ] Production health shows `llama-31-8b-instruct`.

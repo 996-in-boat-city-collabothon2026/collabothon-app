@@ -429,6 +429,8 @@ Every fallback showed the same `facts.summary`, whatever was asked (step A2 fixe
 - **Not touched (outside this branch's files):** the chair's English money format and its off-topic plan
   (`agents/boardroom.ts`). Agree on it with Person B before changing it.
 
+---
+
 ## 8. Chat follow-ups (rebuild 2, step B4 of [AGENTS-NEXT.md](AGENTS-NEXT.md))
 
 **What is checked:** after a meeting the owner keeps asking in the chat. Since PR #28 the web sends the last 6 messages
