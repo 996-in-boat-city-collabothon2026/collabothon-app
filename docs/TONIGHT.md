@@ -5,7 +5,7 @@ If something blocks you for more than 20 minutes, post it in team chat with your
 
 **Where we are this morning:**
 - The live app ran on OpenShift with the real model: `/api/llm/health` = `openai_compat`, Llama 3.2 3B.
-  **Changed at noon: see "Model switch" below. The live app is on mock right now.**
+  **Changed at noon: the team moved to Llama 3.1 8B. See "Model: Llama 3.1 8B" below.**
 - `main` has PRs #1–#9 merged. 521 tests pass, and typecheck and build are green.
 - [PR #10](https://github.com/996-in-boat-city-collabothon2026/collabothon-app/pull/10), Pair 2's answer-layer
   rebuild, is **merged** and live: 476 tests pass, typecheck and build are green, and smoke with `-RequireModel`
@@ -19,28 +19,28 @@ If something blocks you for more than 20 minutes, post it in team chat with your
 
 Live app: https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com
 
-### ⚠️ Model switch: Llama 3.2 3B → Llama 3.1 8B (in progress, checked 12:14)
+### Model: Llama 3.1 8B (team decision, checked 12:35)
 
-The team decided to move to a stronger model. State of the cluster right now (read-only check):
+**The team decided to stay on the Llama 3.1 8B for the demo.** We know it is slower than the 3B. The live app
+already runs it. The 3B is only the emergency fallback, and mock is the last resort during the demo.
 
 | What | State |
 |---|---|
-| New model | `llama-31-8b-instruct` in namespace `cfo-llm`, **READY True**. `oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.1-8b-instruct`, args `--dtype=half --max-model-len=8192 --gpu-memory-utilization=0.90` |
-| Old model | `llama-32-3b-instruct` in `my-first-model`, **READY False** (undeployed: the cluster has one GPU) |
-| Other model | `qwen3-14b` in `kasia-v2`, **READY False** for 73 min. Whose is it? Delete it or say why it stays (it competes for the one GPU) |
-| **Live app** (`warsztat-cfo`) | **`LLM_MODE=mock`**: the jury would see canned text now. Env still points at the old 3B address |
-| Test app (`warsztat-cfo-test`) | On the 8B: `LLM_MODEL=llama-31-8b-instruct`, `LLM_BASE_URL=http://llama-31-8b-instruct-predictor.cfo-llm.svc.cluster.local:8080/v1`, `LLM_BUDGET_MS=24000`. `/api/llm/health` ok |
+| Model | `llama-31-8b-instruct` in namespace `cfo-llm`, **READY True**. `oci://quay.io/redhat-ai-services/modelcar-catalog:llama-3.1-8b-instruct`, args `--dtype=half --max-model-len=8192 --gpu-memory-utilization=0.90` |
+| **Live app** (`warsztat-cfo`) | On the 8B, `/api/llm/health` = `openai_compat`, `llama-31-8b-instruct`, ok. `LLM_BUDGET_MS=22000` |
+| Test app (`warsztat-cfo-test`) | On the 8B as well, but `LLM_BUDGET_MS=24000`. Set it to 22000 so the test app matches the live app |
+| Old model | `llama-32-3b-instruct` in `my-first-model`: **stopped, not deleted**. Bring it back with `deploy/README.md` §2 (on `pair1-openshift`, PR #15). It takes a few minutes because the files are cached on the node |
+| Other model | `qwen3-14b` in `kasia-v2`, **READY False** for 90 min. It competes for the one GPU: delete it, or say why it stays |
 
-**First measurement on the 8B** (test app, 12:10, one run, others were using the test app at the same time):
-- `/api/ask`: 1.2–2.8 s per answer (3B: ~1 s).
-- Conference: **21.1 s** (3B: 6–7 s). Budget is 24 s, so there is almost no margin.
-- Model calls take 1.2–7.8 s. Tomasz's turn took 7.8 s, returned 120 tokens and failed with `[guard] no valid JSON`.
-- Kasia: `unknown or extra ids dropped; no valid point → core points`, and the same in `/ask`.
-- So the screen still shows correct rule text, but on these turns the model's choice is thrown away. The prompts and
-  the id parser were tuned for the 3B (see `docs/PAIR2-REBUILD.md`) and the 8B answers in a different shape.
+**Measurement on the 8B** (test app, 12:30, demo order: reset → run check → conference, nobody else on the test app):
+- Conference: **12.7 s, 10.7 s, 11.7 s** (3B: 6–7 s). An earlier 21.1 s was measured while others used the test app.
+- Model calls take 1.5–2.9 s each. The chair is the slowest at 2.9–4.6 s.
+- **The model's choice is thrown away too often:**
+  - Kasia: `unknown or extra ids dropped; no valid point → core points` in **3 of 3** conferences.
+  - Tomasz: the same in **2 of 3**. An earlier run also had `no valid JSON` (one call, 120 tokens).
 
-**Rule for tonight:** the live app moves to the 8B only after the go/no-go below. Until then, either keep it on mock
-or bring back the 3B. The live app must never point at a model that is not READY.
+  The screen still shows correct rule text, but on these turns the 8B's choice is lost. The prompts and the id
+  parser were tuned for the 3B (see `docs/PAIR2-REBUILD.md`).
 
 ---
 
@@ -50,7 +50,7 @@ or bring back the 3B. The live app must never point at a model that is not READY
 |---|---|---|
 | 1 | **Stand-up** (10 min) | Every pair has read its section below and named a driver |
 | 2 | **PR #10 decision** | Live run 2 is written in `docs/PAIR2-REBUILD.md` → merged, or left out on purpose |
-| 2a | **8B go/no-go** (Pair 1 + Pair 2) | On the test app with the 8B: 3 conferences in demo order, each **under 18 s**; no `no valid JSON` and no `no valid point → core points` in `oc logs` for those runs; `live.test.ts` green; smoke `-RequireModel` green → **GO**: switch the live app to the 8B. Otherwise **NO-GO**: the live app goes back to the 3B (or stays on mock), and nobody touches the model again tonight |
+| 2a | **Keep the 8B and make it fast enough** (Pair 1 + Pair 2) | On the test app, with the agreed `LLM_BUDGET_MS=22000`: 3 conferences in demo order, each **under 18 s**; no `no valid JSON` and no `no valid point → core points` in `oc logs` for those runs; `live.test.ts` and smoke `-RequireModel` green. The 3B is only for an emergency (`deploy/README.md` §2) |
 | 3 | **Last merge window** | Every PR for the demo is merged into `main`; the webhook rebuilt the live app |
 | 4 | **H36 feature freeze** | No new features, only bug fixes. Full click-through on a phone and on a laptop |
 | 5 | **Rehearsal 1** | Demo script run once on the live URL, timed, with a bug list and owners |
@@ -63,24 +63,20 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
 
 ## Pair 1: OpenShift and the model (`pair1-openshift`)
 
-**8B switch (do these first):**
+**Llama 3.1 8B (do these first):**
+- [x] **Live app on the 8B.** Done by Pair 1 (checked 12:35: `/api/llm/health` = `llama-31-8b-instruct`, ok).
 - [ ] **Decide about `qwen3-14b`** (`kasia-v2`, not READY). If nobody needs it, delete it so it cannot take the GPU.
   **Done when:** `oc get inferenceservice -A` shows only the model we demo, READY True.
-- [ ] **Keep the live app honest until the go/no-go.** Right now it is on mock. If the go/no-go is more than ~1 h away,
-  decide whether the jury-facing URL stays on mock or Pair 2 tests only on the test app. Write the decision here.
-- [ ] **Time budget for the 8B.** With ~5 s per conference call, `LLM_BUDGET_MS=24000` and `LLM_TIMEOUT_MS=20000` leave
-  no margin. Agree with Pair 2: cap `max_tokens` per call (the chair and turns only return ids + a comment id), and
-  keep the budget at 24 s. **Done when:** 3 conferences on the test app are under 18 s.
-- [ ] **GO: switch the live app** (only after checkpoint 2a):
+- [ ] **One budget for both apps: `LLM_BUDGET_MS=22000`** (the live value, as in PR #15). The test app is still on 24000:
   ```powershell
-  oc set env deploy/warsztat-cfo -n my-first-model LLM_MODE=openai_compat LLM_MODEL=llama-31-8b-instruct LLM_BASE_URL=http://llama-31-8b-instruct-predictor.cfo-llm.svc.cluster.local:8080/v1 LLM_TIMEOUT_MS=20000 LLM_BUDGET_MS=24000
+  oc set env deploy/warsztat-cfo-test -n my-first-model LLM_BUDGET_MS=22000
   ```
-  **Done when:** `/api/llm/health` on the live URL shows `llama-31-8b-instruct`, smoke `-RequireModel` is green.
-- [ ] **NO-GO: rollback path written and tried on the test app.** How to bring the 3B back (it was undeployed), how long
-  it takes to be READY, and the `oc set env` line for the old address. Mock mode stays the last resort.
-- [ ] **Update the docs that name the 3B:** `deploy/README.md` (lines 4, 60–91), `deploy/export/app.yaml`,
-  `docs/PAIR1-OPENSHIFT.md` (model table, ~line 24), `docs/DEMO.md` line 15 (`demo-duty.ps1` expected line) and the
-  line spoken at step 7 ("Llama 3.2 on OpenShift AI"), and `scripts/demo-duty.ps1` if it checks the model name.
+  With Pair 2, lower `max_tokens` per call (turns and the chair only return ids + a comment id).
+  **Done when:** 3 conferences on the test app are under 18 s (checkpoint 2a).
+- [ ] **Merge PR #15.** It has the 3B rollback (`deploy/README.md` §2) and the model docs. Until then, the rollback
+  steps are only on `pair1-openshift`.
+- [ ] **The last places that still name the 3B** (the rest is done in PR #15): `docs/DEMO.md` line 15 (the expected
+  `demo-duty.ps1` line), the line spoken at step 7 ("Llama 3.2 on OpenShift AI"), and `deploy/export/app.yaml`.
 - [ ] **Bonus point (step 2.6):** we now run a model **we deployed ourselves** with vLLM on RHOAI. Tell the organisers,
   and take a screenshot of the `cfo-llm` model page for the slides.
 
@@ -129,15 +125,18 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
   ```
   Write the results next to Live run 2 in `docs/PAIR2-REBUILD.md` (main point shown per CFO, comments, routing,
   conference times). **Done when:** the numbers are there and compared to the 3B.
-- [ ] **Make the id choice work on the 8B.** Read the raw replies behind `[guard] … no valid JSON` (Tomasz) and
-  `unknown or extra ids dropped` (Kasia) in `oc logs deploy/warsztat-cfo-test -n my-first-model`. Likely fixes: accept
-  the shape the 8B returns (for example JSON inside a code block or with extra text) in the parser, say "at most 3 ids"
-  in the persona, and cap `max_tokens`. Golden rule 1 stays: the model only picks ids, rule code writes the text.
+- [ ] **Make the id choice work on the 8B (the main risk tonight).** Kasia's choice was dropped in 3 of 3 conferences,
+  Tomasz's in 2 of 3. Read the raw replies behind `[guard] … unknown or extra ids dropped` and `no valid JSON` in
+  `oc logs deploy/warsztat-cfo-test -n my-first-model` (log the first 200 chars of the raw reply when ids are dropped,
+  if it is not logged yet). Likely fixes:
+  - in the parser, accept the shape the 8B returns (for example JSON inside a code block, or with extra text);
+  - say "at most 3 ids" in the persona;
+  - cap `max_tokens`.
+
+  Golden rule 1 stays: the model only picks ids, and rule code writes the text.
   **Done when:** 3 conferences + 10 `/ask` calls on the test app show no `no valid JSON` and no `core points` fallback.
-- [ ] **Remove "3B" from the prompts.** `agents/personas.ts`, `facts.ts` and `explain.ts` say "for a small model
-  (Llama 3.2 3B)". Comments can stay as history. Keep the prompts short: the 8B is slower per token.
-- [ ] **Speed:** the conference must stay under 18 s on the 8B (see checkpoint 2a). If it does not, run the four turns
-  with shorter prompts before touching the budget.
+- [ ] **Speed:** the conference is 11–13 s now and must stay under 18 s (checkpoint 2a). Keep the prompts short. The
+  chair is the slowest call (up to 4.6 s), so start there if it gets slower.
 - [ ] **Then, if there is time before H36:** `docs/PAIR2-SAME-ANSWERS.md` (topic focus, wording variants, Tomasz's car
   points, more comments). The 8B may already pick by topic better: check that first, on the test app.
 
@@ -181,8 +180,9 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
   ```powershell
   Invoke-RestMethod -Method Post -ContentType 'application/json' -Body '{}' https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com/api/demo/reset
   ```
-  Then check that `/api/llm/health` says `openai_compat` **and the model we decided on** (`llama-31-8b-instruct`
-  after a GO). (Without `-ContentType` and `-Body` the reset fails with 415.)
+  Then check that `/api/llm/health` says `openai_compat` and `llama-31-8b-instruct`.
+  (Without `-ContentType` and `-Body` the reset fails with 415.)
 - [ ] **Plan B:** if the model dies during the demo, Pair 1 switches to mock mode (`oc set env deploy/warsztat-cfo LLM_MODE=mock`).
-  The demo keeps working with rule text. If the 8B dies, there is no quick way back to the 3B (it is undeployed and
-  needs the GPU): mock is the switch during the demo.
+  The demo keeps working with rule text. If the 8B dies **before** the demo, bring back the 3B with
+  `deploy/README.md` §2 (a few minutes; the 3B is stopped, not deleted). **During** the demo, mock is the only switch
+  fast enough.
