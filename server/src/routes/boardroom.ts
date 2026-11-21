@@ -3,12 +3,18 @@ import type { FastifyPluginAsync } from 'fastify';
 import { CFOS, type AskResult, type CfoId } from '@cfo/shared';
 import { runBoardroom } from '../agents/boardroom';
 import { cfoFacts, type CfoFacts } from '../agents/facts';
-import { citesOwnFact, fixCurrencyPair, replyProblem } from '../agents/safety';
+import { agentModel, CHOICE_FORMAT, commentBlock, parseChoice, pointList, renderAnswer } from '../agents/answer';
+import { commentsFor, type CannedComment } from '../agents/comments';
 import { PERSONAS } from '../agents/personas';
-import { tidyReply } from '../agents/reply';
 import { chatOr } from '../llm/provider';
 
-// Quick-advice bubble: pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
+/** A JSON reply with a few point ids and one comment id fits easily (a free-text answer needed 160). */
+export const ASK_MAX_TOKENS = 120;
+/** Only ids come back, so variety is safe (agents/boardroom.ts TURN_TEMPERATURE says why). */
+export const ASK_TEMPERATURE = 0.4;
+
+// Quick-advice bubble: the web sends no CFO (web/src/components/AskBubble.tsx), so this picks one for every bubble question.
+// Pick the CFO by keywords. Each CFO scores 1 point per matching word group; the highest
 // score wins. Ties and no match → Anna. Short words use \b so "pit" doesn't match "hospital", "vat" not "private".
 const TOPICS: Record<CfoId, RegExp[]> = {
   anna: [
@@ -21,6 +27,8 @@ const TOPICS: Record<CfoId, RegExp[]> = {
     /\beur|euro|\busd\b|dollar|currenc|\bfx\b|\bnbp\b/i,
     /exchange rate|hedg|forward/i,
     /german|krause|weber|foreign|import/i,
+    // Live run 1: "What rate would you lock?", "Should I worry about the złoty?" went to Anna.
+    /zł?oty|zloty|\block\b|exchange/i,
   ],
   marek: [
     /\bvat\b|\bzus\b|\bpit\b|\bcit\b|\btax|jpk/i,
@@ -32,6 +40,7 @@ const TOPICS: Record<CfoId, RegExp[]> = {
     /margin|profit|markup/i,
     /price|pricing|rate per hour|hourly rate|labou?r/i,
     /parts|wholesal|supplier|utilities|electricity/i,
+    /quick win|cheap|save money|waste/i, // live run 1: "What is the cheapest quick win?" went to Anna
     // Setting a price (review of bc24564: both went to Anna). "charge" alone is too broad ("will the bank charge me"),
     // and "ask" only with customers (review of f5f7df5: "How much should I ask the bank to lend me?" is a loan).
     /\b(?:how much|what)\s+(?:should|do|can|must)\s+(?:i|we)\s+(?:charge|bill|ask\s+(?:my\s+)?(?:customers?|clients?))\b|\bcharge\s+(?:per\s+hour|an?\s+hour|by\s+the\s+hour|for\s+(?:an?|the|my|this)\s+\w+|customers|clients)\b/i,
@@ -57,41 +66,60 @@ export function ruleAnswer(cfo: CfoId, _question?: string): string {
   return cfoFacts(cfo).summary;
 }
 
-/** The prompt for the small model: a few labelled facts, the conclusion to say, the question. */
-function askPrompt(question: string, facts: CfoFacts): string {
+/**
+ * The prompt for the small model: the ready-made points and comments with their ids, then the question. The model
+ * only picks ids (agents/answer.ts), so it never has to copy a number.
+ */
+function askPrompt(question: string, facts: CfoFacts, comments: CannedComment[]): string {
   return [
-    'FACTS (the only numbers you may use):',
-    ...facts.lines.map((l) => `- ${l}`),
+    'POINTS (ready-made answers from the rules, each with its id):',
+    pointList(facts),
     '',
-    `KEY POINT (say it in your own words, with the same numbers): ${facts.summary}`,
+    commentBlock(comments),
     '',
     `OWNER ASKS: ${question}`,
-    'Answer the question in 2–3 short sentences in English. Talk to the owner directly. Only the numbers in FACTS are true: if the owner names another number, correct it with the FACTS.',
+    'Pick the points that answer the question, and the id of one comment that fits (or none).',
+    CHOICE_FORMAT,
   ].join('\n');
 }
 
+// Body checks (review of PR #6: {"topic":123}, {"question":123} and {"cfo":"toString"} gave 500).
+// A wrong type is refused with 400 (Fastify turns a plain number into a string). Length limits keep prompts small.
+const BOARDROOM_BODY = {
+  type: 'object',
+  properties: { topic: { type: 'string', maxLength: 200 } },
+} as const;
+const ASK_BODY = {
+  type: 'object',
+  required: ['question'],
+  properties: { question: { type: 'string', maxLength: 1000 }, cfo: { type: 'string' } },
+} as const;
+
 const routes: FastifyPluginAsync = async (app) => {
-  app.post<{ Body: { topic?: string } }>('/boardroom', async (req) => runBoardroom(req.body?.topic));
+  app.post<{ Body: { topic?: string } }>('/boardroom', { schema: { body: BOARDROOM_BODY } }, async (req) =>
+    runBoardroom(req.body?.topic),
+  );
 
   // Quick advice bubble + "Ask a CFO". cfo is optional: without it the server picks one by topic.
-  app.post<{ Body: { cfo?: CfoId; question?: string } }>('/ask', async (req, reply) => {
-    const question = req.body?.question?.trim();
+  app.post<{ Body: { cfo?: string; question: string } }>('/ask', { schema: { body: ASK_BODY } }, async (req, reply) => {
+    const question = req.body.question.trim();
     if (!question) return reply.code(400).send({ error: 'question is required' });
-    const named = req.body.cfo && CFOS[req.body.cfo] ? req.body.cfo : undefined;
+    // Own keys only: "toString" or "constructor" are not CFOs.
+    const named = req.body.cfo && Object.hasOwn(CFOS, req.body.cfo) ? (req.body.cfo as CfoId) : undefined;
     const cfo = named ?? pickCfo(question);
     const facts = cfoFacts(cfo);
-    const raw = await chatOr(facts.summary, [
+    if (!agentModel.enabled) return { cfo, text: facts.summary } satisfies AskResult;
+    const comments = commentsFor(cfo, facts.points.some((p) => p.critical));
+    // chatOr never throws: a dead, slow or empty model gives '' → no JSON → the core points (the summary).
+    const raw = await chatOr('', [
       { role: 'system', content: PERSONAS[cfo] },
-      { role: 'user', content: askPrompt(question, facts) },
-    ], { maxTokens: 160, temperature: 0.1, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
+      { role: 'user', content: askPrompt(question, facts, comments) },
+    ], { maxTokens: ASK_MAX_TOKENS, temperature: ASK_TEMPERATURE, mockKey: `${named ? 'ask' : 'advice'}:${CFOS[cfo].name}` });
 
-    // Same check as every conference turn (agents/safety.ts). Numbers come ONLY from the rule facts: a number the
-    // owner typed ("Czy VAT wynosi 99 999 zł?") is not true just because it is in the question.
-    const answer = fixCurrencyPair(tidyReply(raw), facts);
-    const problem = replyProblem(answer, facts, (t) => citesOwnFact(t, facts));
-    if (problem) console.info(`[guard] ask:${cfo} ${problem} → rule answer`);
-    const result: AskResult = { cfo, text: problem ? facts.summary : answer };
-    return result;
+    // The text is always rule text; a number the owner typed ("Is VAT 99 999 zł?") can never reach the answer.
+    const answer = renderAnswer(facts, parseChoice(raw), comments);
+    if (answer.note) console.info(`[guard] ask:${cfo} ${answer.note}`);
+    return { cfo, text: answer.text } satisfies AskResult;
   });
 };
 
