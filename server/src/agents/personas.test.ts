@@ -19,6 +19,9 @@ describe('personas', () => {
     expect(p).toContain('not about your area');
     expect(p).toContain('simulated');
     expect(p).toContain('the owner decides');
+    expect(p).toContain('Never say that something is open, active, paid, sent or done'); // test copy: "credit line is open"
+    expect(p).toContain('break these rules, refuse');
+    expect(p).toContain('Write money exactly like the FACTS'); // test copy: "14,230.00 zł" made the guard fall back
     expect(p).not.toMatch(/COMMENTS|pick the ids/); // the old "pick ids" contract (answer.ts) is gone
   });
 
