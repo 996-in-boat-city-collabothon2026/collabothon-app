@@ -1,10 +1,8 @@
-// Owner: Pair 2. ONE check for every model reply an agent shows: /api/ask, each conference turn and the chair.
-// The app is English only. The Polish detector below is a GUARD, not Polish support: the model (and the Polish seed
-// names and labels it reads) can still slip into Polish, and such a reply must never reach the English UI.
-// A reply is shown only when it passes all of it; otherwise the caller shows the agent's rule conclusion.
+// Owner: Pair 2. The check for the only model text an agent shows: its one-sentence comment (commentProblem below),
+// in /api/ask, each conference turn and the chair. Facts are always rule text (agents/facts.ts points).
+// The app is English only. The Polish detector is a GUARD, not Polish support: the model (and the Polish seed names
+// it reads) can still slip into Polish, and such a comment must never reach the English UI.
 import { db } from '../domain/store';
-import type { CfoFacts } from './facts';
-import { findInventedNumbers, mentionsDateOrPercent, mentionsKeyFact } from './numberGuard';
 import { claimsDone, falseCalm, myMoney } from './text';
 
 /** Polish letters (not "ł": it is in "zł"; not "ó": it is in "Kraków"). */
@@ -90,61 +88,6 @@ export function looksPolish(text: string): boolean {
   if (words.some((w) => POLISH_WORDS.has(w)) || words.filter((w) => POLISH_SHAPE.test(w)).length >= 2) return true;
   const english = words.filter((w) => ENGLISH_WORDS.has(w) || ENGLISH_SHAPE.test(w)).length;
   return words.length <= 6 ? english < 2 : english / words.length < 0.4;
-}
-
-/**
- * Live: "The EUR/USD rate is going up" when the shop has only euro invoices: the risk is the euro against the złoty.
- * A pair like "EUR/USD" becomes the currency the facts talk about ("EUR"); a pair the facts contain stays.
- */
-export function fixCurrencyPair(text: string, facts: CfoFacts): string {
-  const known = factText(facts);
-  return text.replace(/\b(EUR|USD)\s*\/\s*(EUR|USD)\b/g, (pair, a: string, b: string) => {
-    if (known.includes(pair)) return pair;
-    const has = (c: string) => new RegExp(`\\b${c}\\b`).test(known);
-    return has(a) && !has(b) ? a : has(b) && !has(a) ? b : pair;
-  });
-}
-
-/**
- * Does the reply cite a precise fact of THIS CFO's own current facts: an amount, a deadline, a percent or an invoice?
- * Review of 1bdce05: the conference only accepted an amount from the CFO's summary, so 73 of 124 correct replies fell
- * back ("FlotaTrans owes you 12,300 zł", "The VW Passat 2015 job is short by 800 zł"). Today's date does not count, and
- * another speaker's number is not in these facts, so a CFO who only repeats a colleague still falls back.
- */
-export function citesOwnFact(reply: string, facts: CfoFacts): boolean {
-  const own = [...facts.lines.filter((l) => !/^Today is\b/.test(l)), facts.summary].join('\n');
-  return mentionsKeyFact(reply, own) || mentionsDateOrPercent(reply, own);
-}
-
-/** Only rule output counts as facts: the owner's question or the meeting topic can never make a number true. */
-export const factText = (facts: CfoFacts) => [...facts.lines, facts.summary].join('\n');
-
-/**
- * Why this reply must not be shown ('' = it is fine).
- * `onTopic` = the caller's "does it use this agent's own facts" test.
- * `alsoKnown` = other rule text already shown (the conference: earlier, checked turns). Live, Anna repeated
- * Marek's "VAT 14 230,00 zł", a true rule number that is not in her own facts, and her whole turn was dropped.
- */
-export function replyProblem(text: string, facts: CfoFacts, onTopic: (text: string) => boolean, alsoKnown = ''): string {
-  const problem = textProblem(text, [factText(facts), alsoKnown].join('\n'));
-  if (problem) return problem;
-  if (!onTopic(text)) return 'no key fact of its own';
-  if (facts.misread?.(text)) return 'known misread';
-  return '';
-}
-
-/**
- * The checks every shown model text passes, also the chair's summary (which has no facts of its own, only `known`):
- * language, numbers / amounts / percent direction only from `known`, nothing "done", no false calm, not "my money".
- */
-export function textProblem(text: string, known: string): string {
-  if (!text) return 'empty';
-  if (looksPolish(text)) return 'not in English';
-  const invented = findInventedNumbers(text, known);
-  if (invented.length) return `invented ${JSON.stringify(invented)}`;
-  if (claimsDone(text)) return 'claims something was done'; // golden rule 3
-  if (falseCalm(text) || myMoney(text)) return 'known misread';
-  return '';
 }
 
 // ---------- Rebuild M3 (docs/PAIR2-REBUILD.md): the model's one-sentence comment ----------

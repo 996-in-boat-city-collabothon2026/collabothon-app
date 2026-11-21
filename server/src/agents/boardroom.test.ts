@@ -10,8 +10,8 @@ import { agentModel } from './answer';
 import { CHAIR_MAX_TOKENS, ruleSummary, runBoardroom, TURN_MAX_TOKENS } from './boardroom';
 import { cfoFacts } from './facts';
 import { explain } from './explain';
-import { claimsDone, falseCalm, myMoney, wholeSentences } from './text';
-import { fixCurrencyPair, looksPolish } from './safety';
+import { claimsDone, falseCalm, myMoney } from './text';
+import { looksPolish } from './safety';
 
 const saved = { ...config.llm };
 /** Fake model: `reply(messages)` answers each call. Mode openai_compat so the real chat() path runs. */
@@ -33,16 +33,6 @@ beforeEach(() => {
 afterAll(() => {
   Object.assign(config.llm, saved);
   setModelCallForTests(null, 'mock');
-});
-
-describe('wholeSentences', () => {
-  it('keeps whole sentences within the limit, keeps dates whole, never ends mid-word', () => {
-    expect(wholeSentences('One sentence. Second sentence. Third sen', 10)).toBe('One sentence. Second sentence.');
-    expect(wholeSentences('Balance 38 400,00 zł. Buffer 15 000,00 zł.', 4)).toBe('Balance 38 400,00 zł.');
-    expect(wholeSentences('The balance drops to zero on 20.12.2026. Careful.', 20)).toBe('The balance drops to zero on 20.12.2026. Careful.');
-    expect(wholeSentences('a very long sentence without a full stop that got cut in the mid', 5)).toBe('a very long sentence without…');
-    expect(wholeSentences('', 5)).toBe('');
-  });
 });
 
 const en = (c: CfoId) => cfoFacts(c).summary;
@@ -210,12 +200,6 @@ describe('conference: rule texts and checks still used', () => {
     expect(falseCalm('You lose 320,25 zł if EUR rises.')).toBe(false);
     expect(myMoney("I'll lose 320,25 zł.")).toBe(true);
     expect(myMoney('I suggest you pay VAT by November 25, 2026.')).toBe(false);
-  });
-
-  it('a currency pair the facts really have stays', () => {
-    const facts = { lines: ['USD to pay: 100 USD', 'EUR to pay: 1500 EUR'], points: [], summary: '' };
-    expect(fixCurrencyPair('The EUR/USD rate moved.', facts)).toBe('The EUR/USD rate moved.');
-    expect(fixCurrencyPair('The EUR/USD rate moved.', { lines: ['EUR to pay: 1500 EUR'], points: [], summary: '' })).toBe('The EUR rate moved.');
   });
 
   it('no EUR rate: Kasia says in English the conversion is unavailable, the other agents finish', async () => {

@@ -263,9 +263,25 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
     - the free-text phrase tests of `routes/ask.test.ts`. Kept there: the prompt, a true reply not shown, model down, the "99 999 zł" question, `ruleAnswer`, and the M1/M4 tests.
   - **How to extend:** add a reply to `review-corpus.ts` whenever a review or a live run finds a new one.
 
-- [ ] **M8 Cleanup** (may move after the demo)
+- [x] **M8 Cleanup** (may move after the demo)
   Done when: `misboundFacts`, the gain/loss and percent-direction code, the free-text paths of `mentionsKeyFact`, and
   `reply.ts` (if unused) are removed.
+
+  Result: **524/524 tests in 22 files**, typecheck clean, build OK. The corpus (M7) still passes, unchanged.
+  - **Removed, no longer called by any route since M4/M5:**
+    - all of `agents/numberGuard.ts` (426 lines), including `misboundFacts`, gain/loss, percent direction, `mentionsKeyFact`, and its test;
+    - `agents/reply.ts` (`tidyReply`) and its test;
+    - from `agents/safety.ts`: `replyProblem`, `textProblem`, `citesOwnFact`, `factText`, `fixCurrencyPair`;
+    - from `agents/text.ts`: `wholeSentences`, `stripAddress`;
+    - the `misread` checks in `agents/facts.ts`. `commentProblem` covers them: no names (so no "pay FlotaTrans"), calm words next to a critical point, and no past tense.
+  - **Kept:**
+    - `looksPolish` and `commentProblem` (`safety.ts`);
+    - `claimsDone`, `myMoney`, `falseCalm` (`text.ts`);
+    - the fact `lines`, used only by `facts.test.ts`, which checks every number of every point against them.
+  - **Found while cleaning up:** two facts were only in the old prompt lines, so the model could no longer pick them. They are new detail points now:
+    - Marek `ksef-<invoice>`: "…rejected … because the buyer's tax number (NIP) is wrong, it must have 10 digits.";
+    - Kasia `net-<currency>`: "Your 1500 EUR to pay is 6405,00 zł at today's NBP rate of 4,27 zł.".
+  - **Size:** 869 lines deleted, 29 added. The agents' production code (without the corpus fixture) is now about 830 lines; on `main` it was about 1 220.
 
 - [ ] **M9 Live check on vLLM** (needs model access)
   Done when: 20 questions × 4 CFOs + 3 conferences are run, and the JSON valid rate, comment pass rate and conference

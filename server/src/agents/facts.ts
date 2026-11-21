@@ -28,15 +28,12 @@ export interface CfoFacts {
   lines: string[]; // "label: value" facts for the prompt
   points: CfoPoint[]; // the conclusion (core points, in order) and the details
   summary: string; // the core points joined: what the owner should know and do, and the safe fallback answer
-  misread?: (reply: string) => boolean; // a mistake seen live on the real model (true = don't show the reply)
 }
 
 /** What a builder returns: `summary` is always made from the core points (cfoFacts). */
 type Built = Omit<CfoFacts, 'summary'>;
 const point = (id: string, text: string, core = true, critical = false): CfoPoint => ({ id, text, core, critical });
 export const summaryOf = (points: CfoPoint[]) => points.filter((p) => p.core).map((p) => p.text).join(' ');
-
-const sentencesOf = (text: string) => text.split(/(?<=[.!?])\s+/);
 
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 /** "2026-11-25" → "November 25, 2026" (the model then writes the date the same way). */
@@ -87,19 +84,7 @@ function anna(): Built {
     const i = late.find((x) => x.id === r.refId)!;
     points.push(point(`late-${i.id}`, `${noDemo(i.counterparty.name)} owes you ${fmtPLN(r.amountPLN!)} and is ${inDays(i.dueDate)}.`, false));
   }
-  // Live: "pay FlotaTrans 12 300 zł", but FlotaTrans owes the shop money, not the other way round.
-  const customers = late.map((i) => noDemo(i.counterparty.name).split(/\s+/)[0].toLowerCase());
-  const misread = (reply: string) =>
-    sentencesOf(reply).some((sen) => {
-      const s = sen.toLowerCase();
-      // "hasn't paid you", "is late", "overdue" all say the right direction.
-      const payCustomer = customers.some((c) => s.includes(c)) && /\bpay/.test(s) &&
-        !/remind|\bowe|not paid|n't paid|not yet paid|unpaid|overdue|\blate\b|collect|pay you\b|paid you\b/.test(s);
-      // Live: "it is not a problem" with a 35 275 zł gap.
-      const falseComfort = gap > 0 && /no problem|not a problem|you(?:'re| are) fine/.test(s);
-      return payCustomer || falseComfort;
-    });
-  return { lines, points, misread };
+  return { lines, points };
 }
 
 function kasia(): Built {
@@ -139,14 +124,16 @@ function kasia(): Built {
       point(`hedge-${c}`, hedge ? `I suggest locking the rate with a forward contract for ${amount}.` : 'The risk is small, no action needed for now.'),
     );
   }
+  // The value in złoty was only in the old prompt lines (found in M8).
+  for (const e of exposures) {
+    const c = e.currency;
+    points.push(point(`net-${c}`, `Your ${fmtNum(Math.abs(e.net))} ${c} ${e.net > 0 ? 'to pay' : 'to receive'} is ${fmtPLN(Math.abs(e.netPLN))} at today's NBP rate of ${fmtNum(latestRate(c), 4)} zł.`, false));
+  }
   for (const e of exposures.filter(hasTrend)) {
     const { from, weeksUp } = e.trend;
     points.push(point(`rate-${e.currency}`, `The NBP ${e.currency} rate is ${fmtNum(latestRate(e.currency), 4)} zł today; 4 weeks ago it was ${fmtNum(from, 4)} zł${weeksUp > 0 ? ` (up ${weeksUp} weeks in a row)` : ''}.`, false));
   }
-  // Live: "the euro is not a problem because it is rising" while the shop owes euro and a hedge is proposed.
-  const risky = exposures.some((e) => e.shockPLN > FX_SHOCK_THRESHOLD_PLN);
-  const misread = (reply: string) => risky && /not a problem|no problem/i.test(reply);
-  return { lines: [...lines, ...noRate], points, misread };
+  return { lines: [...lines, ...noRate], points };
 }
 
 /**
@@ -189,6 +176,11 @@ function marek(): Built {
   for (const o of taxes) {
     points.push(point(`tax-${o.id}`, `${o.kind}: ${fmtPLN(o.amountPLN)}, due ${fmtDateEn(o.dueDate)} (${inDays(o.dueDate)}), still unpaid.`, false));
   }
+  // The reason was only in the old prompt lines (found in M8): "why was it rejected?" needs its own point.
+  for (const i of rejected) {
+    const why = i.ksef.rejectionReason ? ` because ${reasonEn(i.ksef.rejectionReason)}` : ', no reason given';
+    points.push(point(`ksef-${i.id}`, `KSeF rejected invoice ${i.number} for ${noDemo(i.counterparty.name)}${why}.`, false));
+  }
   return { lines, points };
 }
 
@@ -224,16 +216,7 @@ function tomasz(): Built {
   }
   if (!points.length) points.push(point('ok', 'Margins and costs are in order.'));
   for (const { o, missing } of labour) points.push(point(`car-${o.id}`, `${o.car}: ${fmtPLN(missing)} of labour is missing.`, false));
-  // Live: "You're paying your labourers 200 zł per hour…": the rule is about prices for customers, not wages.
-  // A wage word that is negated or contrasted in its clause is the RIGHT reading (review of 1bdce05: "The 1700 zł is
-  // missing revenue, not an increase in mechanics' wages." fell back).
-  const misread = (reply: string) =>
-    labour.length > 0 &&
-    [...reply.matchAll(/wage|salar|labourers|paying your (?:mechanics|workers)/gi)].some((m) => {
-      const clause = reply.slice(Math.max(0, m.index! - 45), m.index).split(/[.;!?](?=\s)/).pop() ?? '';
-      return !/\b(?:not|no|never|rather than|instead of|unlike)\b|n't\b/i.test(clause);
-    });
-  return { lines, points, misread };
+  return { lines, points };
 }
 
 const BUILDERS: Record<CfoId, () => Built> = { anna, kasia, marek, tomasz };
