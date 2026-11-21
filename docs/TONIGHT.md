@@ -6,9 +6,15 @@ If something blocks you for more than 20 minutes, post it in team chat with your
 **Where we are this morning:**
 - The live app runs on OpenShift with the real model: `/api/llm/health` = `openai_compat`, Llama 3.2 3B.
 - `main` has PRs #1–#9 merged. 521 tests pass, and typecheck and build are green.
-- One PR is open: [#10](https://github.com/996-in-boat-city-collabothon2026/collabothon-app/pull/10), Pair 2's
-  answer-layer rebuild. Tested merged into main: 476 tests pass, typecheck and build are green.
-  It still needs a live check on the real model before it is merged.
+- [PR #10](https://github.com/996-in-boat-city-collabothon2026/collabothon-app/pull/10), Pair 2's answer-layer
+  rebuild, is **merged** and live: 476 tests pass, typecheck and build are green, and smoke with `-RequireModel`
+  passes on the live URL.
+- **Live run 2 (real Llama, test copy at the same commit as `main`, 10:00):**
+  - main point shown: Marek 20/20, Anna 20/20, Tomasz 20/20, Kasia 20/20;
+  - a comment on screen in 77 of 80 answers;
+  - routing: 16 of 16 questions went to the right agent;
+  - 6–9 different answers per 20 questions for each agent;
+  - conference in demo order (reset → run check → conference): 6.6 s, 6.9 s, 6.0 s (budget 24 s).
 
 Live app: https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com
 
@@ -32,7 +38,7 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
 
 ## Pair 1: OpenShift and the model (`pair1-openshift`)
 
-- [ ] **Live run 2 for PR #10.** Rebuild the test deploy from `pair2-rebuild`, then run Pair 2's live test against it:
+- [x] **Live run 2 for PR #10.** Done at 10:00, results at the top of this file. Rebuild the test deploy from `pair2-rebuild`, then run Pair 2's live test against it:
   ```powershell
   oc start-build warsztat-cfo-test --follow -n my-first-model
   ```
@@ -42,13 +48,13 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
   ```
   **Done when:** the results are posted to Pair 2: main point shown per CFO (must be 100%), comments shown,
   conference times.
-- [ ] **Conference timing in demo order** (step 4.6): reset → run the check → conference, 3 times, each under 24 s.
+- [x] **Conference timing in demo order** (step 4.6): reset → run the check → conference, 3 times, each under 24 s. 6.0–6.9 s.
   **Done when:** the times are in the progress log of `docs/PAIR1-OPENSHIFT.md`.
 - [ ] **Smoke after every merge to `main`** (step 3.9):
   ```powershell
   ./scripts/smoke.ps1 -Base https://warsztat-cfo-my-first-model.apps.ocp.t8kjt.sandbox1583.opentlc.com -RequireModel
   ```
-  **Done when:** it is green after the last merge.
+  **Done when:** it is green after the last merge. (Green after PR #10, 10:05: conference 5.2 s.)
 - [ ] **Redeploy from zero** (step 4.1): the other Pair 1 member follows `deploy/README.md` in a fresh terminal,
   dry run only (read each command and check it against the cluster, run nothing that changes anything).
   **Done when:** nothing in the README is wrong or missing.
@@ -61,13 +67,15 @@ Final freeze time from the organisers: **____** (fill in at stand-up).
 - [ ] Optional, only if everything above is green before H36: real Google login (step 5.1).
   Otherwise it is dropped and we keep the demo login.
 
-## Pair 2: agents (`pair2-rebuild`, PR #10)
+## Pair 2: agents
 
-- [ ] **Read Live run 2 from Pair 1.** If a CFO's main point is shown less than 100% of the time, or the valid JSON
-  rate is under 80%: lower the temperature to 0.2 and run it again.
-  **Done when:** "Live run 2" is written in `docs/PAIR2-REBUILD.md`.
-- [ ] **Get PR #10 reviewed by someone from another pair, then merge it.** If it is not ready by the last merge window, leave it out:
-  `main` works for the demo as it is.
+- [ ] **Copy Live run 2** (the results at the top of this file) into `docs/PAIR2-REBUILD.md`. Every main point was
+  shown, so the temperature stays at 0.4.
+- [ ] **The chair's first proposal makes the risk bigger.** In the conference, the chair's first decision was
+  "Pay Autoteile Krause GmbH early (EUR risk 320,25 zł → 448,35 zł)". The card's own title shows the risk going UP.
+  `server/src/rules/fx.ts` (around line 109) proposes the pay-early card even when `diff > 0`. Either propose it only
+  when paying early lowers the risk, or make it advice (`RECOMMENDED`) instead of a decision.
+  **Done when:** after reset → run check → conference, the chair's first decision is the forward or a reminder.
 - [ ] Pick 2–3 conference topics that show off each hat for the demo (for example "Can we survive December?",
   "Should we hedge EUR?").
 
