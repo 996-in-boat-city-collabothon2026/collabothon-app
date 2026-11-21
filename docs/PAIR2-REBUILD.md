@@ -243,9 +243,25 @@ rules ──► facts.ts: points [{id, text, critical}] ──► prompt (points
   - **Chair:** picks only ids from the list, most urgent first, with one comment and no numbers; the owner decides.
   - **Tests:** `agents/personas.test.ts` rewritten (5 tests). They check the contract text, no digits in any persona, no hat mix-up, Kasia's change and the chair.
 
-- [ ] **M7 Regression corpus**
+- [x] **M7 Regression corpus**
   Done when: the ~130 review cases are a test fixture with one property: every number in the shown text comes from
   the rule points. Old free-text phrase tests are rewritten or removed.
+
+  Result: **557/557 tests in 24 files** (suite about 11 s), typecheck clean, build OK.
+  - **Fixture `agents/review-corpus.ts`:** **221 replies**, more than the ~130 planned, because the old route, `/ask` and conference tests were added too. Sources:
+    - review of `main`: 75 wrong, 31 true, 11 from round 3;
+    - PR #6 route tests: 61;
+    - old `/api/ask` tests: 28;
+    - old conference tests: 15.
+    - By CFO: Anna 68, Kasia 64, Marek 67, Tomasz 22.
+  - **`agents/corpus.test.ts`:** each reply goes through `/api/ask` (as free text and as the comment) and through one conference per shape: free text; JSON comment; the old free-text chair `summary` field. Each time it checks both the CFO's turn and the chair.
+  - **The property `onlyRuleText`:** what is shown starts with the rule text, the rest is at most one comment with no digit that passes `commentProblem`, and every number on screen is a number of the rule text. That is about 1 800 checks.
+  - **The property can fail:** a separate test shows it rejects a wrong label, a number in the comment and a name.
+  - **Moved:** the "rule texts are English" check (points, card titles, explanations) is in the corpus test now.
+  - **Removed, because their replies are in the corpus now:**
+    - `routes/safety.routes.test.ts` (234 phrase tests);
+    - the free-text phrase tests of `routes/ask.test.ts`. Kept there: the prompt, a true reply not shown, model down, the "99 999 zł" question, `ruleAnswer`, and the M1/M4 tests.
+  - **How to extend:** add a reply to `review-corpus.ts` whenever a review or a live run finds a new one.
 
 - [ ] **M8 Cleanup** (may move after the demo)
   Done when: `misboundFacts`, the gain/loss and percent-direction code, the free-text paths of `mentionsKeyFact`, and
