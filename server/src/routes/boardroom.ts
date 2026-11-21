@@ -1,6 +1,6 @@
 // Owner: Pair 2.
 import type { FastifyPluginAsync } from 'fastify';
-import { CFOS, type AskResult, type CfoId } from '@cfo/shared';
+import { CFOS, type AskRequest, type AskResult, type CfoId } from '@cfo/shared';
 import { runBoardroom } from '../agents/boardroom';
 import { askCfo } from '../agents/cfo';
 import { pickCfo } from '../agents/topic';
@@ -17,11 +17,27 @@ const BOARDROOM_BODY = {
   type: 'object',
   properties: { topic: { type: 'string', maxLength: 200 } },
 } as const;
+// history (a chat after a meeting): at most 6 lines, each { from, cfo?, text }. Anything else → 400.
+const CHAT_LINE = {
+  type: 'object',
+  required: ['from', 'text'],
+  properties: {
+    from: { type: 'string', enum: ['owner', 'cfo'] },
+    cfo: { type: 'string', enum: Object.keys(CFOS) },
+    text: { type: 'string', maxLength: 500 },
+  },
+} as const;
 const ASK_BODY = {
   type: 'object',
   required: ['question'],
-  properties: { question: { type: 'string', maxLength: 1000 }, cfo: { type: 'string' } },
+  properties: {
+    question: { type: 'string', maxLength: 1000 },
+    cfo: { type: 'string' },
+    history: { type: 'array', maxItems: 6, items: CHAT_LINE },
+  },
 } as const;
+/** The prompt gets only the last few lines: enough for "Why?", and the prompt stays small. */
+export const HISTORY_LINES = 4;
 
 const routes: FastifyPluginAsync = async (app) => {
   app.post<{ Body: { topic?: string } }>('/boardroom', { schema: { body: BOARDROOM_BODY } }, async (req) =>
@@ -29,7 +45,7 @@ const routes: FastifyPluginAsync = async (app) => {
   );
 
   // Quick advice bubble + "Ask a CFO". cfo is optional: without it the server picks one by topic.
-  app.post<{ Body: { cfo?: string; question: string } }>('/ask', {
+  app.post<{ Body: Omit<AskRequest, 'cfo'> & { cfo?: string } }>('/ask', {
     schema: { body: ASK_BODY },
     // Fastify would turn {"question": 123} into "123" during validation, so the type is checked before that.
     preValidation: async (req, reply) => {

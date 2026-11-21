@@ -84,6 +84,34 @@ describe('POST /api/ask: body checks', () => {
   });
 });
 
+describe('POST /api/ask: history (a chat after a meeting)', () => {
+  const line = (text: string) => ({ from: 'owner', text });
+
+  it('no history works as before', async () => {
+    modelReply = 'Your margin suffers because some labour is billed too low. Raise those prices first.';
+    expect(await ask({ question: 'How to improve the margin?' })).toEqual({ cfo: 'tomasz', text: modelReply });
+  });
+
+  it('up to 6 good lines are accepted', async () => {
+    const history = [line('a'), { from: 'cfo', cfo: 'kasia', text: 'b' }, line('c'), line('d'), line('e'), line('f')];
+    expect((await post({ question: 'How to improve the margin?', history })).statusCode).toBe(200);
+  });
+
+  it.each([
+    ['7 items', { history: Array.from({ length: 7 }, (_, i) => line(`m${i}`)) }],
+    ['not an array', { history: 'x' }],
+    ['a line that is not an object', { history: ['x'] }],
+    ['an unknown "from"', { history: [{ from: 'bank', text: 'hi' }] }],
+    ['a CFO that is not ours', { history: [{ from: 'cfo', cfo: 'toString', text: 'hi' }] }],
+    ['no text', { history: [{ from: 'owner' }] }],
+    ['text too long', { history: [line('x'.repeat(501))] }],
+  ])('%s → 400, and no model call', async (_name, extra) => {
+    const r = await post({ question: 'Why?', ...extra });
+    expect(r.statusCode).toBe(400);
+    expect(calls).toBe(0);
+  });
+});
+
 describe('POST /api/ask: numbers come only from the rules', () => {
   it('"Is my VAT 99 999 zł?" with a model that repeats 99 999 → the answer never contains 99 999', async () => {
     modelReply = 'Yes, your VAT is 99 999 zł.';
