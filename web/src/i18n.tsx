@@ -32,7 +32,7 @@ const DICT: Record<string, { pl: string; en: string }> = {
   // Login hero (Pair 1, Nara). No numbers here on purpose: every amount in the app comes from the rules.
   login_brand_tag: { pl: 'Autonomiczny CFO', en: 'Autonomous CFO' },
   login_live: { pl: 'Demo na żywo · Red Hat OpenShift AI', en: 'Live demo · Red Hat OpenShift AI' },
-  login_hero_1: { pl: 'Ty naprawiasz auta.', en: 'You fix the cars.' },
+  login_hero_1: { pl: 'Ty prowadzisz swój biznes.', en: 'You handle your business.' },
   login_hero_2: { pl: 'Pieniędzy pilnuje', en: 'The money is' },
   login_hero_3: { pl: 'MANI', en: 'MANI' },
   login_hero_3b: { pl: '.', en: "'s job." },
