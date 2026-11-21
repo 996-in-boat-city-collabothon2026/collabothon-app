@@ -38,9 +38,9 @@ function toValue(token: string): number {
 export function numbersIn(text: string): number[] {
   // fmtPLN puts a non-breaking space (U+00A0, or U+202F) between thousands: read it as a normal space.
   let t = text.replace(/[  ]/g, ' ');
-  // Digits with a letter on BOTH sides are part of a name, not an amount: "JPK_V7M" (live run on 8B: read as 7).
-  // One side is not enough: "200zł" or "EUR1500" are still amounts and must still be checked.
-  t = t.replace(/(?<=\p{L})\d+(?=\p{L})/gu, '');
+  // ONE digit between two capital letters is part of a form name, not an amount: "JPK_V7M" (live run on 8B: read
+  // as 7). Anything else is still checked: "200zł", "EUR1500" and "EUR99999zł" (review of PR #29) are amounts.
+  t = t.replace(/(?<=\p{Lu})\d(?=\p{Lu})/gu, '');
   const found: number[] = [];
   t = t.replace(SHORT_DATE, (whole, d: string, m: string, y?: string) => {
     // "4.27" is a rate and "15.00" is money (month 00), not dates
