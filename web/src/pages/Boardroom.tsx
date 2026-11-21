@@ -2,8 +2,11 @@
 // a joint recommendation card with the decisions you can approve or reject right here.
 // The amounts and decisions come from the server (rules engine); the UI only shows them.
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { CFOS, type Action, type BoardroomResult, type CfoId } from '@cfo/shared';
 import { TypingDots } from '../components/AskBubble';
+import ChatThread from '../components/ChatThread';
+import { newChat, saveChat, type Chat } from '../lib/chats';
 import { api } from '../api/client';
 import Icon from '../components/Icon';
 import { CfoAvatar, PageHeader, fmtDay, fmtPLN, useToast } from '../components/ui';
@@ -35,6 +38,7 @@ export default function Boardroom() {
   const [typing, setTyping] = useState<CfoId | 'chair' | null>(null);
   const [decisions, setDecisions] = useState<Action[]>([]);
   const [decided, setDecided] = useState<Record<string, 'approved' | 'rejected'>>({});
+  const [chat, setChat] = useState<Chat | null>(null); // the finished meeting, saved so it can be continued
   const { toast, showToast } = useToast();
   const run = useRef(0); // ignore an old meeting if the user starts a new one
   const endRef = useRef<HTMLDivElement>(null);
@@ -55,7 +59,7 @@ export default function Boardroom() {
     e?.preventDefault();
     const subject = custom.trim() || topic;
     const id = ++run.current;
-    setPhase('thinking'); setResult(null); setShown(0); setDecisions([]); setDecided({}); setTyping(ORDER[0]);
+    setPhase('thinking'); setResult(null); setShown(0); setDecisions([]); setDecided({}); setChat(null); setTyping(ORDER[0]);
     try {
       const r = await api.boardroom(subject);
       if (id !== run.current) return;
@@ -72,6 +76,13 @@ export default function Boardroom() {
       await wait(700);
       if (id !== run.current) return;
       setDecisions(open.filter((a) => r.decisionActionIds.includes(a.id)));
+      // Save the meeting as a chat (this device only), so the owner can keep asking or reopen it later.
+      const saved = newChat(subject, 'meeting', [
+        ...r.turns.map((turn) => ({ from: 'cfo' as const, cfo: turn.cfo, text: turn.text })),
+        { from: 'chair' as const, text: r.summary },
+      ]);
+      saveChat(saved);
+      setChat(saved);
       setTyping(null); setPhase('done');
     } catch {
       if (id === run.current) { setTyping(null); setPhase('error'); }
@@ -94,7 +105,11 @@ export default function Boardroom() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <PageHeader title={t('boardroom_title')} />
+      <PageHeader title={t('boardroom_title')}>
+        <Link to="/chat" className="inline-flex min-h-12 items-center gap-2 rounded-full border border-zinc-300 bg-white px-4 font-semibold hover:bg-zinc-50">
+          <Icon name="chat" size={18} /> {t('chat_previous')}
+        </Link>
+      </PageHeader>
       <p className="-mt-3 text-lg text-zinc-700">{t('boardroom_intro')}</p>
 
       {/* AI orb + topic chips */}
@@ -215,6 +230,19 @@ export default function Boardroom() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* Keep talking: follow-up questions to the agents, saved with the meeting */}
+      {phase === 'done' && result && chat && (
+        <section className="surface pop-in space-y-4 p-6" aria-label={t('chat_keep_talking')}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-2xl font-semibold tracking-tight">{t('chat_keep_talking')}</h2>
+            <Link to={`/chat/${chat.id}`} className="inline-flex min-h-12 items-center gap-2 rounded-full bg-ink px-5 font-semibold text-white">
+              {t('chat_open_full')} <Icon name="arrow-up-right" size={18} />
+            </Link>
+          </div>
+          <ChatThread chat={chat} onChange={setChat} skip={result.turns.length + 1} />
         </section>
       )}
       <div ref={endRef} />
