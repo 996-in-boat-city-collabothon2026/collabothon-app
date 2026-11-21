@@ -475,3 +475,43 @@ After the review of #30, `money` was added to the money words ("Is that a lot of
 
 **Seen in passing (not B's files):** the chair writes "36,000 zł" and "14,230.00 zł" (English format) and lists all open cards, not the
 EUR topic; Marek and Anna say "not my area" instead of passing (`agents/boardroom.ts`, Person C).
+(Fixed in PR #32: `tidyMoney`, a topic meeting decides only the lead's cards, `NOT_MY_AREA` reactions pass.)
+
+**Monthly review in parallel** (branch `agents8b-meeting-parallel`): the general meeting took 20,8 s of the 22 s goal
+because the 4 full answers ran one after another. They now run at the same time, like the reactions in a topic
+meeting; the order on screen stays Marek → Anna → Tomasz → Kasia. A hanging model still costs one budget, but now 4
+requests are cancelled instead of 1 (`llm/provider.test.ts` updated). To check on the test copy: Monthly review < 10 s.
+
+### Live run: Monthly review in parallel (2026-11-21, 21:15–21:45 CET, `llama-31-8b-instruct`)
+The same `live.test.ts` (80 questions + 10 meetings) on production (`main`) and on the test copy built from
+`agents8b-meeting-parallel` (c8dc5bd), one after the other, then "Monthly review" 3 more times on each.
+
+| Measure | Production (`main`) | Test copy (this branch) |
+|---|---|---|
+| **Monthly review** (4 runs) | 22,2 · 22,3 · 19,0 · 20,9 s → **21,1 s** | 12,6 · 11,9 · 12,4 · 12,7 s → **12,4 s** |
+| Meetings over the 22 s goal | 1 (Monthly review) | 0 |
+| Monthly review summary in the full test | rule summary (likely out of time; production log not checked) | the chair's sentence |
+| Other meetings (code not changed) | 5,0–12,7 s | 5,0–15,5 s (same code: normal spread) |
+| Chair sentence from the model | 6 of 7 chair calls | 5 of 7 (the 2 Tomasz meetings have no cards, so no chair) |
+| Guard pass rate `/api/ask` | 71/74 (96%)* | 76/80 (95%) |
+| Numbers on screen not from the rules | 0 | 0 |
+
+\* The connection dropped at question 75 on production ("other side closed", no deploy at that time), so 74 answers.
+
+Not < 10 s as hoped: 4 parallel answers share the one GPU, so each is a bit slower, and the chair still comes after
+them. Still 41% faster, and the general meeting is well inside the 22 s budget.
+
+**Test copy log** (build `warsztat-cfo-test-19` = c8dc5bd, 119 `[llm]` lines, all ok, slowest the chair at 9,8 s). The 7
+`[guard]` lines, each a correct block:
+
+| Who | Reason | What the model did |
+|---|---|---|
+| ask:kasia | number not in facts: 6000 | repeated the owner's trap ("Is 6000 zł my euro exposure?") |
+| ask:marek | 1423 | made up a late-VAT penalty (10% of 14 230) |
+| ask:tomasz | 1937.5 | added labour + parts (1700 + 237,50): the same habit as the totals fixed for Anna and Marek |
+| ask:tomasz | 1100 | added two of the three labour losses |
+| ask:anna (meeting reaction) | 1700 | repeated the lead's (Tomasz's) amount, which is not in Anna's facts |
+| boardroom:chair | 128.1 | subtracted two EUR risks (448,35 − 320,25) |
+| boardroom:chair | no valid JSON | the 9,8 s call |
+
+The 4 ask lines are exactly the 4 fallbacks of the live test (76/80).
