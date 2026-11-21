@@ -1,21 +1,13 @@
 // Owner: Pair 2 (Person B). "One CFO answers safely": askCfo shows the model's reply only when the guard accepts it,
 // otherwise the rule summary. Fake model, no GPU.
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { config } from '../config';
 import { resetDb } from '../domain/store';
 import { setModelCallForTests, type ChatMessage, type ChatOptions } from '../llm/provider';
 import { askCfo, ASK_MAX_TOKENS, REACT_MAX_TOKENS } from './cfo';
 import { cfoFacts } from './facts';
 
-// Until Person A's guard is merged, guard.ts is a stub that accepts everything. This test fake does the part askCfo
-// relies on: every number in the reply must be a number in the facts, and the reason names the wrong number.
-vi.mock('./guard', () => ({
-  checkReply: (reply: string, facts: { lines: string[]; summary: string }) => {
-    const allowed = new Set([...facts.lines, facts.summary].join(' ').match(/\d+/g) ?? []);
-    const wrong = (reply.match(/\d+/g) ?? []).find((n) => !allowed.has(n));
-    return wrong ? { ok: false, reason: `number not in facts: ${wrong}` } : { ok: true, reason: '' };
-  },
-}));
+// The real guard (agents/guard.ts, Person A) decides; these tests check that askCfo follows it.
 
 const saved = { ...config.llm };
 let reply: () => Promise<string> = async () => '';

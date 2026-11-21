@@ -1,7 +1,7 @@
 // Owner: Pair 2 (Person B). POST /api/ask: "the bubble works as before". Rebuild 2 (docs/AGENTS-8B-PLAN.md): the
 // model writes the answer (agents/cfo.ts); the routing cases moved to agents/topic.test.ts. Fake model, no GPU.
 import Fastify from 'fastify';
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AskResult } from '@cfo/shared';
 import { config } from '../config';
 import { resetDb } from '../domain/store';
@@ -9,15 +9,7 @@ import { setModelCallForTests, type ChatMessage } from '../llm/provider';
 import { cfoFacts } from '../agents/facts';
 import boardroom from './boardroom';
 
-// Until Person A's guard is merged, guard.ts is a stub that accepts everything. This fake does what the route relies
-// on: a number that is not in the facts is rejected (the same fake as in agents/cfo.test.ts).
-vi.mock('../agents/guard', () => ({
-  checkReply: (reply: string, facts: { lines: string[]; summary: string }) => {
-    const allowed = new Set([...facts.lines, facts.summary].join(' ').match(/\d+/g) ?? []);
-    const wrong = (reply.match(/\d+/g) ?? []).find((n) => !allowed.has(n));
-    return wrong ? { ok: false, reason: `number not in facts: ${wrong}` } : { ok: true, reason: '' };
-  },
-}));
+// The real guard (agents/guard.ts, Person A) checks every reply, so these are end-to-end through the route.
 
 const saved = { ...config.llm };
 let modelReply = '';

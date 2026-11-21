@@ -120,7 +120,7 @@ export const checkReply = (_reply: string, _facts: CfoFacts) => ({ ok: true, rea
 You own the safety part, so you can explain to the jury why the AI cannot invent a number.
 
 - [ ] **A1 Step 0** (section 2): the 8B model on the test copy.
-- [ ] **A2 `server/src/agents/guard.ts`** (new, ~50 lines)
+- [x] **A2 `server/src/agents/guard.ts`** (new, ~50 lines)
   - `numbersIn(text): number[]` reads every number in a text as a value. These must all give the same value:
     `14 230,00 zł` · `14 230 zł` · `14,230 zł` · `14230` → **14230**; `4,27` → **4.27**; `5%` → **5**;
     `-20 275,00 zł` → **−20275**; `November 25, 2026` → **25** and **2026**.
@@ -136,12 +136,15 @@ You own the safety part, so you can explain to the jury why the AI cannot invent
     - `looksPolish(reply)` from `agents/safety.ts` is true → `'polish'`
     - a number in the reply is not among `numbersIn(facts.lines.join(' ') + ' ' + facts.summary)` → `'number not in facts: 99999'`
   - The owner's question is NOT added to the allowed numbers: "Is my VAT 99 999 zł?" must never put 99 999 on screen.
-- [ ] **A3 `server/src/agents/guard.test.ts`** (list in section 6).
+  - **Added while building:** two more checks, `'claims it was done'` ("I've opened…", "is now active", "was paid")
+    and `'time not in facts: tomorrow'`. A number check alone caught only 15 of 75 wrong corpus replies; with
+    these it catches 39 of 75. The rest, and why, is in [`AGENTS-8B-GUARD.md`](AGENTS-8B-GUARD.md).
+- [x] **A3 `server/src/agents/guard.test.ts`** (list in section 6).
 - [ ] **A4** Review and merge B's and C's PRs (in that order).
 - [ ] **A5** Run the manual checklist (section 7) on the test copy, then on production after the merge.
 
-**Done when:** `guard.test.ts` passes, including every reply in `agents/review-corpus.ts` (the "wrong" ones fail, the
-"true" ones pass); health on the test copy shows the 8B model.
+**Done when:** `guard.test.ts` passes: all 31 "true" corpus replies pass and at least 39 of the 75 "wrong" ones fail
+(the rest use correct numbers with a wrong meaning: see `AGENTS-8B-GUARD.md`); health on the test copy shows the 8B model.
 
 ### Person B: topic, personas, one CFO answering · branch `agents8b-ask`
 - [x] **B1 `server/src/agents/topic.ts`** (new): move `TOPICS` and `pickCfo()` from `routes/boardroom.ts` unchanged.
@@ -238,10 +241,12 @@ we choose, so the tests need no GPU and run in seconds. Call `setModelCallForTes
 test.
 
 **`guard.test.ts` (A): "no made-up number reaches the screen"**
-- [ ] Fact numbers pass in every format: `14 230,00 zł`, `14 230 zł`, `14,230 zł`, with a normal or a non-breaking space.
-- [ ] A wrong amount, a wrong date or a number from the owner's question fails, and the reason names the number.
-- [ ] Polish fails. Empty fails. 4 sentences or more than 400 characters fails.
-- [ ] Every "wrong" reply in `review-corpus.ts` fails, and every "true" reply passes.
+- [x] Fact numbers pass in every format: `14 230,00 zł`, `14 230 zł`, `14,230 zł`, with a normal or a non-breaking space.
+- [x] Every rule point passes on its own: the model copying a fact is never rejected.
+- [x] A wrong amount, a wrong date or a number from the owner's question fails, and the reason names the number.
+- [x] Polish fails. Empty fails. 4 sentences or more than 400 characters fails.
+- [x] "Already done" claims and an invented "when" (tomorrow, this Friday) fail.
+- [x] All 31 "true" replies in `review-corpus.ts` pass; at least 39 of the 75 "wrong" ones fail.
 
 **`topic.test.ts` (B): "the right CFO leads"**
 - [x] "How to improve the margin?" → tomasz · "Should we lock the EUR rate?" → kasia · "Will we survive December?" →
