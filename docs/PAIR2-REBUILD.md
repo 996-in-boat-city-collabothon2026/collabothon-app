@@ -368,3 +368,39 @@ npm run build
 - **Fake model replies:** `setModelCallForTests` in `server/src/llm/provider.ts` feeds any reply into the routes
   (see `server/src/routes/ask.test.ts`).
 - **Live model:** `LLM_MODE=openai_compat` with the vLLM address from `deploy/README.md`.
+
+---
+
+## 8. Chat follow-ups (rebuild 2, step B4 of [AGENTS-NEXT.md](AGENTS-NEXT.md))
+
+**What is checked:** after a meeting the owner keeps asking in the chat. Since PR #28 the web sends the last 6 messages
+as `history`, and `followUpCfo` keeps the CFO who led (or answered last) unless the question names another CFO or topic.
+
+**How:** the same calls the web makes, from a script: `POST /api/boardroom` with the topic, then `POST /api/ask` three
+times with `history` built like `ChatThread.tsx` does (topic, turns, chair, earlier follow-ups; last 6). `oc` was not
+logged in, so there are no `[guard]` log lines. Every text below reads as model text (none is a rule summary).
+
+### Run 1: production after PR #28 (2026-11-21, 16:48 CET, `llama-31-8b-instruct`)
+The test copy had not picked up the branch build, so this ran on production right after the merge (the webhook build).
+
+Meeting "Should we lock the EUR rate?" (11,9 s): Kasia leads (320,25 zł risk, forward contract for 1500 EUR), Marek and
+Anna say "not my area", Tomasz passes.
+
+| Owner asks | Answered by | Answer | OK? |
+|---|---|---|---|
+| Why? (3,3 s) | Kasia | "...a rising EUR rate could cost us 320,25 zł. I suggest locking the rate with a forward contract for 1500 EUR to protect ourselves from this potential loss." | ✅ |
+| How much would it cost? (1,3 s) | **Tomasz** | "That's not my area, I'm focused on costs and margins, not currency exchange." | ❌ |
+| OK, what first? (3,5 s) | **Tomasz** | "First, bill the full hours at 200,00 zł for the three orders ... to recover the 1700,00 zł missing." | ❌ |
+
+**Why it went wrong:** "cost" is one of Tomasz's keywords, and a keyword beat the chat. "OK, what first?" then stayed
+with Tomasz, because he had answered last. All numbers on screen were rule numbers.
+
+**Fix** (`agents/topic.ts`, PR agents8b-chat-followup): when the question points back ("it", "that", "this") and the
+history has a CFO, money words alone ("cost", "how much", "price", "cheap", "save") no longer switch the CFO. A real
+topic ("Is it time to pay VAT?" → Marek), "cut costs" (→ Tomasz) or a CFO's name still switch.
+
+### Run 2: after the fix
+To do after the merge (production rebuilds from `main`): the same 3 follow-ups must all come from Kasia.
+
+**Seen in passing (not B's files):** the chair writes "36,000 zł" (English format) and lists all open cards, not the
+EUR topic; Marek and Anna say "not my area" instead of passing (`agents/boardroom.ts`, Person C).
