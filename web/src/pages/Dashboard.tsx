@@ -18,8 +18,8 @@ const RANGES = [30, 60, 90] as const;
 const PRIORITY: Record<Tier, number> = { NEEDS_APPROVAL: 0, RECOMMENDED: 1, ANALYSED: 2 };
 // One accent in tints + greys: the biggest costs are the strongest colour.
 const CAT_COLOR: Record<ExpenseCategory, string> = {
-  payroll: '#D40000', taxes: '#141414', parts: '#1D4ED8', rent: '#6b6b6b',
-  leasing: '#F2B8C0', utilities: '#a3a3a3', other: '#d4d4d4',
+  payroll: '#2f2a24', taxes: '#7c5a3a', parts: '#a68a64', rent: '#78716c',
+  leasing: '#c8bba6', utilities: '#d6d3d1', other: '#e7e5e4',
 };
 
 export default function Dashboard() {
@@ -81,17 +81,17 @@ export default function Dashboard() {
     <div className="space-y-5">
       <PageHeader title={t('dashboard')}>
         <span className="flex flex-wrap items-center gap-2">
-          <Link to="/report" className="no-print inline-flex min-h-12 items-center gap-2 rounded-full border border-black/15 bg-white px-5 font-semibold hover:bg-zinc-100">
+          <Link to="/report" className="no-print inline-flex min-h-10 items-center gap-2 rounded-full border border-black/15 bg-white px-4 text-[15px] font-semibold hover:bg-zinc-100">
             <Icon name="receipt" size={18} /> {t('print_a4')}
           </Link>
-          <Link to="/ksef" className="no-print inline-flex min-h-12 items-center gap-3 rounded-full bg-accent px-6 text-lg font-bold text-white hover:brightness-95">
+          <Link to="/ksef" className="no-print inline-flex min-h-10 items-center gap-2 rounded-full bg-accent px-5 text-[15px] font-bold text-white hover:brightness-95">
             <Icon name="receipt" /> {t('invoices')} <Icon name="arrow-up-right" size={18} />
           </Link>
           {/* Tabs: Overview = this page as it was; Week and Month = KPI cards (PeriodView.tsx) */}
           <span className="no-print grid w-full grid-cols-3 items-center gap-1 rounded-2xl border border-black/10 bg-white p-1 sm:flex sm:w-auto sm:rounded-full" role="group" aria-label={t('kpi_view')}>
             {(['review', 'week', 'month'] as const).map((p) => (
               <button key={p} onClick={() => setView(p)} aria-pressed={view === p}
-                className={`min-h-12 rounded-full px-3 text-base font-semibold sm:px-5 ${view === p ? 'bg-ink text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
+                className={`min-h-10 rounded-full px-3 text-[15px] font-semibold sm:px-4 ${view === p ? 'bg-ink text-white' : 'text-stone-700 hover:bg-black/5'}`}>
                 <span className="sm:hidden">{t(p === 'review' ? 'view_review_short' : p === 'week' ? 'view_week' : 'view_month')}</span>
                 <span className="hidden sm:inline">{t(p === 'review' ? 'view_review' : p === 'week' ? 'view_week' : 'view_month')}</span>
               </button>
@@ -120,7 +120,7 @@ export default function Dashboard() {
             <span aria-hidden="true" className="hidden pb-2 text-3xl text-stone-400 sm:inline">→</span>
             <div>
               <p className="text-base font-semibold text-stone-700">{t('forecast_word')} · {fmtDay(f90.lowest.date)}</p>
-              <p className={`text-3xl font-bold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none ${f90.lowest.balancePLN < 0 ? 'text-warn' : 'text-accent-ink'}`}>
+              <p className={`text-3xl font-bold tracking-tight tabular-nums sm:text-[2.75rem] sm:leading-none ${f90.lowest.balancePLN < 0 ? 'text-warn' : 'text-good'}`}>
                 <CountUp text={fmtPLN(f90.lowest.balancePLN)} />
               </p>
             </div>
@@ -128,7 +128,7 @@ export default function Dashboard() {
               ? <span className="mb-1 inline-flex flex-wrap items-center gap-1 text-lg font-semibold text-warn"><WarnMark arrow={false} />{t('projected_shortfall')}</span>
               : f90.lowest.balancePLN < f90.bufferPLN
                 ? <span className="mb-1"><WarnMark />{t('verdict_low')}</span>
-                : <span className="mb-1 rounded-full bg-accent-soft px-3 py-1 font-semibold text-accent-ink">{t('status_ok_13w')}</span>}
+                : <span className="mb-1 rounded-full bg-good-soft px-3 py-1 font-semibold text-good">{t('status_ok_13w')}</span>}
           </div>
         ) : <div className="skeleton h-12 w-2/3" />}
         {open[0] && (
@@ -295,10 +295,10 @@ function AgentLog({ lines }: { lines: string[] }) {
   return (
     <ul className="agent-log space-y-2" aria-label={t('agents_found')}>
       {items.map((it, i) => (
-        <li key={i} className="log-in flex items-start gap-3 rounded-xl bg-[#1f1f1f] px-4 py-3 text-[17px] leading-snug text-white"
+        <li key={i} className="log-in flex items-start gap-3 rounded-xl bg-[#3a342d] px-4 py-3 text-[17px] leading-snug text-white"
           style={{ animationDelay: `${i * 90}ms` }}>
           {it.k < 4 && (
-            <span className={`mt-0.5 shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-sm font-bold ${it.k === 0 ? 'bg-accent text-white' : it.k === 1 ? 'bg-white text-ink' : 'border border-white/40 text-white'}`}>
+            <span className={`mt-0.5 shrink-0 whitespace-nowrap rounded-full px-2.5 py-0.5 text-sm font-bold ${it.k === 0 ? 'bg-white text-ink' : it.k === 1 ? 'bg-[#efe9df] text-ink' : 'border border-white/40 text-white'}`}>
               {t(TAG[it.k])}
             </span>
           )}
@@ -384,8 +384,8 @@ function CashChart({ f }: { f: Forecast }) {
           <Tooltip formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
             contentStyle={{ borderRadius: 16, border: '1px solid rgb(0 0 0 / 0.1)', fontSize: 16 }} />
           <ReferenceLine y={0} stroke="#1d1d1f" strokeWidth={2} />
-          <ReferenceLine y={f.bufferPLN} stroke="#D40000" strokeDasharray="8 6" strokeWidth={2}>
-            <Label value={`${t('buffer')} ${short(f.bufferPLN)}`} position="insideTopRight" fontSize={14} fontWeight={600} fill="#D40000" />
+          <ReferenceLine y={f.bufferPLN} stroke="#78716C" strokeDasharray="8 6" strokeWidth={2}>
+            <Label value={`${t('buffer')} ${short(f.bufferPLN)}`} position="insideTopRight" fontSize={14} fontWeight={600} fill="#78716C" />
           </ReferenceLine>
           <Area type="stepAfter" dataKey="balancePLN" stroke="url(#cashLine)" strokeWidth={4} fill="url(#cashFill)" isAnimationActive={false} />
           <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={8} fill="#CC0000" stroke="#fff" strokeWidth={3} shape={TravelDot}>

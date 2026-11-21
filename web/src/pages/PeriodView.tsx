@@ -14,8 +14,8 @@ import { useSweep } from '../components/useSweep';
 
 // One accent in tints + greys: the biggest costs are the strongest colour.
 const CAT_COLOR: Record<ExpenseCategory, string> = {
-  payroll: '#D40000', taxes: '#141414', parts: '#1D4ED8', rent: '#6b6b6b',
-  leasing: '#F2B8C0', utilities: '#a3a3a3', other: '#d4d4d4',
+  payroll: '#2f2a24', taxes: '#7c5a3a', parts: '#a68a64', rent: '#78716c',
+  leasing: '#c8bba6', utilities: '#d6d3d1', other: '#e7e5e4',
 };
 
 export default function PeriodView({ view }: { view: 'week' | 'month' }) {
@@ -115,7 +115,7 @@ export default function PeriodView({ view }: { view: 'week' | 'month' }) {
 
           <Details title={t('details_forecast')}>
             {verdict && (
-              <p className={`flex items-start gap-2 text-xl font-bold leading-snug ${verdict.tone === 'ok' ? 'text-accent-ink' : 'text-warn'}`}>
+              <p className={`flex items-start gap-2 text-xl font-bold leading-snug ${verdict.tone === 'ok' ? 'text-good' : 'text-warn'}`}>
                 {verdict.tone === 'warn' && <WarnMark />}
                 {verdict.text}
               </p>
@@ -286,8 +286,8 @@ function CashChart({ f }: { f: Forecast }) {
           <Tooltip formatter={(v) => [fmtPLN(Number(v)), t('balance')]} labelFormatter={(d) => fmtDay(String(d))}
             contentStyle={{ borderRadius: 16, border: '1px solid rgb(0 0 0 / 0.1)', fontSize: 18 }} />
           <ReferenceLine y={0} stroke="#1d1d1f" strokeWidth={2} />
-          <ReferenceLine y={f.bufferPLN} stroke="#D40000" strokeDasharray="8 6" strokeWidth={2}>
-            <Label value={`${t('buffer')} ${tys(f.bufferPLN)}`} position="insideTopRight" fontSize={16} fontWeight={600} fill="#D40000" />
+          <ReferenceLine y={f.bufferPLN} stroke="#78716C" strokeDasharray="8 6" strokeWidth={2}>
+            <Label value={`${t('buffer')} ${tys(f.bufferPLN)}`} position="insideTopRight" fontSize={16} fontWeight={600} fill="#78716C" />
           </ReferenceLine>
           <Area type="stepAfter" dataKey="balancePLN" stroke="url(#cashLine)" strokeWidth={5} fill="url(#cashFill)" isAnimationActive={false} />
           <ReferenceDot x={f.lowest.date} y={f.lowest.balancePLN} r={9} fill="#CC0000" stroke="#fff" strokeWidth={3} shape={TravelDot}>
@@ -415,7 +415,7 @@ function KpiCard({ owner, label, value, valueKind = 'actual', target, compare, t
         {target && <span className="text-lg font-semibold text-stone-700">{t('target')} {target}</span>}
       </p>
       {deviation && compare && !stale && (
-        <p className={`mt-2 flex flex-wrap items-center gap-x-2 text-lg font-bold leading-snug ${compare.good ? 'text-ink' : 'text-warn'}`}>
+        <p className={`mt-2 flex flex-wrap items-center gap-x-2 text-lg font-bold leading-snug ${compare.good ? 'text-good' : 'text-warn'}`}>
           {!compare.good && <WarnMark arrow={false} />}
           {!hasArrow && <span aria-hidden="true">{up ? '▲' : '▼'}</span>}
           <span className="tabular-nums">{text}</span>

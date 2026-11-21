@@ -62,11 +62,11 @@ export default function App() {
         <header className="sticky top-0 z-30 bg-paper/95">
           {/* flex-wrap: with big text (Settings → A++) the buttons go to a second line instead of off the screen */}
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 py-1 pl-4 pr-2">
-            <span className="whitespace-nowrap font-display text-[28px] font-extrabold leading-none tracking-tight sm:text-[32px]"><span aria-hidden="true" className="sm:hidden">M</span><span className="sr-only sm:not-sr-only">MANI</span></span>
+            <span className="whitespace-nowrap font-display text-[38px] font-extrabold leading-none tracking-tight sm:text-[56px]"><span aria-hidden="true" className="sm:hidden">M</span><span className="sr-only sm:not-sr-only">MANI</span></span>
             <nav aria-label="Menu" className="hidden items-center gap-1 lg:flex">
               {NAV.map((n) => (
                 <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
-                  `flex min-h-12 items-center whitespace-nowrap rounded-full px-3 font-medium xl:px-4 ${isActive ? 'bg-accent font-semibold text-white' : 'text-stone-700 hover:bg-zinc-100'}`}>
+                  `flex min-h-9 items-center whitespace-nowrap rounded-full px-3 text-[15px] font-medium ${isActive ? 'bg-ink font-semibold text-white' : 'text-stone-700 hover:bg-black/5'}`}>
                   {t(n.key)}
                 </NavLink>
               ))}
@@ -80,7 +80,7 @@ export default function App() {
               </button>
 
               <button onClick={logout} title={`${user.name} · demo`}
-                className="min-h-12 whitespace-nowrap rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-zinc-800">{t('logout')}</button>
+                className="min-h-9 whitespace-nowrap rounded-full bg-ink px-3.5 text-[14px] font-semibold text-white hover:bg-zinc-800">{t('logout')}</button>
             </div>
           </div>
         </header>
@@ -105,7 +105,7 @@ export default function App() {
       <nav aria-label="Menu" className="fixed inset-x-3 bottom-3 z-30 grid grid-cols-5 rounded-full bg-ink p-1.5 shadow-xl lg:hidden">
         {NAV.map((n) => (
           <NavLink key={n.to} to={n.to} end className={({ isActive }) =>
-            `flex min-h-14 flex-col items-center justify-center rounded-full text-center text-[13px] font-medium leading-tight ${isActive ? 'bg-accent text-white' : 'text-zinc-300'}`}>
+            `flex min-h-14 flex-col items-center justify-center rounded-full text-center text-[13px] font-medium leading-tight ${isActive ? 'bg-white text-ink' : 'text-zinc-300'}`}>
             <Icon name={n.icon} size={22} />
             <span className="max-w-full px-0.5 text-[12px] leading-[1.1]">{t(n.key)}</span>
           </NavLink>
