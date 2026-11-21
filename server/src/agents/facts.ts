@@ -3,8 +3,8 @@
 // With a few clearly labelled facts plus a ready-made conclusion it only has to say the conclusion in its own words.
 // `summary` is also the safe answer when the model is down or invents a number.
 // The whole app speaks English (money keeps the Polish format "12 430,00 zł", the shop is Polish).
-// Rebuild (docs/PAIR2-REBUILD.md): the conclusion is split into POINTS with an id. The model only picks ids, the
-// text always comes from here, so a number can never get the wrong label.
+// The conclusion is split into POINTS: `critical` decides who speaks in the meeting (agents/boardroom.ts), and
+// explain.ts reuses Kasia's points. Rebuild 2 (8B): the model writes the answer, agents/guard.ts checks its numbers.
 import type { CfoId } from '@cfo/shared';
 import { db } from '../domain/store';
 import { daysBetween, fmtPLN } from '../domain/money';
@@ -21,9 +21,7 @@ export interface CfoPoint {
   id: string; // stable per CFO, e.g. "gap", "reminders", "fx-EUR", "next-tax", "labour"
   text: string; // one or two plain English sentences
   core: boolean; // part of the conclusion (the summary). Other points are details the owner may ask about.
-  critical: boolean; // a real risk right now: a calming comment must never be shown for this CFO
-  needs?: string; // id of a point this one reads after ("If that is not enough…" needs "reminders"): shown together
-  sameAs?: string; // id of a point that already says this: skipped when that point is shown
+  critical: boolean; // a real risk right now: this CFO always speaks in the meeting (agents/boardroom.ts)
 }
 
 export interface CfoFacts {
@@ -34,9 +32,7 @@ export interface CfoFacts {
 
 /** What a builder returns: `summary` is always made from the core points (cfoFacts). */
 type Built = Omit<CfoFacts, 'summary'>;
-const point = (id: string, text: string, core = true, critical = false, extra: Pick<CfoPoint, 'needs' | 'sameAs'> = {}): CfoPoint => ({
-  id, text, core, critical, ...extra,
-});
+const point = (id: string, text: string, core = true, critical = false): CfoPoint => ({ id, text, core, critical });
 export const summaryOf = (points: CfoPoint[]) => points.filter((p) => p.core).map((p) => p.text).join(' ');
 
 const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -83,7 +79,7 @@ function anna(): Built {
     // "If that is not enough" only follows the reminders; without late customers it had nothing to point back to.
     if (credit) {
       points.push(late.length
-        ? point('credit', `If that is not enough, a credit line of ${fmtPLN(credit)}.`, true, false, { needs: 'reminders' })
+        ? point('credit', `If that is not enough, a credit line of ${fmtPLN(credit)}.`)
         : point('credit', `A credit line of ${fmtPLN(credit)} would cover the gap.`));
     }
   }
@@ -186,9 +182,7 @@ function marek(): Built {
   if (!points.length) points.push(point('ok', 'Taxes and KSeF are in order.'));
   // Every tax due in 30 days, so a question about ZUS or PIT gets its own deadline, not only the next one.
   for (const o of taxes) {
-    // The next tax is already the "next-tax" point: never show the same deadline twice.
-    const sameAs = o === next ? 'next-tax' : undefined;
-    points.push(point(`tax-${o.id}`, `${o.kind}: ${fmtPLN(o.amountPLN)}, due ${fmtDateEn(o.dueDate)} (${inDays(o.dueDate)}), still unpaid.`, false, false, { sameAs }));
+    points.push(point(`tax-${o.id}`, `${o.kind}: ${fmtPLN(o.amountPLN)}, due ${fmtDateEn(o.dueDate)} (${inDays(o.dueDate)}), still unpaid.`, false));
   }
   // The reason was only in the old prompt lines (found in M8): "why was it rejected?" needs its own point.
   for (const i of rejected) {
