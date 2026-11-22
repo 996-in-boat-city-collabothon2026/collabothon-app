@@ -101,6 +101,9 @@ What we would improve next:
 - Add tracing and evaluation of the agents (e.g. MLflow) and compare open models such as Granite against Llama on the same scenarios.
 - Replace the KPI demo figures with rule-based numbers and add the investment agent (deposits, money-market funds).
 
+Source code repository:
+https://github.com/996-in-boat-city-collabothon2026/collabothon-app.git
+
 
 
 
